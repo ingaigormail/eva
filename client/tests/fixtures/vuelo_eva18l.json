@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "client": {
+    "name": "EvA",
+    "version": "0.1.0",
+    "simulator": "MSFS2024"
+  },
+  "pilot": {
+    "license_id": "EVA18L",
+    "callsign": "EVA18L"
+  },
+  "flight_plan": {
+    "rules": "VFR",
+    "departure_icao": "ZZZZ",
+    "arrival_icao": "ZZZZ",
+    "aircraft_icao_type": "ATCCOM.AC_MODEL C172.0.text",
+    "aircraft_registration": "EVA18L",
+    "network": "OFFLINE",
+    "atc_controlled": false
+  },
+  "timing": {
+    "block_off_utc": "2026-08-15T11:48:23.337056Z",
+    "block_on_utc": "2026-08-15T12:30:50.466196Z",
+    "max_sim_rate_observed": 1.0
+  },
+  "events": [],
+  "track": [
+    {
+      "t": -0.2,
+      "lat": 38.4415,
+      "lon": -27.352411,
+      "alt_msl_ft": 454.3,
+      "alt_agl_ft": 4.0,
+      "hdg_deg": 116.7,
+      "gs_kt": 50.9,
+      "ias_kt": 39.8,
+      "vs_fpm": -7242.1,
+      "on_ground": true,
+      "bank_deg": -0.4,
+      "fuel_kg": 69.77,
+      "squawk": "7000",
+      "landing_light": false,
+      "beacon_light": true,
+      "nav_light": true,
+      "taxi_light": false,
+      "strobe_light": true
+    }
+  ],
+  "summary": {
+    "total_distance_nm": 0.0,
+    "fuel_used_kg": 0.0,
+    "fuel_remaining_kg": 69.77,
+    "flight_time_min": 42.5
+  }
+}

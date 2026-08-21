@@ -33,6 +33,7 @@ def entorno(tmp_path, monkeypatch):
     cuentas.crear_cuenta("EvA18L", "clave", "uno@ejemplo.com")
     cuentas.crear_cuenta("EVA999", "clave", "otro@ejemplo.com")
     app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
     yield
     cuentas.configurar_almacen(original)
 

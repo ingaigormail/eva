@@ -25,6 +25,7 @@ def entorno(tmp_path, monkeypatch):
     correo.BANDEJA.clear()
 
     app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
     yield
 
     correo.BANDEJA.clear()

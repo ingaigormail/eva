@@ -52,6 +52,7 @@ def _altas_aisladas(tmp_path):
 @pytest.fixture
 def sin_sesion():
     app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
     return app.test_client()
 
 

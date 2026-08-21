@@ -40,6 +40,7 @@ def entorno(tmp_path, monkeypatch):
     monkeypatch.setattr(importacion, "REGISTRO_PATH", tmp_path / "importados.json")
 
     app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
     yield
     cuentas.configurar_almacen(original)
 

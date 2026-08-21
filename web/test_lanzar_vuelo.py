@@ -35,6 +35,7 @@ def entorno(tmp_path, monkeypatch):
     cuentas.configurar_almacen(tmp_path / "usuarios.json")
     cuentas.crear_cuenta("EvA18L", "clave", "uno@ejemplo.com")
     app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
     app_module._grabador = None
     yield
     app_module._grabador = None
