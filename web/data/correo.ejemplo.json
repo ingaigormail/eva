@@ -1,0 +1,8 @@
+{
+  "host": "smtp.gmail.com",
+  "puerto": 587,
+  "usuario": "tu-email@gmail.com",
+  "password": "tu-contraseña-de-aplicacion",
+  "remitente": "tu-email@gmail.com",
+  "gestion": "gestor@ejemplo.com"
+}
