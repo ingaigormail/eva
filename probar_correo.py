@@ -32,13 +32,23 @@ def oculta(secreto: str) -> str:
 
 cfg = correo.configuracion()
 
+ES_GMAIL = cfg.transporte == correo.TRANSPORTE_GMAIL
+
 print("Configuración que va a usar EvA")
 print("------------------------------")
-print(f"  Transporte : {cfg.transporte}   <- 'api' es lo que funciona en Render")
-print(f"  Servidor   : {cfg.host}")
-print(f"  Usuario    : {oculta(cfg.usuario)}")
-print(f"  Clave      : {oculta(cfg.password)}")
-print(f"  Remitente  : {cfg.remitente}   <- tiene que estar validado en Mailjet")
+print(f"  Transporte : {cfg.transporte}")
+if ES_GMAIL:
+    # Con la API de Gmail no hay servidor de correo al que conectarse, y
+    # usuario/clave son las credenciales de la aplicación en Google.
+    print("               (API de Gmail por HTTPS: lo que admite Render)")
+    print(f"  Cliente    : {oculta(cfg.usuario)}")
+    print(f"  Secreto    : {oculta(cfg.password)}")
+    print(f"  Permiso    : {oculta(cfg.refresh_token)}")
+else:
+    print(f"  Servidor   : {cfg.host}:{cfg.puerto}")
+    print(f"  Usuario    : {oculta(cfg.usuario)}")
+    print(f"  Clave      : {oculta(cfg.password)}")
+print(f"  Remitente  : {cfg.remitente}")
 print(f"  Gestión    : {cfg.gestion}")
 print()
 
@@ -59,10 +69,17 @@ except correo.CorreoNoConfigurado as exc:
     print(f"\n✗ Sin configurar: {exc}")
     raise SystemExit(1)
 except correo.CorreoNoEnviado as exc:
-    print(f"\n✗ El proveedor lo rechazó. Motivo tal cual lo dio:\n\n    {exc}\n")
+    print(f"\n✗ No salió. Motivo tal cual lo dio el proveedor:\n\n    {exc}\n")
     print("Los motivos más habituales:")
-    print("  · El remitente no está validado en Mailjet.")
-    print("  · Las claves están cambiadas (la pública va en usuario).")
+    if ES_GMAIL:
+        print("  · Un antivirus inspeccionando el tráfico cifrado (Norton).")
+        print("    Solo pasa en este equipo, no en el servidor.")
+        print("  · El permiso caducó: en modo «Prueba» dura 7 días.")
+        print("    Se arregla publicando la app en Google Cloud.")
+        print("  · La Gmail API no está habilitada en el proyecto.")
+    else:
+        print("  · El remitente no está validado en el proveedor.")
+        print("  · Las claves están cambiadas (la pública va en usuario).")
     raise SystemExit(1)
 
 print(f"\n✓ Enviado. Mira la bandeja de {destino} (y la carpeta de spam).")

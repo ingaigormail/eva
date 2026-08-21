@@ -356,3 +356,28 @@ def test_gmail_en_modo_memoria_no_toca_la_red(config_gmail, monkeypatch):
 
     assert len(correo.BANDEJA) == 1
     correo.BANDEJA.clear()
+
+
+def test_el_error_de_certificado_se_reconoce_aunque_venga_envuelto(
+    config_gmail, monkeypatch
+):
+    """`urlopen` mete el SSLError dentro de un URLError, en `.reason`.
+
+    Un `except ssl.SSLError` alrededor de `urlopen` no salta nunca. Se coló
+    justo así el 2026-08-21: el aviso del antivirus estaba escrito, pero el
+    usuario veía un «no se pudo hablar con Google» que no decía nada.
+    """
+    import ssl
+
+    def falso_urlopen(peticion, timeout=None):
+        raise urllib.error.URLError(
+            ssl.SSLCertVerificationError(
+                1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"
+            )
+        )
+
+    monkeypatch.setattr(correo.urllib.request, "urlopen", falso_urlopen)
+
+    with pytest.raises(correo.CorreoNoEnviado) as fallo:
+        correo.enviar("piloto@ejemplo.com", "Asunto", "Cuerpo")
+    assert "antivirus" in str(fallo.value).lower()
