@@ -1,0 +1,7 @@
+# Dependencias del servidor web de la cartilla.
+# El motor de evaluación y el esquema se importan de ../client, que se
+# instala aparte con `pip install -e client`.
+Flask>=3.0
+Flask-WTF>=1.2  # CSRF protection
+bleach>=6.0  # HTML sanitization
+markupsafe>=2.1  # HTML escaping

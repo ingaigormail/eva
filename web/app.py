@@ -102,10 +102,18 @@ from auth import (  # noqa: E402
 )
 import importacion  # noqa: E402
 from despacho_pesos import datos_para_plantilla  # noqa: E402
+from security import setup_security_headers, sanitize_input  # noqa: E402
+from flask_wtf.csrf import CSRFProtect  # noqa: E402
 
 app = Flask(__name__)
 # Nunca escrita en el código: entorno o `web/data/secret_key.txt` (ver secreto.py).
 app.secret_key = secreto.clave_de_sesion()
+
+# CSRF protection
+csrf = CSRFProtect(app)
+
+# Security headers
+setup_security_headers(app)
 
 # La cookie de sesión, lo más cerrada que permita el sitio donde corra.
 app.config.update(
@@ -506,7 +514,9 @@ def solicitar_alta():
 
     if request.method == "POST":
         for campo in datos:
-            datos[campo] = request.form.get(campo, "").strip()
+            valor = request.form.get(campo, "").strip()
+            # Sanitizar entrada: remove HTML, escape special chars
+            datos[campo] = sanitize_input(valor)
 
         if not datos["license_id"]:
             error = "Indica tu Callsign o ID de EVA."
