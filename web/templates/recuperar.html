@@ -18,6 +18,7 @@
 
   {% if not aviso %}
   <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
       <label for="identificador">ID de piloto o correo</label>
       <input type="text" id="identificador" name="identificador"

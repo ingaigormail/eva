@@ -109,6 +109,7 @@
           <td>
             <div class="acciones">
               <form method="POST" action="{{ url_for('gestion_solicitud', solicitud_id=s.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="accion" value="aprobar">
                 <select name="rol" class="mini-input" style="width: auto;">
                   <option value="piloto">piloto</option>
@@ -117,6 +118,7 @@
                 <button class="mini primario" type="submit">Aprobar y dar de alta</button>
               </form>
               <form method="POST" action="{{ url_for('gestion_solicitud', solicitud_id=s.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="accion" value="rechazar">
                 <button class="mini peligro" type="submit">Rechazar</button>
               </form>
@@ -136,6 +138,7 @@
       escribe ninguna contraseña: el piloto recibe un enlace y pone la suya.
     </p>
     <form method="POST" action="{{ url_for('gestion_alta') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="fila-campos">
         <div class="campo">
           <label for="license_id">Callsign / ID de EVA</label>
@@ -176,6 +179,7 @@
         </td>
         <td>
           <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="accion" value="correo">
             <input class="mini-input" type="email" name="correo" value="{{ u.correo }}"
                    placeholder="sin correo" required>
@@ -186,6 +190,7 @@
         <td><span class="etiqueta {{ u.estado }}">{{ u.estado }}</span></td>
         <td>
           <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="accion" value="rol">
             <select name="rol" class="mini-input" style="width: auto;">
               <option value="piloto" {% if u.rol == 'piloto' %}selected{% endif %}>piloto</option>
@@ -198,18 +203,21 @@
           <div class="acciones">
             {% if u.estado == 'activa' %}
             <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="accion" value="bloquear">
               <button class="mini peligro" type="submit"
                       {% if u.license_id == usuario_actual %}disabled title="No puedes bloquearte a ti mismo"{% endif %}>Bloquear</button>
             </form>
             {% else %}
             <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="accion" value="desbloquear">
               <button class="mini" type="submit">Desbloquear</button>
             </form>
             {% endif %}
 
             <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="accion" value="enlace">
               <button class="mini" type="submit" title="Le manda un enlace de un solo uso para poner contraseña nueva">Enviar enlace de contraseña</button>
             </form>

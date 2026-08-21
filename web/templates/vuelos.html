@@ -55,6 +55,7 @@
               <td>
                 <form method="POST" action="{{ url_for('borrar_mi_vuelo', nombre=vuelo.archivo) }}"
                       onsubmit="return confirm('¿Borrar este vuelo? No se puede deshacer.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="mini peligro" type="submit">Borrar</button>
                 </form>
               </td>

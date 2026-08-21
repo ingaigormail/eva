@@ -30,6 +30,7 @@
   {% endif %}
 
   <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
       <label for="license_id">Callsign / ID de EVA</label>
       <input type="text" id="license_id" name="license_id" placeholder="ej: EVA18L"

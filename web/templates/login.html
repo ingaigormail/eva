@@ -15,6 +15,7 @@
   {% endif %}
 
   <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
       <label for="user_id">ID de piloto</label>
       <input type="text" id="user_id" name="user_id" placeholder="ej: WVN89 9" required autofocus>

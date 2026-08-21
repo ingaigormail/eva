@@ -54,6 +54,7 @@
               <a class="mini" href="{{ url_for('plan', plan=p.id) }}">Abrir</a>
               <form method="POST" action="{{ url_for('borrar_plan', plan_id=p.id) }}"
                     onsubmit="return confirm('¿Borrar este plan? No se puede deshacer.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="mini peligro" type="submit">Borrar</button>
               </form>
             </div>

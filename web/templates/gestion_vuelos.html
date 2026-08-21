@@ -53,6 +53,7 @@
       atribuir a nadie el vuelo de otra persona.
     </p>
     <form method="POST" action="{{ url_for('gestion_subir_vuelo') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="fila-campos">
         <div class="campo">
           <label for="license_id">Piloto</label>
@@ -86,6 +87,7 @@
           <td>
             <form method="POST" action="{{ url_for('gestion_borrar_vuelo', nombre=v.archivo) }}"
                   onsubmit="return confirm('¿Borrar {{ v.archivo }}? No se puede deshacer.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="mini peligro" type="submit">Borrar</button>
             </form>
           </td>
