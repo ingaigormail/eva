@@ -13,10 +13,26 @@ sitios donde ponerlo, y el entorno manda sobre el fichero:
        EVA_SMTP_FROM / EVA_CORREO_GESTION / EVA_CORREO_TRANSPORTE
        EVA_SMTP_MODO  ("memoria" en los tests: no abre ninguna conexión)
 
-## Dos transportes, y por qué el de por defecto es la API
+## Tres transportes, y cuál usar dónde
 
+- **`gmail`** — la API de Gmail por HTTPS. **Es la que hay que usar en
+  Render**, ver más abajo. Manda desde la propia cuenta de EvA.
 - **`api`** — la Send API v3.1 de Mailjet por HTTPS (`urllib`, stdlib).
-- **`smtp`** — el relé SMTP de toda la vida (`smtplib`, stdlib).
+- **`smtp`** — el relé SMTP de toda la vida (`smtplib`, stdlib). Va bien en
+  local, y en cualquier servidor que no bloquee esos puertos.
+
+### En Render el SMTP no llega ni a conectar
+
+Su plan gratuito **bloquea los puertos 25, 465 y 587** desde septiembre de
+2025, para frenar el spam. El síntoma es `[Errno 101] Network is unreachable`
+y despista mucho, porque parece un fallo de configuración. No lo es: no hay
+contraseña que lo arregle. Por eso existe el transporte `gmail`, que sale por
+el 443 como cualquier página web.
+
+Mailjet se probó antes y su cuenta acabó bloqueada («Your account has been
+temporarily blocked»), que es lo normal en proveedores transaccionales con
+cuentas nuevas. La API de Gmail evita depender de un tercero que pueda cerrar
+el grifo.
 
 Por defecto se usa la **API** cuando el proveedor es Mailjet. La razón la
 aprendimos a base de perder una tarde (2026-08-18): con la cuenta bloqueada,
@@ -44,6 +60,7 @@ import os
 import smtplib
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from email.message import EmailMessage
@@ -55,9 +72,17 @@ CUENTA_POR_DEFECTO = "aviacionmsfs@gmail.com"
 
 TRANSPORTE_API = "api"
 TRANSPORTE_SMTP = "smtp"
-TRANSPORTES = (TRANSPORTE_API, TRANSPORTE_SMTP)
+TRANSPORTE_GMAIL = "gmail"
+TRANSPORTES = (TRANSPORTE_API, TRANSPORTE_SMTP, TRANSPORTE_GMAIL)
 
 API_URL_POR_DEFECTO = "https://api.mailjet.com/v3.1/send"
+
+#: API de Gmail: se manda desde la propia cuenta, por HTTPS. Es el único
+#: camino que queda en un Render gratuito, que bloquea los puertos de SMTP.
+GMAIL_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+GMAIL_TOKEN_URL = "https://oauth2.googleapis.com/token"
+#: Solo enviar. No da acceso a leer el buzón, y conviene que siga así.
+GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 
 MODO_MEMORIA = "memoria"
 
@@ -83,6 +108,9 @@ class Configuracion:
     gestion: str
     transporte: str = TRANSPORTE_SMTP
     api_url: str = API_URL_POR_DEFECTO
+    #: Solo para el transporte `gmail`. Con él, `usuario` y `password` son
+    #: el ID y el secreto de cliente de Google, no un correo y su clave.
+    refresh_token: str = ""
 
 
 def ruta_config() -> Path:
@@ -150,6 +178,9 @@ def configuracion() -> Configuracion:
         ).strip(),
         remitente=_valor(fichero, "remitente", "EVA_SMTP_FROM", usuario),
         gestion=_valor(fichero, "gestion", "EVA_CORREO_GESTION", usuario),
+        refresh_token=_valor(
+            fichero, "refresh_token", "EVA_GMAIL_REFRESH_TOKEN", ""
+        ),
     )
 
 
@@ -162,6 +193,12 @@ def configurado() -> bool:
     if modo_memoria():
         return True
     cfg = configuracion()
+    if cfg.transporte == TRANSPORTE_GMAIL:
+        # Aquí no hay servidor al que conectarse: hace falta el permiso que
+        # dio el dueño de la cuenta (el testigo de refresco) y poco más.
+        return bool(
+            cfg.usuario and cfg.password and cfg.refresh_token and cfg.remitente
+        )
     return bool(cfg.host and cfg.usuario and cfg.password and cfg.remitente)
 
 
@@ -196,10 +233,90 @@ def enviar(destinatario: str, asunto: str, cuerpo: str) -> None:
             "Falta la configuración de correo (EVA_SMTP_PASSWORD y compañía)."
         )
 
-    if cfg.transporte == TRANSPORTE_API:
+    if cfg.transporte == TRANSPORTE_GMAIL:
+        _enviar_por_gmail(cfg, mensaje)
+    elif cfg.transporte == TRANSPORTE_API:
         _enviar_por_api(cfg, destinatario, asunto, cuerpo)
     else:
         _enviar_por_smtp(cfg, mensaje)
+
+
+def _token_de_acceso(cfg: Configuracion) -> str:
+    """Cambia el testigo de refresco por uno de acceso, que dura una hora.
+
+    El de refresco no caduca solo (salvo que se revoque el permiso desde la
+    cuenta de Google), así que se guarda una vez y ya. El de acceso se pide
+    en cada envío: son cuatro correos al día, no compensa cachearlo.
+    """
+    datos = urllib.parse.urlencode(
+        {
+            "client_id": cfg.usuario,
+            "client_secret": cfg.password,
+            "refresh_token": cfg.refresh_token,
+            "grant_type": "refresh_token",
+        }
+    ).encode("utf-8")
+
+    peticion = urllib.request.Request(
+        GMAIL_TOKEN_URL,
+        method="POST",
+        data=datos,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    try:
+        with urllib.request.urlopen(peticion, timeout=25) as r:
+            respuesta = json.loads(r.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as exc:
+        # Google explica el motivo en el cuerpo, y suele ser claro:
+        # «invalid_grant» = el permiso se revocó o el testigo es de otra app.
+        detalle = exc.read().decode("utf-8", "replace")
+        try:
+            fallo = json.loads(detalle)
+            motivo = fallo.get("error_description") or fallo.get("error") or detalle
+        except ValueError:
+            motivo = detalle[:300] or f"HTTP {exc.code}"
+        raise CorreoNoEnviado(f"Google no renovó el permiso: {motivo}") from exc
+    except OSError as exc:
+        raise CorreoNoEnviado(f"No se pudo hablar con Google: {exc}") from exc
+
+    token = respuesta.get("access_token", "")
+    if not token:
+        raise CorreoNoEnviado("Google no devolvió ningún permiso de acceso.")
+    return token
+
+
+def _enviar_por_gmail(cfg: Configuracion, mensaje: EmailMessage) -> None:
+    """Manda el mensaje con la API de Gmail, por HTTPS.
+
+    Existe por una razón concreta: Render bloquea los puertos de SMTP en su
+    plan gratuito, así que `_enviar_por_smtp` no llega ni a conectar («Network
+    is unreachable»). Esto sale por el 443 de toda la vida.
+    """
+    crudo = base64.urlsafe_b64encode(mensaje.as_bytes()).decode("ascii")
+
+    peticion = urllib.request.Request(
+        GMAIL_URL,
+        method="POST",
+        data=json.dumps({"raw": crudo}).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {_token_de_acceso(cfg)}",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(peticion, timeout=25) as r:
+            r.read()
+    except urllib.error.HTTPError as exc:
+        detalle = exc.read().decode("utf-8", "replace")
+        try:
+            motivo = json.loads(detalle)["error"]["message"]
+        except (ValueError, KeyError, TypeError):
+            motivo = detalle[:300] or f"HTTP {exc.code}"
+        raise CorreoNoEnviado(motivo) from exc
+    except OSError as exc:
+        raise CorreoNoEnviado(f"No se pudo enviar por la API de Gmail: {exc}") from exc
 
 
 def _enviar_por_smtp(cfg: Configuracion, mensaje: EmailMessage) -> None:

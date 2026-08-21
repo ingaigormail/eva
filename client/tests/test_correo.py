@@ -195,3 +195,164 @@ def test_el_modo_memoria_sigue_sin_tocar_la_red(config_mailjet, monkeypatch):
 
     assert len(correo.BANDEJA) == 1
     correo.BANDEJA.clear()
+
+
+# -- Transporte de Gmail --------------------------------------------------
+#
+# Existe porque Render bloquea los puertos de SMTP en su plan gratuito: por
+# ahí no se puede enviar por mucho que la contraseña sea correcta.
+
+
+@pytest.fixture
+def config_gmail(tmp_path, monkeypatch):
+    """Credenciales de la API de Gmail, sin modo memoria."""
+    from avcars import cuentas
+
+    original = cuentas.USUARIOS_PATH
+    cuentas.configurar_almacen(tmp_path / "usuarios.json")
+    (tmp_path / "correo.json").write_text(
+        json.dumps(
+            {
+                "transporte": "gmail",
+                "usuario": "id-de-cliente.apps.googleusercontent.com",
+                "password": "secreto-de-cliente",
+                "refresh_token": "testigo-de-refresco",
+                "remitente": "eva@ejemplo.com",
+                "gestion": "gestion@ejemplo.com",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("EVA_SMTP_MODO", raising=False)
+    yield
+    cuentas.configurar_almacen(original)
+
+
+def test_se_elige_el_transporte_de_gmail(config_gmail):
+    assert correo.configuracion().transporte == correo.TRANSPORTE_GMAIL
+
+
+def test_gmail_esta_configurado_sin_host_ni_puerto(config_gmail):
+    """No hay servidor al que conectarse: basta el permiso de la cuenta."""
+    assert correo.configurado() is True
+
+
+def test_sin_testigo_de_refresco_no_se_da_por_configurado(config_gmail, monkeypatch):
+    monkeypatch.setenv("EVA_GMAIL_REFRESH_TOKEN", " ")
+    monkeypatch.setenv("EVA_CORREO_TRANSPORTE", "gmail")
+    # El fichero lo trae, así que se fuerza el caso quitándolo del todo.
+    monkeypatch.setattr(
+        correo, "_del_fichero", lambda: {"transporte": "gmail", "usuario": "u",
+                                         "password": "p", "remitente": "e@e.com"}
+    )
+    assert correo.configurado() is False
+
+
+def test_un_envio_por_gmail_pide_permiso_y_manda_el_mensaje(config_gmail, monkeypatch):
+    llamadas = []
+
+    def falso_urlopen(peticion, timeout=None):
+        llamadas.append(peticion)
+        if peticion.full_url == correo.GMAIL_TOKEN_URL:
+            return _respuesta({"access_token": "permiso-temporal"})
+        return _respuesta({"id": "18f3a"})
+
+    monkeypatch.setattr(correo.urllib.request, "urlopen", falso_urlopen)
+    # Con acentos y «ñ» a propósito: son los bytes que, al codificar, sacan
+    # los caracteres «+» y «/» que distinguen base64url del base64 normal.
+    # Con un cuerpo soso los dos dan lo mismo y el test no probaría nada.
+    correo.enviar("piloto@ejemplo.com", "Aviación", "Añadido: ¿qué tal? ñáéíóú" * 8)
+
+    assert [p.full_url for p in llamadas] == [correo.GMAIL_TOKEN_URL, correo.GMAIL_URL]
+
+    envio = llamadas[1]
+    assert envio.headers["Authorization"] == "Bearer permiso-temporal"
+
+    # El mensaje viaja en base64url dentro de «raw», tal como pide la API.
+    import base64
+
+    crudo = json.loads(envio.data.decode())["raw"]
+
+    # La API **exige** base64url: con «+» o «/» dentro, rechaza el mensaje.
+    assert "+" not in crudo and "/" not in crudo, "tiene que ser base64url"
+    # Y que no sea base64url por casualidad: el normal aquí sí los mete.
+    normal = base64.b64encode(base64.urlsafe_b64decode(crudo)).decode()
+    assert "+" in normal or "/" in normal, "el cuerpo no distingue los dos"
+
+    descifrado = base64.urlsafe_b64decode(crudo).decode()
+    assert "piloto@ejemplo.com" in descifrado
+
+
+def test_si_google_retira_el_permiso_se_dice_por_que(config_gmail, monkeypatch):
+    """`invalid_grant` = alguien revocó el acceso. Hay que verlo escrito.
+
+    Solo falla la petición del permiso; la del envío contestaría que sí. Así,
+    si algún día el código se tragara este error y siguiera adelante, el test
+    lo cazaría en vez de aprobarlo por el fallo de la llamada siguiente.
+    """
+    intentos = []
+
+    def falso_urlopen(peticion, timeout=None):
+        intentos.append(peticion.full_url)
+        if peticion.full_url == correo.GMAIL_TOKEN_URL:
+            raise urllib.error.HTTPError(
+                peticion.full_url,
+                400,
+                "Bad Request",
+                {},
+                io.BytesIO(
+                    json.dumps(
+                        {
+                            "error": "invalid_grant",
+                            "error_description": "Token has been expired or revoked.",
+                        }
+                    ).encode()
+                ),
+            )
+        return _respuesta({"id": "18f3a"})
+
+    monkeypatch.setattr(correo.urllib.request, "urlopen", falso_urlopen)
+
+    with pytest.raises(correo.CorreoNoEnviado) as fallo:
+        correo.enviar("piloto@ejemplo.com", "Asunto", "Cuerpo")
+
+    assert "revoked" in str(fallo.value)
+    # Sin permiso no se intenta mandar nada: sería un envío condenado.
+    assert correo.GMAIL_URL not in intentos
+
+
+def test_si_gmail_rechaza_el_envio_se_dice_por_que(config_gmail, monkeypatch):
+    def falso_urlopen(peticion, timeout=None):
+        if peticion.full_url == correo.GMAIL_TOKEN_URL:
+            return _respuesta({"access_token": "permiso-temporal"})
+        raise urllib.error.HTTPError(
+            peticion.full_url,
+            403,
+            "Forbidden",
+            {},
+            io.BytesIO(
+                json.dumps(
+                    {"error": {"message": "Gmail API has not been used in project"}}
+                ).encode()
+            ),
+        )
+
+    monkeypatch.setattr(correo.urllib.request, "urlopen", falso_urlopen)
+
+    with pytest.raises(correo.CorreoNoEnviado) as fallo:
+        correo.enviar("piloto@ejemplo.com", "Asunto", "Cuerpo")
+    assert "has not been used" in str(fallo.value)
+
+
+def test_gmail_en_modo_memoria_no_toca_la_red(config_gmail, monkeypatch):
+    monkeypatch.setenv("EVA_SMTP_MODO", "memoria")
+    correo.BANDEJA.clear()
+
+    def no_se_llama(*_a, **_k):
+        raise AssertionError("no debería salir a la red en modo memoria")
+
+    monkeypatch.setattr(correo.urllib.request, "urlopen", no_se_llama)
+    correo.enviar("piloto@ejemplo.com", "Asunto", "Cuerpo")
+
+    assert len(correo.BANDEJA) == 1
+    correo.BANDEJA.clear()
