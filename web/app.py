@@ -55,6 +55,7 @@ from avcars.evaluation.scoring import Verdict, evaluate_flight  # noqa: E402
 from avcars.prefile import PrefileExtras, icao_fpl, vatsim_prefile_url  # noqa: E402
 from avcars.schema import FlightLog, FlightPlanInfo, PilotInfo  # noqa: E402
 from avcars import (  # noqa: E402
+    correo as correo_eva,
     cuentas,
     estadisticas,
     planes as planes_guardados,
