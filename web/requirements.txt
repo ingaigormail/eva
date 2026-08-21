@@ -2,6 +2,7 @@
 # El motor de evaluación y el esquema se importan de ../client, que se
 # instala aparte con `pip install -e client`.
 Flask>=3.0
+gunicorn>=23.0  # WSGI server
 Flask-WTF>=1.2  # CSRF protection
 bleach>=6.0  # HTML sanitization
 markupsafe>=2.1  # HTML escaping
