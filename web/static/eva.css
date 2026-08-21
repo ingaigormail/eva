@@ -1,0 +1,329 @@
+/* EvA Airliner — chrome compartido (plantilla D2 / plan.html). Solo look. */
+:root {
+  --bg: #eef1f6;
+  --panel: #ffffff;
+  --panel-alto: #f4f6fa;
+  --borde: #e2e6ee;
+  --texto: #1e293b;
+  --tenue: #7c8698;
+  --azul: #2563eb;
+  --azul-claro: #eaf1ff;
+  --azul-oscuro: #1e3a8a;
+  --verde: #16a34a;
+  --verde-fondo: #f0fdf4;
+  --verde-borde: #bbf7d0;
+  --verde-texto: #15803d;
+  --rojo: #dc2626;
+  --rojo-fondo: #fef2f2;
+  --rojo-borde: #fecaca;
+  --ambar: #d97706;
+  --ambar-fondo: #fffbeb;
+  --ambar-borde: #fde68a;
+  --ambar-texto: #b45309;
+  --azul-hover: #1d4ed8;
+  --marca-cyan: #16a3e0;
+  --gris-punto: #9aa3ad;
+  --sombra: 0 1px 2px rgba(30,41,59,.04), 0 8px 24px -12px rgba(30,41,59,.10);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--texto);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+code, .mono, input.mono {
+  font-family: "Consolas", "SFMono-Regular", ui-monospace, monospace;
+}
+
+.layout { display: flex; min-height: 100vh; }
+
+nav.lateral {
+  width: 84px;
+  background: var(--panel);
+  border-right: 1px solid var(--borde);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 0;
+  gap: 4px;
+  flex-shrink: 0;
+}
+nav.lateral a {
+  width: 64px;
+  padding: 10px 4px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--tenue);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .3px;
+}
+nav.lateral a .icono {
+  font-size: 18px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+nav.lateral a .icono svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+nav.lateral a.activo { background: var(--azul-claro); color: var(--azul); }
+nav.lateral a:not(.activo):not(.inerte):hover {
+  background: var(--panel-alto);
+  color: var(--texto);
+}
+nav.lateral a.inerte {
+  cursor: default;
+  opacity: .4;
+  color: var(--tenue);
+}
+nav.lateral a.inerte:hover {
+  background: transparent;
+  color: var(--tenue);
+}
+
+main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+header.superior {
+  background: var(--panel);
+  border-bottom: 1px solid var(--borde);
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.marca { display: flex; align-items: center; gap: 10px; }
+.marca .insignia {
+  width: 38px; height: 38px; border-radius: 11px;
+  background: #f0f4fa;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--sombra);
+}
+.marca .insignia img { width: 26px; height: 26px; object-fit: contain; }
+.marca .texto { line-height: 1.15; }
+.marca .nombre { font-size: 17px; font-weight: 800; }
+.marca .nombre .eva {
+  color: var(--azul-oscuro);
+  animation: parpadeo-eva 2.6s ease-in-out infinite;
+}
+.marca .nombre .airliner { color: var(--marca-cyan); margin-left: 2px; }
+@keyframes parpadeo-eva {
+  0%, 45%   { opacity: 1; }
+  55%, 90%  { opacity: .14; }
+  100%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marca .nombre .eva { animation: none; }
+}
+.marca .texto .sub {
+  font-size: 9.5px; color: var(--tenue); letter-spacing: .6px;
+  text-transform: uppercase; font-weight: 600;
+}
+
+.pildora {
+  display: flex; align-items: center; gap: 6px;
+  background: #f4f6fa; border: 1px solid var(--borde);
+  border-radius: 999px; padding: 5px 12px;
+  font-size: 11px; font-weight: 700; color: var(--tenue);
+  letter-spacing: .3px; margin-left: 8px;
+}
+.pildora .punto { width: 7px; height: 7px; border-radius: 50%; background: var(--gris-punto); }
+.pildora.ok .punto { background: var(--verde); }
+
+.contenido { padding: 24px 28px 60px; max-width: 1100px; }
+.contenido.estrecho { max-width: 760px; }
+.contenido.ancho { max-width: 1200px; }
+
+.panel, .tarjeta {
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  box-shadow: var(--sombra);
+  padding: 22px 24px;
+  margin-bottom: 20px;
+}
+.tarjeta.destacada { border-color: #bfdbfe; }
+.panel h2, .tarjeta > h2, .tarjeta > h3 {
+  margin: 0 0 14px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--texto);
+}
+
+.cabecera-tarjeta { display: flex; align-items: flex-start; gap: 14px; }
+.cabecera-tarjeta .icono-tarjeta,
+.cabecera-tarjeta .icono {
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--azul);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cabecera-tarjeta .icono svg,
+.cabecera-tarjeta .icono-tarjeta svg {
+  width: 28px;
+  height: 28px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cabecera-tarjeta h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
+.cabecera-tarjeta p { margin: 0; color: var(--tenue); font-size: 12.5px; }
+
+.tabla-eva { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tabla-eva th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--azul);
+  font-weight: 700;
+  background: var(--panel-alto);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--borde);
+}
+.tabla-eva td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--borde);
+  vertical-align: middle;
+}
+.tabla-eva tbody tr:hover { background: #f8fafc; }
+.tabla-eva tr.bloqueada { background: var(--rojo-fondo); }
+.tabla-eva tr.bloqueada:hover { background: var(--rojo-fondo); }
+.tabla-eva a { color: var(--azul); text-decoration: none; font-weight: 600; }
+.tabla-eva a:hover { text-decoration: underline; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--borde); }
+th {
+  background: var(--panel-alto);
+  color: var(--azul);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .4px;
+}
+tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #f8fafc; }
+
+.acciones { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.acciones form { display: inline-flex; gap: 4px; align-items: center; }
+
+.mini {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--borde);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--texto);
+  font-family: inherit;
+  text-decoration: none;
+  display: inline-block;
+}
+.mini:hover { border-color: var(--azul); color: var(--azul); }
+.mini.peligro:hover { border-color: var(--rojo); color: var(--rojo); }
+.mini.primario { background: var(--azul); color: #fff; border-color: var(--azul); }
+.mini.primario:hover { background: var(--azul-hover); color: #fff; }
+
+.vacio {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--tenue);
+}
+.vacio p { margin: 0 0 6px; }
+.vacio .grande {
+  font-size: 15px;
+  color: var(--texto);
+  font-weight: 600;
+}
+.vacio .mini { margin-top: 16px; }
+
+/* UI-04 — home aerolínea */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.kpi {
+  background: var(--panel-alto);
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+.kpi .valor {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--texto);
+  line-height: 1.1;
+}
+.kpi .etiqueta {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--tenue);
+  font-weight: 700;
+  margin-top: 6px;
+}
+.kpi.apto { background: var(--verde-fondo); border-color: var(--verde-borde); }
+.kpi.apto .valor { color: var(--verde-texto); }
+.kpi.ambar { background: var(--ambar-fondo); border-color: var(--ambar-borde); }
+.kpi.ambar .valor { color: var(--ambar-texto); }
+.dos-columnas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) {
+  .dos-columnas { grid-template-columns: 1fr; }
+}
+.top3 td:first-child { font-weight: 800; color: var(--azul); }
+.etiqueta-pct { font-weight: 700; }
+.grafico-mensual { width: 100%; height: 200px; display: block; }
+.grafico-mensual .eje { stroke: var(--borde); stroke-width: 1; }
+.grafico-mensual .linea { fill: none; stroke: var(--azul); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.grafico-mensual .area { fill: var(--azul-claro); opacity: .85; }
+.grafico-mensual .punto { fill: #fff; stroke: var(--azul); stroke-width: 2; }
+.grafico-mensual .mes { fill: var(--tenue); font-size: 10px; font-family: inherit; }
+.mapa-flota { width: 100%; height: 420px; border-radius: 12px; border: 1px solid var(--borde); }
+.tarjeta .kpis { margin-top: 4px; }
+
+a.vuelo { color: var(--azul); text-decoration: none; font-weight: 600; }
+a.vuelo:hover { text-decoration: underline; }
+
+code { background: var(--panel-alto); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+button.boton {
+  border: 1px solid var(--borde); background: #f8fafc; color: var(--texto);
+  border-radius: 10px; padding: 10px 18px; font-weight: 700; font-size: 12.5px;
+  cursor: pointer; white-space: nowrap;
+}
+button.boton:hover { background: #eef2f8; }
+button.boton.primario { background: var(--azul); color: #fff; border-color: var(--azul); }
+button.boton.primario:hover { background: var(--azul-hover); }
+button.boton:disabled { opacity: .5; cursor: default; background: #f8fafc; color: var(--texto); }

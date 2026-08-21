@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block titulo %}Detalles del vuelo — EvA{% endblock %}
+{% block nav_registro %}activo{% endblock %}
+{% block nav_vuelos %}activo{% endblock %}
+{% block marca_sub %}Detalles del vuelo{% endblock %}
+{% block contenido_clase %}ancho{% endblock %}
+
+{% block estilos %}
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .stat {
+    background: #f4f6fa;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid var(--borde);
+  }
+  .stat .label { font-size: 11px; font-weight: 700; color: var(--tenue); text-transform: uppercase; letter-spacing: .4px; }
+  .stat .valor { font-size: 22px; font-weight: 800; color: var(--azul); margin-top: 6px; }
+  .stat .unidad { font-size: 12px; color: var(--tenue); }
+  .chart-container { position: relative; height: 300px; margin-top: 12px; }
+  table.telemetria { margin-top: 12px; font-size: 12px; }
+  table.telemetria th, table.telemetria td { text-align: right; }
+  table.telemetria th:first-child, table.telemetria td:first-child { text-align: left; }
+  table.telemetria td:first-child { font-weight: 600; }
+  .volver { display: inline-block; margin-bottom: 20px; color: var(--azul); text-decoration: none; font-weight: 600; }
+  .volver:hover { text-decoration: underline; }
+{% endblock %}
+
+{% block contenido %}
+      <a href="{{ url_for('vuelos') }}" class="volver">← Volver a mis vuelos</a>
+
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <span class="icono">📈</span>
+          <div>
+            <h2>Telemetría del Vuelo</h2>
+            <p>{{ nombre }} — {{ resumen.points_recorded }} puntos grabados</p>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <div class="label">Duración</div>
+            <div class="valor">{{ (resumen.flight_time_min * 10)|int / 10 }}<span class="unidad">min</span></div>
+          </div>
+          <div class="stat">
+            <div class="label">Distancia</div>
+            <div class="valor">{{ resumen.distance_nm|round|int|formato_numero }}<span class="unidad">NM</span></div>
+          </div>
+          <div class="stat">
+            <div class="label">Altitud Máx</div>
+            <div class="valor">{{ resumen.alt_max_ft|int|formato_numero }}<span class="unidad">ft</span></div>
+          </div>
+          <div class="stat">
+            <div class="label">Vel. Máx</div>
+            <div class="valor">{{ resumen.gs_max_kt|int|formato_numero }}<span class="unidad">kt</span></div>
+          </div>
+          <div class="stat">
+            <div class="label">Peso Promedio</div>
+            <div class="valor">{{ resumen.weight_avg_lb|int|formato_numero }}<span class="unidad">lb</span></div>
+          </div>
+          <div class="stat">
+            <div class="label">VS Mín/Máx</div>
+            <div class="valor">{% if resumen.vs_min_fpm >= 0 %}+{% endif %}{{ resumen.vs_min_fpm|round|int }}/{% if resumen.vs_max_fpm >= 0 %}+{% endif %}{{ resumen.vs_max_fpm|round|int }}<span class="unidad">fpm</span></div>
+          </div>
+        </div>
+      </section>
+
+      {% if graficas.t %}
+      <section class="tarjeta">
+        <h3 style="margin-top: 0;">Perfil de altitud y velocidad</h3>
+        <canvas id="perfil" style="width: 100%; height: 180px; display: block; background: var(--panel-alto); border-radius: 12px;"></canvas>
+      </section>
+      {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if graficas.t %}
+<script>
+const datos = {{ graficas|tojson }};
+const lienzo = document.getElementById('perfil');
+const ctx = lienzo.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+
+var _scrubIdx = -1;
+
+function dibujar() {
+  const w = lienzo.clientWidth, h = lienzo.clientHeight;
+  lienzo.width = w * dpr; lienzo.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = { arriba: 14, abajo: 24, izq: 46, der: 46 };
+  const ancho = w - pad.izq - pad.der;
+  const alto = h - pad.arriba - pad.abajo;
+
+  const tMax = Math.max(...datos.t) || 1;
+  const altMax = Math.max(...datos.alt) || 1;
+  const gsMax = Math.max(...datos.gs) || 1;
+
+  const x = t => pad.izq + (t / tMax) * ancho;
+  const yAlt = v => pad.arriba + alto - (v / altMax) * alto;
+  const yGs = v => pad.arriba + alto - (v / gsMax) * alto;
+
+  // Rejilla horizontal
+  ctx.strokeStyle = '#e2e6ee';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.arriba + (alto / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.izq, y); ctx.lineTo(w - pad.der, y); ctx.stroke();
+  }
+
+  function serie(valores, escala, color, relleno) {
+    ctx.beginPath();
+    datos.t.forEach((t, i) => {
+      const px = x(t), py = escala(valores[i]);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    });
+    if (relleno) {
+      ctx.lineTo(x(tMax), pad.arriba + alto);
+      ctx.lineTo(x(0), pad.arriba + alto);
+      ctx.closePath();
+      ctx.fillStyle = relleno;
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+
+  serie(datos.alt, yAlt, '#2563eb', 'rgba(37,99,235,.12)');
+  serie(datos.alt, yAlt, '#2563eb', null);
+  serie(datos.gs, yGs, '#16a34a', null);
+
+  // Etiquetas de los ejes
+  ctx.fillStyle = '#7c8698';
+  ctx.font = '11px "Segoe UI", sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(Math.round(altMax) + ' ft', pad.izq - 6, pad.arriba + 4);
+  ctx.textAlign = 'left';
+  ctx.fillText(Math.round(gsMax) + ' kt', w - pad.der + 6, pad.arriba + 4);
+  ctx.textAlign = 'center';
+  ctx.fillText('0', pad.izq, h - 6);
+  ctx.fillText(tMax.toFixed(0) + ' min', w - pad.der, h - 6);
+
+  // Leyenda
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#2563eb'; ctx.fillText('altitud', pad.izq + 8, pad.arriba + 4);
+  ctx.fillStyle = '#16a34a'; ctx.fillText('velocidad', pad.izq + 60, pad.arriba + 4);
+}
+
+dibujar();
+window.addEventListener('resize', dibujar);
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block titulo %}Planes de vuelo — EvA{% endblock %}
+{% block marca_sub %}Planes de vuelo{% endblock %}
+{% block nav_planes %}activo{% endblock %}
+
+{% block estilos %}
+  .ruta-corta {
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    color: var(--tenue); max-width: 320px; display: inline-block;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    vertical-align: bottom;
+  }
+  .trayecto { font-weight: 700; }
+  .flecha { color: var(--tenue); margin: 0 6px; }
+{% endblock %}
+
+{% block contenido %}
+  <section class="panel">
+    <h1 style="font-size:17px;margin:0 0 4px">Planes de vuelo</h1>
+    <p style="font-size:12.5px;color:var(--tenue);margin:0 0 18px">
+      Los que has guardado con el botón <strong>GUARDAR</strong> del
+      planificador. Solo tuyos: ningún otro piloto los ve.
+    </p>
+
+    {% if planes %}
+    <table class="tabla-eva">
+      <thead>
+        <tr>
+          <th>Trayecto</th>
+          <th>Indicativo</th>
+          <th>Aeronave</th>
+          <th>Nivel</th>
+          <th>Ruta</th>
+          <th>Guardado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in planes %}
+        <tr>
+          <td>
+            <span class="trayecto">{{ p.origen }}</span>
+            <span class="flecha">&rarr;</span>
+            <span class="trayecto">{{ p.destino }}</span>
+            {% if p.alterno %}<div class="ruta-corta">altn. {{ p.alterno }}</div>{% endif %}
+          </td>
+          <td>{{ p.callsign or '—' }}</td>
+          <td>{{ p.aeronave or '—' }}</td>
+          <td>{{ p.nivel or '—' }}</td>
+          <td><span class="ruta-corta" title="{{ p.ruta }}">{{ p.ruta or '—' }}</span></td>
+          <td class="ruta-corta">{{ p.actualizado|replace('T', ' ')|replace('+00:00', ' UTC') }}</td>
+          <td>
+            <div class="acciones">
+              <a class="mini" href="{{ url_for('plan', plan=p.id) }}">Abrir</a>
+              <form method="POST" action="{{ url_for('borrar_plan', plan_id=p.id) }}"
+                    onsubmit="return confirm('¿Borrar este plan? No se puede deshacer.');">
+                <button class="mini peligro" type="submit">Borrar</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="vacio">
+      <p class="grande">No tienes planes guardados.</p>
+      <p>Planifica un vuelo y pulsa <strong>GUARDAR</strong>: aparecerá aquí.</p>
+      <p style="margin-top:16px">
+        <a class="mini" href="{{ url_for('plan') }}">Ir al planificador &rarr;</a>
+      </p>
+    </div>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,793 @@
+{% extends "base.html" %}
+{% block titulo %}Despacho de vuelo — EvA{% endblock %}
+{% block nav_plan %}activo{% endblock %}
+{% block marca_sub %}Despacho de vuelo{% endblock %}
+{% block contenido_clase %}estrecho{% endblock %}
+
+{% block estilos %}
+  .grupo-titulo {
+    font-size: 10.5px; font-weight: 800; color: var(--azul);
+    letter-spacing: .6px; text-transform: uppercase;
+    margin: 20px 0 4px;
+  }
+  .grupo-titulo:first-of-type { margin-top: 16px; }
+
+  .fila { display: flex; align-items: flex-end; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+  .fila.entre { justify-content: space-between; }
+  .campo { flex: 1; min-width: 120px; }
+  .campo.estrecho { flex: 0 0 100px; min-width: 100px; }
+  .campo label {
+    display: block; font-size: 10.5px; font-weight: 700; color: var(--tenue);
+    letter-spacing: .5px; text-transform: uppercase; margin-bottom: 6px;
+  }
+  .grupo-callsign { display: flex; }
+  .prefijo-callsign {
+    background: #f4f6fa; border: 1px solid var(--borde); border-right: none;
+    border-radius: 10px 0 0 10px; padding: 10px 12px; color: var(--tenue);
+    font-weight: 700; font-size: 13px; display: flex; align-items: center;
+  }
+  input, select, textarea {
+    width: 100%; border: 1px solid var(--borde); border-radius: 10px;
+    padding: 10px 12px; font-size: 13.5px; color: var(--texto);
+    background: #fff; outline: none; font-family: inherit;
+  }
+  .grupo-callsign input { border-radius: 0 10px 10px 0; font-weight: 700; }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--azul); box-shadow: 0 0 0 3px var(--azul-claro);
+  }
+  input.icao { text-align: center; letter-spacing: 2px; font-weight: 700; text-transform: uppercase; }
+  textarea { resize: vertical; min-height: 44px; }
+
+  button.boton {
+    border: 1px solid var(--borde); background: #f8fafc; color: var(--texto);
+    border-radius: 10px; padding: 10px 18px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer; white-space: nowrap;
+  }
+  button.boton:hover { background: #eef2f8; }
+  button.boton.primario { background: var(--azul); color: #fff; border-color: var(--azul); }
+  button.boton.primario:hover { background: #1d4ed8; }
+  button.boton:disabled { opacity: .5; cursor: default; background: #f8fafc; color: var(--texto); }
+
+  .caja-distancia {
+    background: var(--azul-claro); border-radius: 12px; padding: 10px 16px;
+    text-align: center; margin-top: 14px;
+  }
+  .caja-distancia .etq {
+    font-size: 10px; font-weight: 700; color: var(--azul); letter-spacing: .6px;
+  }
+  .caja-distancia .num { font-size: 20px; font-weight: 800; color: var(--azul-oscuro); }
+  .caja-distancia .nota { font-size: 10.5px; color: var(--tenue); margin-top: 2px; }
+
+  pre.fpl {
+    background: #0f172a; color: #d5deee; border-radius: 10px; padding: 14px 16px;
+    font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 12px 0 0;
+  }
+  .aviso { font-size: 11.5px; color: var(--tenue); margin-top: 10px; }
+  .aviso.error { color: var(--rojo); }
+
+  /* -- semáforo de peso -- */
+  .semaforo {
+    display: flex; align-items: center; gap: 10px; margin-top: 16px;
+    padding: 12px 16px; border-radius: 12px; background: #f4f6fa;
+  }
+  .semaforo .punto-sem { width: 12px; height: 12px; border-radius: 50%; }
+  .semaforo.verde .punto-sem { background: var(--verde); }
+  .semaforo.ambar .punto-sem { background: var(--ambar); }
+  .semaforo.rojo .punto-sem { background: var(--rojo); }
+  .semaforo .txt-peso { font-size: 12px; font-weight: 700; }
+  .semaforo.verde .txt-peso { color: var(--verde); }
+  .semaforo.ambar .txt-peso { color: var(--ambar); }
+  .semaforo.rojo .txt-peso { color: var(--rojo); }
+  .semaforo .detalles { font-size: 11px; color: var(--tenue); }
+
+  table.tabla-carga {
+    width: 100%; border-collapse: collapse; margin: 12px 0;
+    font-size: 12px;
+  }
+  table.tabla-carga th {
+    background: #f4f6fa; padding: 8px 10px; text-align: left;
+    font-weight: 700; color: var(--azul); border-bottom: 1px solid var(--borde);
+  }
+  table.tabla-carga td {
+    padding: 8px 10px; border-bottom: 1px solid var(--borde);
+  }
+  table.tabla-carga tr:last-child td { border-bottom: none; }
+{% endblock %}
+
+{% block contenido %}
+      <section class="tarjeta destacada">
+        <div class="cabecera-tarjeta">
+          <span class="icono-tarjeta">🧑‍✈️</span>
+          <div>
+            <h2>Despacho de Vuelo</h2>
+            <p>Configura tu plan para presentarlo en VATSIM.</p>
+          </div>
+        </div>
+        <div class="fila entre">
+          <div class="campo" style="max-width:200px">
+            <label>Callsign</label>
+            <div class="grupo-callsign">
+              <span class="prefijo-callsign">EVA</span>
+              <input id="callsign-num" class="mono" value="01" maxlength="4">
+            </div>
+          </div>
+          <div class="campo estrecho">
+            <label>Reglas</label>
+            <select id="reglas">
+              <option value="VFR">VFR</option>
+              <option value="IFR">IFR</option>
+            </select>
+          </div>
+          <div class="campo estrecho">
+            <label>Fecha</label>
+            <input id="fecha" type="date">
+          </div>
+          <div class="campo estrecho">
+            <label title="Capacidad de radio">Voz</label>
+            <select id="voz">
+              <option value="V">Voz</option>
+              <option value="T">Solo texto</option>
+              <option value="R">Solo recepción</option>
+            </select>
+          </div>
+          <button class="boton" id="btn-cargar" title="Cargar un plan desde un archivo .fpl o texto ICAO">CARGAR</button>
+          <input type="file" id="file-fpl" accept=".fpl,.txt,.pln" style="display:none">
+        </div>
+      </section>
+
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <span class="icono-tarjeta">🛩️</span>
+          <h2 style="margin:0">Plan de vuelo</h2>
+        </div>
+
+        <div class="grupo-titulo">Aeronave</div>
+        <div class="fila">
+          <div class="campo" style="flex:2">
+            <label>Tipo (ICAO)</label>
+            <select id="aeronave">
+              {% for a in flota %}
+              <option value="{{ a.icao }}">{{ a.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="campo estrecho">
+            <label>Estela</label>
+            <select id="estela">
+              <option value="L">L</option>
+              <option value="M">M</option>
+              <option value="H">H</option>
+              <option value="J">J</option>
+            </select>
+          </div>
+          <div class="campo estrecho">
+            <label title="Equipo de radio/navegación">Equipo</label>
+            <input id="equipo" class="mono" value="S">
+          </div>
+          <div class="campo estrecho">
+            <label>Transp.</label>
+            <select id="transpondedor">
+              <option value="C">C</option>
+              <option value="S">S</option>
+              <option value="N">N</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grupo-titulo">Salida</div>
+        <div class="fila">
+          <div class="campo">
+            <label>Origen (ICAO)</label>
+            <input id="origen" class="icao mono" maxlength="4" value="LEMD">
+          </div>
+          <div class="campo estrecho">
+            <label>Off-block (UTC)</label>
+            <input id="off-block" type="time" value="10:00">
+          </div>
+          <div class="campo estrecho">
+            <label>TAS (kt)</label>
+            <input id="tas" class="mono" inputmode="numeric" value="93">
+          </div>
+          <div class="campo estrecho">
+            <label>Nivel (ft)</label>
+            <input id="nivel" class="mono" inputmode="numeric" value="4500">
+          </div>
+        </div>
+        <div class="fila">
+          <div class="campo" style="flex:1 1 100%">
+            <label>Ruta</label>
+            <input id="ruta" class="mono" value="DCT">
+          </div>
+        </div>
+
+        <div class="grupo-titulo">Llegada</div>
+        <div class="fila">
+          <div class="campo">
+            <label>Destino (ICAO)</label>
+            <input id="destino" class="icao mono" maxlength="4" value="LEIB">
+          </div>
+          <div class="campo estrecho">
+            <label>EET</label>
+            <input id="eet" class="mono" placeholder="hh:mm">
+          </div>
+          <div class="campo estrecho">
+            <label>Alterno</label>
+            <input id="alterno" class="icao mono" maxlength="4">
+          </div>
+          <div class="campo estrecho">
+            <label>Autonomía</label>
+            <input id="autonomia" class="mono" placeholder="hh:mm">
+          </div>
+        </div>
+
+        <div class="caja-distancia">
+          <div class="etq">DISTANCIA (ORTODRÓMICA)</div>
+          <div class="num" id="distancia">— NM</div>
+          <div class="nota" id="nota-eet"></div>
+        </div>
+
+        <div class="grupo-titulo">Carga y pasajeros</div>
+        <div class="fila">
+          <div class="campo estrecho">
+            <label>Pasajeros</label>
+            <input id="pasajeros" class="mono" inputmode="numeric" value="0" min="0">
+          </div>
+          <div class="campo">
+            <label>Tipo de carga</label>
+            <select id="tipo-carga">
+              <option value="ninguno">Ninguno</option>
+              <option value="paqueteria">Paquetería</option>
+              <option value="carga-general">Carga general</option>
+              <option value="perecederos">Perecederos</option>
+              <option value="correo">Correo</option>
+            </select>
+          </div>
+          <div class="campo estrecho">
+            <label>Carga (kg)</label>
+            <input id="carga-kg" class="mono" inputmode="numeric" value="0" min="0">
+          </div>
+        </div>
+        <p class="aviso" id="nota-combustible">
+          El combustible se calcula con el plan (EET + 30 min de reserva VFR, o la autonomía si la rellenas). No es un % de tanque inventado.
+        </p>
+
+        <!-- Tabla de cálculo de peso -->
+        <table class="tabla-carga">
+          <thead>
+            <tr>
+              <th>Componente</th>
+              <th style="text-align: right">Peso (kg)</th>
+              <th style="text-align: right">Ingresos</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Vacío operativo (estimación despacho)</td>
+              <td style="text-align: right"><span id="peso-oew">—</span></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td id="label-piloto">Piloto (1 × 85 kg)</td>
+              <td style="text-align: right"><span id="peso-piloto">85</span></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td id="label-pasajeros">Pasajeros (0 × 85 kg)</td>
+              <td style="text-align: right"><span id="peso-pasajeros">0</span></td>
+              <td style="text-align: right"><span id="ingreso-pasajeros">0 €</span></td>
+            </tr>
+            <tr>
+              <td id="label-carga">Carga (0 kg)</td>
+              <td style="text-align: right"><span id="peso-carga">0</span></td>
+              <td style="text-align: right"><span id="ingreso-carga">0 €</span></td>
+            </tr>
+            <tr>
+              <td id="label-combustible">Combustible (plan)</td>
+              <td style="text-align: right"><span id="peso-combustible">—</span></td>
+              <td></td>
+            </tr>
+            <tr style="border-top: 2px solid var(--borde); font-weight: 700; font-size: 13px">
+              <td>Peso total despegue</td>
+              <td style="text-align: right"><span id="peso-total">—</span></td>
+              <td style="text-align: right"><span id="ingreso-total">0 €</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Semáforo de peso -->
+        <div class="semaforo" id="semaforo-peso">
+          <div class="punto-sem"></div>
+          <div>
+            <div class="txt-peso" id="txt-peso-estado">N/A</div>
+            <div class="detalles" id="detalles-peso"></div>
+          </div>
+        </div>
+
+        <!-- Botón para aplicar carga al simulador -->
+        <div class="fila" style="margin-top: 16px">
+          <button class="boton" id="btn-aplicar-payload" title="Enviar configuración de carga al simulador (requiere cliente EvA en ejecución)">
+            📤 APLICAR AL SIMULADOR
+          </button>
+        </div>
+        <div class="aviso" id="aviso-payload"></div>
+
+        <div class="grupo-titulo">Otros datos</div>
+        <div class="fila">
+          <div class="campo" style="flex:1 1 100%">
+            <label>Observaciones (PBN/, RMK/…)</label>
+            <textarea id="remarks" placeholder="PBN/A1B1C1D1S2"></textarea>
+          </div>
+        </div>
+
+        <div class="fila" style="margin-top:20px">
+          <button class="boton" id="btn-guardar" title="Guarda este plan en «Planes de vuelo»">GUARDAR</button>
+          <button class="boton" id="btn-generar">GENERAR PLAN ICAO</button>
+          <button class="boton primario" id="btn-vatsim">ABRIR EN VATSIM</button>
+        </div>
+        <pre class="fpl" id="salida-fpl" style="display:none"></pre>
+        <div class="aviso" id="aviso-fpl"></div>
+      </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const $ = (id) => document.getElementById(id);
+$("fecha").value = new Date().toISOString().slice(0, 10);
+
+// -- estela: se rellena sola cuando se conoce de verdad (datos reales de
+// aircraft.yaml, hoy solo 2 de los 8 aviones). Si no se conoce, el campo se
+// deja tal cual: no se inventa una categoría de estela. --
+const ESTELAS = {{ estelas | tojson }};
+let estelaTocadaAMano = false;
+$("estela").addEventListener("change", () => { estelaTocadaAMano = true; });
+$("aeronave").addEventListener("change", () => {
+  const conocida = ESTELAS[$("aeronave").value];
+  if (conocida && !estelaTocadaAMano) $("estela").value = conocida;
+});
+$("aeronave").dispatchEvent(new Event("change"));
+
+// -- distancia ortodrómica entre origen y destino, con coordenadas reales
+// de la lista de aeropuertos de VATSIM (client/config/airports.json).
+// La ayuda de EET se calcula sola a partir de distancia y TAS mientras el
+// piloto no la haya tocado a mano: es la "ayuda a novatos" del diagrama. --
+let eetTocadoAMano = false;
+$("eet").addEventListener("input", () => { eetTocadoAMano = true; });
+
+async function buscarAeropuerto(icao) {
+  if (!/^[A-Za-z]{4}$/.test(icao)) return null;
+  try {
+    const r = await fetch(`/api/aeropuerto/${icao.toUpperCase()}`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+function haversineNm(a, b) {
+  const R_NM = 3440.065;
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R_NM * Math.asin(Math.sqrt(s));
+}
+
+async function actualizarDistancia() {
+  const dep = $("origen").value.trim().toUpperCase();
+  const arr = $("destino").value.trim().toUpperCase();
+  const box = $("distancia");
+  const nota = $("nota-eet");
+  box.textContent = "…";
+  nota.textContent = "";
+  const [a, b] = await Promise.all([buscarAeropuerto(dep), buscarAeropuerto(arr)]);
+  if (!a || !b) { box.textContent = "— NM"; actualizarPesoTotal(); return; }
+  const nm = haversineNm(a, b);
+  box.textContent = `${Math.round(nm)} NM`;
+
+  const tas = Number($("tas").value);
+  if (tas > 0 && !eetTocadoAMano) {
+    const minutos = Math.round((nm / tas) * 60);
+    $("eet").value = `${String(Math.floor(minutos / 60)).padStart(2, "0")}:${String(minutos % 60).padStart(2, "0")}`;
+    nota.textContent = "EET sugerido a partir de la distancia y la TAS.";
+  }
+  actualizarPesoTotal();
+}
+
+$("origen").addEventListener("change", actualizarDistancia);
+$("destino").addEventListener("change", actualizarDistancia);
+$("tas").addEventListener("change", actualizarDistancia);
+actualizarDistancia();
+
+function minutosDesde(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((hhmm || "").trim());
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+// -- el cuerpo del formulario, tal cual lo esperan los dos endpoints. --
+function cuerpoDelPlan() {
+  return {
+    callsign: "EVA" + $("callsign-num").value.trim(),
+    rules: $("reglas").value,
+    departure: $("origen").value.trim(),
+    arrival: $("destino").value.trim(),
+    alternate: $("alterno").value.trim() || null,
+    aircraft: $("aeronave").value,
+    wake_turbulence: $("estela").value,
+    equipment: $("equipo").value.trim() || "S",
+    transponder: $("transpondedor").value,
+    route: $("ruta").value.trim() || "DCT",
+    cruise_speed: Number($("tas").value) || null,
+    cruise_alt_ft: Number($("nivel").value) || null,
+    departure_time: $("off-block").value || null,
+    eet_minutes: minutosDesde($("eet").value),
+    endurance_minutes: minutosDesde($("autonomia").value),
+    remarks: $("remarks").value.trim() || null,
+    flight_date: $("fecha").value || null,
+    voice_capability: $("voz").value,
+  };
+}
+
+// -- guardar el plan (D3) ------------------------------------------------
+// Se guarda exactamente el mismo cuerpo que se manda a generar el FPL: así
+// al reabrirlo el planificador queda como estaba, sin formatos paralelos.
+let planAbiertoId = {{ plan_guardado.id if plan_guardado else 'null' }};
+
+$("btn-guardar").addEventListener("click", async () => {
+  const aviso = $("aviso-fpl");
+  aviso.classList.remove("error");
+  aviso.textContent = "Guardando…";
+
+  const cuerpo = cuerpoDelPlan();
+  if (planAbiertoId) cuerpo.plan_id = planAbiertoId;
+
+  try {
+    const r = await fetch("/api/plan/guardar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await r.json();
+    if (!r.ok || !datos.ok) {
+      aviso.textContent = datos.mensaje || "No se pudo guardar el plan.";
+      aviso.classList.add("error");
+      return;
+    }
+    planAbiertoId = datos.id;   // seguir guardando pisa el mismo, no copias
+    aviso.textContent = "Plan guardado. Lo tienes en «Planes de vuelo».";
+  } catch (e) {
+    aviso.textContent = "No se pudo guardar el plan: " + e;
+    aviso.classList.add("error");
+  }
+});
+
+// -- reabrir un plan guardado -------------------------------------------
+{% if plan_guardado %}
+(function volcarPlanGuardado() {
+  const d = {{ plan_guardado.datos | tojson }};
+  const porCampo = {
+    "reglas": d.rules, "origen": d.departure, "destino": d.arrival,
+    "alterno": d.alternate, "aeronave": d.aircraft, "estela": d.wake_turbulence,
+    "equipo": d.equipment, "transpondedor": d.transponder, "ruta": d.route,
+    "tas": d.cruise_speed, "nivel": d.cruise_alt_ft, "off-block": d.departure_time,
+    "remarks": d.remarks, "fecha": d.flight_date, "voz": d.voice_capability,
+  };
+  for (const [id, valor] of Object.entries(porCampo)) {
+    const campo = $(id);
+    if (campo && valor !== null && valor !== undefined) campo.value = valor;
+  }
+  // El indicativo se teclea sin el prefijo EVA, que lo pone el formulario.
+  if (d.callsign && $("callsign-num")) {
+    $("callsign-num").value = String(d.callsign).replace(/^EVA/i, "");
+  }
+})();
+{% endif %}
+
+// -- generar el plan ICAO real, con el mismo código que usa el cliente. --
+$("btn-generar").addEventListener("click", async () => {
+  const aviso = $("aviso-fpl");
+  const salida = $("salida-fpl");
+  aviso.textContent = "";
+  aviso.classList.remove("error");
+  salida.style.display = "none";
+
+  try {
+    const r = await fetch("/api/plan/fpl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpoDelPlan()),
+    });
+    const datos = await r.json();
+    if (!r.ok) {
+      aviso.textContent = datos.description || "No se pudo generar el plan.";
+      aviso.classList.add("error");
+      return;
+    }
+    salida.textContent = datos.fpl;
+    salida.style.display = "block";
+    aviso.textContent = "Formato ICAO — pégalo en «Import ICAO FPL» del formulario de VATSIM.";
+  } catch {
+    aviso.textContent = "No se pudo contactar con el servidor.";
+    aviso.classList.add("error");
+  }
+});
+
+// -- abrir VATSIM con el plan ya relleno (callsign, reglas, aeronave, ruta,
+// todo). EvA no lo envía por su cuenta: abre la página para que el piloto
+// la revise y pulse enviar él mismo. --
+$("btn-vatsim").addEventListener("click", async () => {
+  const aviso = $("aviso-fpl");
+  aviso.textContent = "";
+  aviso.classList.remove("error");
+
+  try {
+    const r = await fetch("/api/plan/vatsim-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpoDelPlan()),
+    });
+    const datos = await r.json();
+    if (!r.ok) {
+      aviso.textContent = datos.description || "No se pudo generar el enlace.";
+      aviso.classList.add("error");
+      return;
+    }
+    window.open(datos.url, "_blank", "noopener");
+    aviso.textContent = "Si no se abrió, asegúrate de estar logado en my.vatsim.net. EvA solo abre la URL; tú envías el plan.";
+  } catch {
+    aviso.textContent = "No se pudo contactar con el servidor. Verifica tu conexión.";
+    aviso.classList.add("error");
+  }
+});
+
+// -- carga y pasajeros: combustible del plan + semáforo. --
+const DESPACHO = {{ despacho | default({}) | tojson }};
+const PESO_PERSONA_KG = 85;
+const RESERVA_VFR_MIN = 30;
+const MARGEN_JUSTO_FRACCION = 0.02;
+const PRECIO_PASAJERO = 150;
+const PRECIOS_CARGA = {
+  "paqueteria": 5,
+  "carga-general": 4,
+  "perecederos": 8,
+  "correo": 3,
+};
+
+function minutosDeCombustible(eetMin, autonomiaMin) {
+  if (autonomiaMin && autonomiaMin > 0) return autonomiaMin;
+  if (eetMin && eetMin > 0) return eetMin + RESERVA_VFR_MIN;
+  return null;
+}
+
+function actualizarPesoTotal() {
+  const pasajeros = Number($("pasajeros").value) || 0;
+  const cargaKg = Number($("carga-kg").value) || 0;
+  const tipoCarga = $("tipo-carga").value;
+  const ficha = DESPACHO[$("aeronave").value];
+  const semaforo = $("semaforo-peso");
+  const txtEstado = $("txt-peso-estado");
+  const detalles = $("detalles-peso");
+  const pesoPiloto = PESO_PERSONA_KG;
+  const pesoPasajeros = pasajeros * PESO_PERSONA_KG;
+  const pesoCarga = tipoCarga === "ninguno" ? 0 : cargaKg;
+  const ingresoPasajeros = pasajeros * PRECIO_PASAJERO;
+  const ingresoCarga = tipoCarga === "ninguno" ? 0 :
+                       pesoCarga * (PRECIOS_CARGA[tipoCarga] || 4);
+
+  $("label-piloto").textContent = `Piloto (1 × ${PESO_PERSONA_KG} kg)`;
+  $("peso-piloto").textContent = pesoPiloto;
+  $("peso-pasajeros").textContent = pesoPasajeros;
+  $("label-pasajeros").textContent = `Pasajeros (${pasajeros} × ${PESO_PERSONA_KG} kg)`;
+  $("ingreso-pasajeros").textContent = `${ingresoPasajeros} €`;
+  $("peso-carga").textContent = pesoCarga;
+  const nombreCarga = tipoCarga === "ninguno" ? "Sin carga" : tipoCarga;
+  $("label-carga").textContent = `${nombreCarga} (${cargaKg} kg)`;
+  $("ingreso-carga").textContent = `${ingresoCarga.toFixed(0)} €`;
+  $("ingreso-total").textContent = `${(ingresoPasajeros + ingresoCarga).toFixed(0)} €`;
+
+  if (!ficha) {
+    $("peso-oew").textContent = "—";
+    $("peso-combustible").textContent = "—";
+    $("peso-total").textContent = "—";
+    $("label-combustible").textContent = "Combustible (plan)";
+    semaforo.className = "semaforo";
+    txtEstado.textContent = "N/A";
+    detalles.textContent = "Sin datos de despacho / MTOW para este avión.";
+    return;
+  }
+
+  $("peso-oew").textContent = Math.round(ficha.oew_kg);
+
+  const eetMin = minutosDesde($("eet").value);
+  const autonomiaMin = minutosDesde($("autonomia").value);
+  const minComb = minutosDeCombustible(eetMin, autonomiaMin);
+  if (minComb == null) {
+    $("peso-combustible").textContent = "—";
+    $("peso-total").textContent = "—";
+    $("label-combustible").textContent = "Combustible (plan)";
+    semaforo.className = "semaforo";
+    txtEstado.textContent = "Falta el plan";
+    detalles.textContent = "Completa origen, destino y TAS (o el EET / autonomía) para calcular el combustible.";
+    return;
+  }
+
+  const horas = minComb / 60;
+  let fuel = horas * ficha.consumo_kg_h;
+  const tope = ficha.combustible_util_kg;
+  const capado = fuel > tope;
+  if (capado) fuel = tope;
+  const origenFuel = autonomiaMin > 0 ? "autonomía" : "EET + 30 min reserva VFR";
+  $("label-combustible").textContent =
+    `Combustible (${origenFuel}, ${minComb} min × ${ficha.consumo_kg_h} kg/h${capado ? ", tope tanque" : ""})`;
+  $("peso-combustible").textContent = Math.round(fuel);
+
+  const tow = ficha.oew_kg + pesoPiloto + pesoPasajeros + pesoCarga + fuel;
+  $("peso-total").textContent = Math.round(tow);
+
+  const mtow = ficha.mtow_kg;
+  const margen = mtow - tow;
+  const umbralJusto = Math.max(15, MARGEN_JUSTO_FRACCION * mtow);
+  let extra = "";
+  const maxPax = Math.max(0, ficha.plazas - 1);
+  if (pasajeros > maxPax) {
+    extra = ` Pasajeros (${pasajeros}) por encima de plazas libres (${maxPax}).`;
+  }
+
+  if (tow > mtow) {
+    semaforo.className = "semaforo rojo";
+    txtEstado.textContent = "✗ SOBREPESO";
+    detalles.textContent =
+      `${Math.round(tow)} kg excede MTOW de ${mtow} kg (sobrepeso: ${Math.round(-margen)} kg).` + extra;
+  } else if (margen <= umbralJusto) {
+    semaforo.className = "semaforo ambar";
+    txtEstado.textContent = "● VA JUSTO";
+    detalles.textContent =
+      `${Math.round(tow)} kg de ${mtow} kg (margen: ${Math.round(margen)} kg).` + extra;
+  } else {
+    semaforo.className = "semaforo verde";
+    txtEstado.textContent = "✓ SIN SOBREPESO";
+    detalles.textContent =
+      `${Math.round(tow)} kg de ${mtow} kg (margen: ${Math.round(margen)} kg).` + extra;
+  }
+}
+
+$("pasajeros").addEventListener("input", actualizarPesoTotal);
+$("carga-kg").addEventListener("input", actualizarPesoTotal);
+$("tipo-carga").addEventListener("change", actualizarPesoTotal);
+$("aeronave").addEventListener("change", actualizarPesoTotal);
+$("eet").addEventListener("input", actualizarPesoTotal);
+$("autonomia").addEventListener("input", actualizarPesoTotal);
+$("tas").addEventListener("change", actualizarPesoTotal);
+
+actualizarPesoTotal();
+
+// -- CARGAR: abrir archivo .fpl / texto ICAO y rellenar el formulario. --
+$("btn-cargar").addEventListener("click", () => $("file-fpl").click());
+
+$("file-fpl").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      parsearFPL(ev.target.result);
+      $("aviso-fpl").textContent = `Plan cargado desde ${file.name}`;
+      $("aviso-fpl").classList.remove("error");
+    } catch (err) {
+      $("aviso-fpl").textContent = `Error al leer el archivo: ${err.message}`;
+      $("aviso-fpl").classList.add("error");
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+});
+
+function parsearFPL(texto) {
+  // Buscar entre paréntesis si hay formato ICAO: (FPL-...)
+  const match = /\(FPL-[^)]*\)/i.exec(texto);
+  const fpl = match ? match[0] : texto.trim();
+  if (!fpl) throw new Error("No se encontró un plan ICAO válido");
+
+  // Limpiar espacios múltiples
+  const limpio = fpl.replace(/\s+/g, " ").trim();
+
+  // Quitar paréntesis
+  const inner = limpio.replace(/^\(/, "").replace(/\)$/, "");
+
+  // Dividir por guiones (separadores del formato ICAO)
+  const partes = inner.split("-").map(s => s.trim()).filter(Boolean);
+  if (partes.length < 2) throw new Error("Formato ICAO no reconocido");
+
+  // Primer campo: FPL
+  if (!partes[0].startsWith("FPL")) throw new Error("No parece un plan ICAO (esperaba FPL-...)");
+  const body = partes.slice(1);
+  if (body.length < 2) throw new Error("Faltan campos obligatorios");
+
+  // Campo 10: equipo
+  let equipo = "S";
+  let transponder = "C";
+  if (body.length > 1) {
+    const eq = body[1].split("/");
+    if (eq.length >= 2) {
+      equipo = eq[0] || "S";
+      transponder = eq[1] || "C";
+    } else if (eq.length === 1) {
+      equipo = eq[0] || "S";
+    }
+  }
+
+  // Campo 13: salida, hora, TAS/nivel, ruta
+  let departure = "";
+  let cruiseSpeed = "";
+  let cruiseAlt = "";
+  let route = "DCT";
+  let offBlock = "";
+  if (body.length > 2) {
+    const c13 = body[2].split("/");
+    departure = c13[0] || "";
+    if (c13.length > 1) offBlock = c13[1] || "";
+    if (c13.length > 2) {
+      const tasNivel = c13[2] || "";
+      const tn = tasNivel.split(/(?=\d)/);
+      cruiseSpeed = tn[0] || "";
+      cruiseAlt = tasNivel.replace(cruiseSpeed, "") || "";
+    }
+    route = body.slice(3, body.length - 1).join("/").trim() || "DCT";
+  }
+
+  // Campo 16: destino
+  let arrival = "";
+  if (body.length > 1) {
+    arrival = body[body.length - 1].split("/")[0] || "";
+  }
+
+  // Rellenar formulario
+  if (departure) $("origen").value = departure.toUpperCase();
+  if (arrival) $("destino").value = arrival.toUpperCase();
+  if (cruiseSpeed) $("tas").value = cruiseSpeed;
+  if (cruiseAlt) $("nivel").value = cruiseAlt.replace(/[A-Z]+$/i, "").trim();
+  if (route) $("ruta").value = route;
+  if (offBlock && /^\d{4}$/.test(offBlock)) {
+    $("off-block").value = offBlock.slice(0, 2) + ":" + offBlock.slice(2);
+  }
+
+  // Disparar cálculo de distancia
+  $("origen").dispatchEvent(new Event("change"));
+  $("destino").dispatchEvent(new Event("change"));
+}
+
+// -- aplicar carga al simulador ---
+
+$("btn-aplicar-payload").addEventListener("click", async () => {
+  const aviso = $("aviso-payload");
+  aviso.textContent = "";
+  aviso.classList.remove("error");
+
+  const pasajeros = Number($("pasajeros").value) || 0;
+  const cargaKg = Number($("carga-kg").value) || 0;
+
+  try {
+    const r = await fetch("/api/plan/apply-payload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        passengers: pasajeros,
+        cargo_kg: cargaKg,
+        fuel_pct: 0,
+      }),
+    });
+    const datos = await r.json();
+    if (!r.ok) {
+      aviso.textContent = datos.error || datos.description || "No se pudo aplicar la carga.";
+      aviso.classList.add("error");
+      return;
+    }
+    aviso.textContent = "Configuración aplicada al simulador.";
+    aviso.classList.remove("error");
+  } catch {
+    aviso.textContent = "No se pudo contactar con el servidor.";
+    aviso.classList.add("error");
+  }
+});
+</script>
+{% endblock %}

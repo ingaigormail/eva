@@ -1,0 +1,156 @@
+# Perfiles de operacion TIPICA por nivel de vuelo, para la flota de EvA.
+#
+# ─────────────────────────────────────────────────────────────────────────
+#  ESTO NO SON LIMITES.  Son valores tipicos de operacion usados por ATC
+#  para predecir trayectorias.  Alimentan reglas de DESVIACION
+#  ("ascendiste mucho mas despacio de lo normal"), nunca de infraccion.
+#  Los limites (VFE, VLE, VNE, VNO, VA, VMCA, VMO) viven en aircraft.yaml,
+#  bloque `limites_poh`, y solo pueden salir del manual del avion.
+# ─────────────────────────────────────────────────────────────────────────
+#
+# Fuente
+# ------
+#   https://github.com/vatsimnetwork/euroscope-performance-data
+#   Fichero AircraftPerformance.txt, licencia MIT (redistribuible).
+#   Mantenido por la comunidad de VATSIM para EuroScope v3.2.7.
+#   Extraido el 2026-08-16.
+#
+# Por que importa que sea de VATSIM: los designadores que usa este fichero
+# son los que maneja la red.  Confirma `DA62` y `TBM9`, que la Aircraft
+# Performance Database de EUROCONTROL no tenia.
+#
+# Campos (del formato PERFLINE de EuroScope)
+#   fl        nivel de vuelo
+#   clb/crz/des   velocidad IAS de ascenso / crucero / descenso, en nudos
+#   mach_*    numero de Mach cuando sustituye a la IAS (0 = no aplica)
+#   roc/rod   regimen de ascenso / descenso, en pies por minuto
+#
+# ADVERTENCIAS DE CALIDAD -- leer antes de usar
+# ---------------------------------------------
+# 1. DHC6 aparece DUPLICADO en el fichero de origen, con cifras que se
+#    contradicen (135 kt vs 80 kt de ascenso a FL030). Se conservan las dos
+#    variantes sin elegir: hay que resolverlo antes de evaluar ese avion.
+# 2. DA62 trae filas de FL250 a FL400 con roc 0 y rod 300. Un bimotor de
+#    piston no opera ahi: son relleno del formato, no datos. Ignorar por
+#    encima de su techo real.
+# 3. C172 a FL100 con crucero 140 kt es optimista para el avion real.
+#    Recordatorio de que esto es prediccion de trayectoria, no rendimiento
+#    certificado.
+#
+# Regla de uso: si una fila parece imposible para el avion, lo es. Estos
+# datos sirven para detectar desviaciones groseras, no para afinar.
+
+
+C172:
+  nombre: Cessna 172 Skyhawk
+  perfil:
+    - {fl: 30,  clb: 90,  crz: 90,  des: 90,  roc: 900, rod: 500}
+    - {fl: 50,  clb: 90,  crz: 90,  des: 90,  roc: 900, rod: 437}
+    - {fl: 100, clb: 140, crz: 140, des: 120, roc: 900, rod: 375}
+  techo_declarado_fl: 100
+
+
+C208:
+  nombre: Cessna 208 Caravan
+  perfil:
+    - {fl: 30,  clb: 80,  crz: 80,  des: 75,  roc: 1300, rod: 500}
+    - {fl: 50,  clb: 80,  crz: 80,  des: 75,  roc: 1300, rod: 437}
+    - {fl: 100, clb: 130, crz: 130, des: 160, roc: 1300, rod: 375}
+    - {fl: 150, clb: 130, crz: 130, des: 160, roc: 1000, rod: 312}
+    - {fl: 200, clb: 130, crz: 130, des: 160, roc: 1000, rod: 250}
+    - {fl: 250, clb: 130, crz: 130, des: 160, roc: 500,  rod: 187}
+  techo_declarado_fl: 250
+
+
+DA62:
+  nombre: Diamond DA62
+  perfil:
+    - {fl: 30,  clb: 100, crz: 105, des: 100, roc: 1700, rod: 800}
+    - {fl: 50,  clb: 120, crz: 180, des: 100, roc: 1500, rod: 1000}
+    - {fl: 100, clb: 125, crz: 180, des: 180, roc: 950,  rod: 1000}
+    - {fl: 150, clb: 125, crz: 180, des: 180, roc: 700,  rod: 1100}
+    - {fl: 200, clb: 125, crz: 180, des: 180, roc: 500,  rod: 1200}
+  # Las filas FL250-FL400 del origen se descartan: roc 0 es relleno.
+  techo_declarado_fl: 200
+  aviso: "el origen traia filas hasta FL400 que no son reales"
+
+
+BE58:
+  nombre: Beechcraft Baron 58
+  perfil:
+    - {fl: 30,  clb: 80,  crz: 80,  des: 95,  roc: 2000, rod: 500}
+    - {fl: 50,  clb: 80,  crz: 80,  des: 95,  roc: 2000, rod: 475}
+    - {fl: 100, clb: 130, crz: 130, des: 160, roc: 2000, rod: 450}
+    - {fl: 150, clb: 130, crz: 130, des: 160, roc: 1000, rod: 425}
+  techo_declarado_fl: 150
+
+
+TBM9:
+  nombre: Daher TBM 900/930/940
+  perfil:
+    - {fl: 30,  clb: 130, crz: 160, des: 130, roc: 2300, rod: 800}
+    - {fl: 50,  clb: 140, crz: 170, des: 150, roc: 2200, rod: 1200}
+    - {fl: 100, clb: 150, crz: 180, des: 150, roc: 2000, rod: 1300}
+    - {fl: 150, clb: 150, crz: 185, des: 150, roc: 1750, rod: 1500}
+    - {fl: 200, clb: 150, crz: 185, des: 150, roc: 1650, rod: 1700}
+    - {fl: 250, clb: 150, crz: 185, des: 150, roc: 1300, rod: 1900}
+    - {fl: 300, clb: 150, crz: 185, des: 150, roc: 1200, rod: 2200}
+    - {fl: 350, clb: 150, crz: 185, des: 150, roc: 750,  rod: 1400}
+  techo_declarado_fl: 350
+  nota: >-
+    TBM9 cubre la serie 900, que incluye el 930 de la flota. TBM7 y TBM8
+    existen aparte en el origen y son modelos anteriores distintos.
+
+
+B350:
+  nombre: Beechcraft King Air 350
+  perfil:
+    - {fl: 30,  clb: 180, crz: 180, des: 150, roc: 2500, rod: 1500}
+    - {fl: 50,  clb: 180, crz: 180, des: 150, roc: 2500, rod: 1437}
+    - {fl: 100, clb: 230, crz: 230, des: 250, roc: 2500, rod: 1375}
+    - {fl: 150, clb: 230, crz: 230, des: 280, roc: 2000, rod: 1312}
+    - {fl: 200, clb: 230, crz: 230, des: 280, roc: 1500, rod: 1250}
+    - {fl: 250, clb: 230, crz: 230, des: 280, roc: 1000, rod: 1187}
+    - {fl: 300, mach_clb: 0.47, mach_crz: 0.47, mach_des: 0.47, roc: 1000, rod: 1125}
+  techo_declarado_fl: 300
+
+
+DHC6:
+  nombre: DHC-6 Twin Otter
+  CONFLICTO: >-
+    El fichero de origen contiene DOS entradas DHC6 con cifras que se
+    contradicen. No se elige ninguna: hay que resolverlo antes de evaluar
+    este avion. Mientras tanto, EvA no debe aplicarle reglas de desviacion.
+  variante_a:
+    perfil:
+      - {fl: 30,  clb: 135, crz: 150, des: 130, roc: 1000, rod: 900}
+      - {fl: 50,  clb: 145, crz: 160, des: 140, roc: 1200, rod: 1100}
+      - {fl: 100, clb: 145, crz: 160, des: 150, roc: 900,  rod: 1200}
+      - {fl: 150, clb: 145, crz: 160, des: 150, roc: 700,  rod: 1000}
+      - {fl: 200, clb: 140, crz: 160, des: 150, roc: 400,  rod: 850}
+  variante_b:
+    perfil:
+      - {fl: 30,  clb: 80,  crz: 80,  des: 110, roc: 1500, rod: 800}
+      - {fl: 50,  clb: 80,  crz: 80,  des: 110, roc: 1500, rod: 762}
+      - {fl: 100, clb: 130, crz: 130, des: 160, roc: 1500, rod: 725}
+      - {fl: 150, clb: 130, crz: 130, des: 160, roc: 1000, rod: 687}
+      - {fl: 200, clb: 130, crz: 130, des: 160, roc: 1000, rod: 650}
+
+
+C25C:
+  nombre: Cessna Citation CJ4
+  perfil:
+    - {fl: 30,  clb: 215, crz: 240, des: 180, roc: 3100, rod: 900}
+    - {fl: 50,  clb: 225, crz: 250, des: 210, roc: 3500, rod: 1550}
+    - {fl: 100, clb: 230, crz: 265, des: 230, roc: 3400, rod: 1900}
+    - {fl: 150, clb: 230, crz: 270, des: 230, roc: 2900, rod: 2300}
+    - {fl: 200, clb: 230, crz: 270, des: 230, roc: 2600, rod: 2600}
+    - {fl: 250, clb: 230, crz: 270, des: 230, roc: 2000, rod: 2900}
+    - {fl: 300, mach_clb: 0.63, mach_crz: 0.68, mach_des: 0.63, roc: 1400, rod: 3350}
+    - {fl: 350, mach_clb: 0.65, mach_crz: 0.68, mach_des: 0.63, roc: 1200, rod: 3000}
+    - {fl: 400, mach_clb: 0.67, mach_crz: 0.68, mach_des: 0.63, roc: 800,  rod: 2900}
+  techo_declarado_fl: 400
+  nota: >-
+    A FL100 el crucero tipico es 265 kt. Excede los 250 kt reglamentarios
+    por debajo de FL100: es un dato de prediccion, no una autorizacion.
+    La regla de 250 kt se evalua contra la norma, no contra esta tabla.

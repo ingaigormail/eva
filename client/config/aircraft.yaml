@@ -1,0 +1,483 @@
+# Perfiles de aeronave de la flota de EvA.
+#
+# ─────────────────────────────────────────────────────────────────────────
+#  REGLA INNEGOCIABLE DE ESTE FICHERO
+#
+#  Ningun valor se rellena de memoria, por estimacion ni por parecido con
+#  otro avion.  `null` significa "todavia no verificado", y el motor debe
+#  tratarlo como "esta regla NO se evalua" --nunca como cero ni como
+#  "sin limite".
+#
+#  Una V-speed inventada no produce un aviso: produce una penalizacion a un
+#  piloto que volaba bien.  Es peor que no evaluar.
+# ─────────────────────────────────────────────────────────────────────────
+#
+# DOS FUENTES, DOS CLASES DE REGLA -- no mezclar
+# ----------------------------------------------
+#
+#   `limites_poh`      Limites certificados del manual del avion (POH).
+#                      Son LIMITES: excederlos es una infraccion objetiva.
+#                      VFE, VLE, VMCA, VNE, VNO, VA, VMO, MMO.
+#                      >> NINGUNA de estas la publica EUROCONTROL. <<
+#                      Solo pueden salir del POH.
+#
+#   `referencia_atc`   Valores TIPICOS de operacion, de la Aircraft
+#                      Performance Database de EUROCONTROL.
+#                      NO son limites: son lo que el avion suele hacer.
+#                      Sirven para reglas de DESVIACION ("ascendiste mucho
+#                      mas despacio de lo normal"), nunca de infraccion.
+#
+#   Confundirlas seria un error grave: volar a 70 kt en aproximacion cuando
+#   el valor tipico es 65 kt NO es una infraccion.  Superar VFE SI lo es.
+#
+# Fuente de `referencia_atc`:
+#   https://learningzone.eurocontrol.int/ilp/customs/ATCPFDB/details.aspx?ICAO=<designador>
+#   Gratuita y sin registro.  Verificada el 2026-08-16.
+#   Campos que ofrece: V2, Vat, IAS/ROC de ascenso por tramo, TAS y Mach de
+#   crucero, IAS/ROD de descenso y aproximacion, MTOW, distancias de
+#   despegue y aterrizaje, estela, APC, planta motriz.
+#   Campos que NO ofrece: VFE, VLE, VNE, VNO, VA, VMCA, VMO, MMO.
+#
+# Aplicabilidad
+# -------------
+#   `no_aplica` = esa velocidad no existe en este avion (p.ej. VLE con tren
+#   fijo, VMCA en monomotor).  Distinto de `null` = falta verificarlo.
+#   El motor trata ambos igual (no evalua), pero el informe de cobertura
+#   solo debe reclamar los `null`.
+#
+# Nota sobre peso: `referencia_atc` da UN valor por avion, sin tablas.
+# V2, VREF y VA dependen del peso.  Ver DAT-06 en la especificacion.
+
+
+C172:
+  nombre: Cessna 172 Skyhawk
+  designador:
+    verificado: true          # existe en la BD de EUROCONTROL como C172
+    fuente: eurocontrol_apdb
+  configuracion:
+    tren: fijo
+    motores: 1
+    turbina: false
+  limites_poh:
+    fuente: null
+    revisado_por: null
+    fecha: null
+    vso: null
+    vs1: null
+    vfe: null
+    vfe_por_flap: {}
+    vle: no_aplica
+    vlo: no_aplica
+    vmca: no_aplica
+    va: null
+    vno: null
+    vne: null
+    vmo: no_aplica
+    mmo: no_aplica
+    vr: null
+    vx: null
+    vy: null
+  referencia_atc:
+    v2_kt: 60
+    vat_kt: 65
+    mtow_kg: 1050
+    ascenso_inicial_ias_kt: null
+    ascenso_inicial_roc_fpm: null
+    crucero_tas_kt: null
+    descenso_ias_kt: null
+    aproximacion_ias_kt: null
+    distancia_despegue_m: null
+    distancia_aterrizaje_m: null
+  notas: null
+
+
+C208:
+  nombre: Cessna 208 Caravan
+  designador:
+    verificado: true
+    fuente: eurocontrol_apdb
+    nota: "variante C08T (Twin-Pack Pathfinder 21) es otro designador"
+  configuracion:
+    tren: fijo
+    motores: 1
+    turbina: true
+  limites_poh:
+    fuente: null
+    revisado_por: null
+    fecha: null
+    vso: null
+    vs1: null
+    vfe: null
+    vfe_por_flap: {}
+    vle: no_aplica
+    vlo: no_aplica
+    vmca: no_aplica
+    va: null
+    vno: null
+    vne: null
+    vmo: null
+    mmo: no_aplica
+    vr: null
+    vx: null
+    vy: null
+  referencia_atc:
+    v2_kt: 85
+    vat_kt: 75
+    mtow_kg: 3629
+    ascenso_inicial_ias_kt: 115
+    ascenso_inicial_roc_fpm: 800
+    ascenso_fl150_ias_kt: 130
+    ascenso_fl150_roc_fpm: 500
+    crucero_tas_kt: 160
+    descenso_fl100_ias_kt: 160
+    descenso_fl100_rod_fpm: 500
+    aproximacion_ias_kt: 120
+    aproximacion_rod_fpm: 500
+    aproximacion_mcs_kt: 75
+    distancia_despegue_m: 500
+    distancia_aterrizaje_m: 450
+    estela: L
+    apc: A
+  notas: null
+
+
+DA62:
+  nombre: Diamond DA62
+  designador:
+    verificado: false
+    fuente: null
+    nota: >-
+      NO figura en la base de EUROCONTROL con la clave DA62 (consulta
+      2026-08-16: sin datos). Hay que confirmar el designador correcto
+      contra el Doc 8643 de OACI y contra lo que reporte el simulador.
+      Mientras la clave no sea correcta, EvA no aplicaria ninguna regla a
+      este avion y lo haria en silencio.
+  configuracion:
+    tren: retractil
+    motores: 2
+    turbina: false
+  limites_poh:
+    fuente: null
+    revisado_por: null
+    fecha: null
+    vso: null
+    vs1: null
+    vfe: null
+    vfe_por_flap: {}
+    vle: null
+    vlo: null
+    vmca: null
+    vyse: null              # "blue line": mejor ascenso con un motor parado
+    va: null
+    vno: null
+    vne: null
+    vmo: no_aplica
+    mmo: no_aplica
+    vr: null
+    vx: null
+    vy: null
+  referencia_atc:
+    disponible: false       # no esta en la BD de EUROCONTROL
+  notas: >-
+    Sin datos de EUROCONTROL: todo tiene que salir del POH de Diamond.
+
+
+BE58:
+  nombre: Beechcraft Baron G58
+  designador:
+    verificado: true
+    fuente: eurocontrol_apdb
+    nota: "en la BD figura como '58 Baron by Hawker Beechcraft'"
+  configuracion:
+    tren: retractil
+    motores: 2
+    turbina: false
+  limites_poh:
+    fuente: null
+    revisado_por: null
+    fecha: null
+    vso: null
+    vs1: null
+    vfe: null
+    vfe_por_flap: {}
+    vle: null
+    vlo: null
+    vmca: null
+    vyse: null
+    va: null
+    vno: null
+    vne: null
+    vmo: no_aplica
+    mmo: no_aplica
+    vr: null
+    vx: null
+    vy: null
+  referencia_atc:
+    v2_kt: 100
+    vat_kt: 95
+    mtow_kg: 2500
+    ascenso_inicial_ias_kt: null
+    ascenso_inicial_roc_fpm: null
+    crucero_tas_kt: null
+    descenso_ias_kt: null
+    aproximacion_ias_kt: null
+  notas: >-
+    El registro de EUROCONTROL es del Baron 58 generico, no del G58
+    concreto. Para limites, el POH del G58 manda.
+
+
+TBM9:
+  nombre: Daher TBM 930
+  designador:
+    verificado: false
+    fuente: null
+    nota: >-
+      TBM9 NO devuelve datos en EUROCONTROL (consulta 2026-08-16). TBM7 si
+      existe, pero es el SOCATA TBM-700: un avion distinto y anterior.
+      Usar sus cifras para el 930 seria inventar. Confirmar el designador
+      real contra el Doc 8643 y contra el simulador.
+  configuracion:
+    tren: retractil
+    motores: 1
+    turbina: true
+  limites_poh:
+    fuente: null            # el POH de Daher sigue sin conseguirse
+    revisado_por: null
+    fecha: null
+    vso: null
+    vs1: null
+    vfe: null
+    vfe_por_flap: {}
+    vle: null
+    vlo: null
+    vmca: no_aplica
+    va: null
+    vno: null
+    vne: null
+    vmo: null               # turbina rapida: VMO aplica, tambien en VFR
+    mmo: null
+    vr: ver_referencia_sim  # depende del peso, ver bloque de abajo
+    vx: null
+    vy: null
+  referencia_atc:
+    disponible: false
+  referencia_sim:
+    # TERCERA CLASE DE FUENTE: checklist de comunidad para simulador
+    # ("Simmer Dream"), con la advertencia impresa "FOR FLIGHT SIMULATION
+    # ONLY - DO NOT USE FOR REAL-WORLD PROCEDURES".
+    # NO es el POH de Daher.  Sirve de referencia, no de limite certificado.
+    fuente: "Checklist-TBM930.pdf (Simmer Dream), Apendice A"
+    fecha_consulta: 2026-08-16
+    mtow_kg: 3354
+    mtow_lbs: 7394
+    vr_por_peso:
+      # Leido de un nomograma (grafico de escalas), NO de una tabla.
+      # La lectura tiene precision limitada: usar solo como orden de
+      # magnitud hasta contrastar con el POH.
+      formato: nomograma
+      rango_vr_kt: [75, 90]
+      rango_peso_kg: [2200, 3354]
+      nota: >-
+        VR varia unos 15 kt a lo largo del rango de pesos. Un valor unico
+        se equivocaria hasta en +-7 kt. Confirma DAT-06.
+  notas: >-
+    Sin registro en EUROCONTROL y sin POH. Lo unico disponible hoy es un
+    checklist de simulador que aporta MTOW y VR por peso. Ni VMO, ni VFE,
+    ni VLE, ni VNE, ni VREF.
+
+
+B350:
+  nombre: Beechcraft King Air 350i
+  designador:
+    verificado: true
+    fuente: eurocontrol_apdb
+    nota: >-
+      la BD lo titula "B300 Super King Air 350": B300 es el numero de
+      modelo Beechcraft, B350 el designador OACI. La clave B350 funciona.
+  configuracion:
+    tren: retractil
+    motores: 2
+    turbina: true
+  limites_poh:
+    fuente: null
+    revisado_por: null
+    fecha: null
+    vso: null
+    vs1: null
+    vfe: null
+    vfe_por_flap: {}
+    vle: null
+    vlo: null
+    vmca: null
+    vyse: null
+    va: null
+    vno: null
+    vne: null
+    vmo: null
+    mmo: null
+    vr: null
+    vx: null
+    vy: null
+  referencia_atc:
+    v2_kt: 120
+    vat_kt: 110
+    mtow_kg: 6800
+    ascenso_inicial_ias_kt: null
+    ascenso_inicial_roc_fpm: null
+    crucero_tas_kt: null
+    descenso_ias_kt: null
+    aproximacion_ias_kt: null
+  notas: null
+
+
+DHC6:
+  nombre: De Havilland Canada DHC-6 Twin Otter
+  designador:
+    verificado: true
+    fuente: eurocontrol_apdb
+  configuracion:
+    tren: fijo              # verificar la variante de la flota
+    motores: 2
+    turbina: true
+  limites_poh:
+    fuente: >-
+      MSFS 2024 DHC-6 Twin Otter Aircraft Operating Manual, pag. 42 y 46.
+      flightsimulator.com/aircraft-manuals/
+    revisado_por: claude
+    fecha: 2026-08-16
+    unidad: KIAS
+    nota_cas_ias: >-
+      El manual da CAS e IAS en columnas separadas. Aqui se usa SIEMPRE la
+      columna IAS, porque es lo que reporta el simulador y lo que graba EvA
+      en `ias_kt`. Usar la de CAS penalizaria de mas por unos pocos nudos.
+    vso: null              # el AOM no publica la velocidad de perdida
+    vs1: null
+    vfe: 103               # flaps 10 grados
+    vfe_por_flap:
+      10: 103
+      37.5: 93             # de flaps 10 a 37,5 grados
+    vle: no_aplica
+    vlo: no_aplica
+    vmca: 64               # con flaps 10 grados
+    vyse: null
+    va: 132                # el manual la llama VP, hasta 18.000 ft
+    vb_racha: 132          # penetracion de turbulencia, hasta 18.000 ft
+    vno: null
+    vne: null              # el AOM solo publica VNE para la version con esquis
+    vmo: 166               # a nivel del mar; varia con la altitud, ver abajo
+    vmo_por_altitud_ft:
+      0: 166               # hasta 6.700 ft
+      10000: 156
+      15000: 141
+      20000: 126
+      25000: 112
+    mmo: no_aplica
+    vr: null
+    vx: 87                 # flaps 0
+    vy: 100                # flaps 0
+  variantes:
+    # Se confirma lo que se sospechaba: la version importa y cambia limites.
+    flotadores:
+      vmo_kt: 160          # el manual lo da junto a la cifra CAS; verificar
+      nota: "comprobar si 160 es CAS o IAS antes de usarlo"
+    esquis:
+      vne_kt: 178          # IAS, del nivel del mar a 10.000 ft
+      vne_reduccion: "restar 4 kt por cada 1.000 ft por encima de 10.000 ft"
+      nota: "tambien cambian los limites de centrado"
+  referencia_atc:
+    v2_kt: 80
+    vat_kt: 70
+    mtow_kg: 5670
+    ascenso_inicial_ias_kt: null
+    ascenso_inicial_roc_fpm: null
+    crucero_tas_kt: null
+    descenso_ias_kt: null
+    aproximacion_ias_kt: null
+  notas: >-
+    Confirmar variante: tren, flotadores o esquis cambian limites y hacen
+    que `tren: fijo` pueda no ser cierto en la version de la flota.
+
+
+C25C:
+  nombre: Cessna Citation CJ4
+  designador:
+    verificado: true
+    fuente: eurocontrol_apdb
+    nota: "en la BD figura como '525C Citation CJ4 by Cessna'; IATA CNJ"
+  configuracion:
+    tren: retractil
+    motores: 2
+    turbina: true
+    reactor: true
+  limites_poh:
+    fuente: >-
+      MSFS Cessna Citation CJ4 Operator's Guide v1, seccion 2 "Limitations",
+      pag. 5. flightsimulator.com/aircraft-manuals/
+    revisado_por: claude
+    fecha: 2026-08-16
+    unidad: KIAS
+    vso: null              # el manual no publica la cifra, solo la usa
+    vs1: null
+    vfe: null              # usar el mapa por escalon de flap
+    vfe_por_flap:
+      15: 200
+      35: 160
+    vle: 200
+    vlo: null
+    vmca: null
+    va: null
+    # VMO cambia por tramos de altitud: por debajo de 8.000 ft el limite es
+    # mas bajo (el manual lo llama VMN). Aplicar el tramo que corresponda.
+    vmo: 305               # entre 8.000 y 27.884 ft
+    vmo_por_altitud_ft:
+      0: 260               # por debajo de 8.000 ft (VMN)
+      8000: 305            # hasta 27.884 ft; por encima manda MMO
+    mmo: 0.77              # por encima de 27.884 ft. Es Mach, NO nudos
+    velocidad_minima_engelamiento: 160
+    v1: null               # depende de peso, pista, altitud y temperatura
+    vr: null
+    vx: null
+    vy: null
+  pesos:
+    # Del mismo manual. El MTOW coincide con el de EUROCONTROL (7.761 kg):
+    # dos fuentes independientes de acuerdo.
+    max_rampa_lb: 17230
+    mtow_lb: 17110
+    max_aterrizaje_lb: 15660
+    max_sin_combustible_lb: 12500
+  viento:
+    max_viento_cola_aterrizaje_kt: 10
+    max_viento_cruzado_demostrado_kt: 25
+  referencia_atc:
+    v2_kt: 116
+    vat_kt: 110
+    mtow_kg: 7761
+    ascenso_inicial_ias_kt: 200
+    ascenso_inicial_roc_fpm: 3500
+    ascenso_fl150_ias_kt: 240
+    ascenso_fl150_roc_fpm: 3500
+    ascenso_fl240_ias_kt: 240
+    ascenso_fl240_roc_fpm: 2500
+    ascenso_mach: 0.64
+    crucero_tas_kt: 450
+    crucero_mach: 0.74
+    techo_fl: 450
+    alcance_nm: 1920
+    descenso_fl240_mach: 0.74
+    descenso_fl240_rod_fpm: 2000
+    descenso_fl100_ias_kt: 290
+    descenso_fl100_rod_fpm: 2000
+    aproximacion_ias_kt: 200
+    aproximacion_rod_fpm: 1500
+    aproximacion_mcs_kt: 140
+    distancia_despegue_m: 1039
+    distancia_aterrizaje_m: 896
+    estela: M
+    apc: B
+  notas: >-
+    VREF no es un numero fijo: el manual lo define como 1,3 x VSO para el
+    peso del momento, y VAPP como VREF + 7 kt. Los calcula la aviónica. Sin
+    la VSO publicada no se puede reproducir, asi que VREF queda sin valor
+    aunque ahora se conozca la regla que lo gobierna. Confirma DAT-06.
+    V1, VR y V2 dependen ademas de pista, altitud y temperatura; el valor
+    unico de `referencia_atc` es referencia tipica, NO umbral de evaluacion.

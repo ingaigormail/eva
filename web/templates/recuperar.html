@@ -1,0 +1,42 @@
+{% extends "cuenta_base.html" %}
+{% block titulo %}Recuperar la contraseña — EvA Airliner{% endblock %}
+
+{% block contenido %}
+  <p class="titulo-pantalla">He olvidado mi contraseña</p>
+  <p class="subtitulo-pantalla">
+    Te enviamos un enlace para poner una nueva. EvA nunca te manda tu
+    contraseña actual: no la guarda en ningún sitio legible.
+  </p>
+
+  {% if aviso %}
+  <div class="aviso-message">{{ aviso }}</div>
+  {% endif %}
+
+  {% if error %}
+  <div class="error-message">{{ error }}</div>
+  {% endif %}
+
+  {% if not aviso %}
+  <form method="POST">
+    <div class="form-group">
+      <label for="identificador">ID de piloto o correo</label>
+      <input type="text" id="identificador" name="identificador"
+             placeholder="EVA18L o tu@correo.com"
+             value="{{ identificador }}" required autofocus>
+    </div>
+
+    <button class="boton primario" type="submit">Enviarme el enlace</button>
+  </form>
+  {% endif %}
+
+  <div class="enlaces-cuenta">
+    <a href="{{ url_for('login_page') }}">&larr; Volver al inicio de sesión</a>
+    <a href="{{ url_for('solicitar_alta') }}">Solicitar el alta</a>
+  </div>
+
+  <div class="info-text">
+    <strong>¿Tu cuenta no tiene correo asociado?</strong>
+    Es el caso de las cuentas antiguas. Escribe al responsable de EvA para que
+    te lo añada.
+  </div>
+{% endblock %}

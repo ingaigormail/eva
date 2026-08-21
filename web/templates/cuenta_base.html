@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titulo %}EvA Airliner{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='eva.css') }}">
+  <style>
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .login-container {
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    box-shadow: var(--sombra);
+    padding: 40px;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  button.boton.primario { width: 100%; padding: 12px; font-size: 14px; }
+
+  .logo-area {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .insignia {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: var(--panel-alto);
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: var(--sombra);
+    margin-bottom: 12px;
+  }
+  .insignia img { width: 32px; height: 32px; object-fit: contain; }
+  .logo-text { font-size: 22px; font-weight: 800; margin: 0; line-height: 1.15; }
+  .logo-text .eva {
+    color: var(--azul-oscuro);
+    animation: parpadeo-eva 2.6s ease-in-out infinite;
+  }
+  .logo-text .airliner { color: var(--marca-cyan); margin-left: 2px; }
+  @keyframes parpadeo-eva {
+    0%, 45%   { opacity: 1; }
+    55%, 90%  { opacity: .14; }
+    100%      { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .logo-text .eva { animation: none; }
+  }
+  .logo-sub {
+    font-size: 10px;
+    color: var(--tenue);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    font-weight: 600;
+    margin-top: 6px;
+  }
+
+  .titulo-pantalla {
+    font-size: 15px;
+    font-weight: 800;
+    margin: 0 0 6px;
+    text-align: center;
+  }
+  .subtitulo-pantalla {
+    font-size: 12.5px;
+    color: var(--tenue);
+    text-align: center;
+    margin: 0 0 22px;
+    line-height: 1.5;
+  }
+
+  .form-group { margin-bottom: 18px; }
+  label {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--tenue);
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--texto);
+    background: #fff;
+    outline: none;
+  }
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  input[type="password"]:focus {
+    border-color: var(--azul);
+    box-shadow: 0 0 0 3px var(--azul-claro);
+  }
+
+  .error-message {
+    background: var(--rojo-fondo);
+    color: var(--rojo);
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 18px;
+    border: 1px solid var(--rojo-borde);
+  }
+  .error-accion {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--rojo-borde);
+    color: var(--texto);
+  }
+  .error-accion a { color: var(--azul); font-weight: 700; }
+
+  .aviso-message {
+    background: var(--verde-fondo);
+    color: var(--verde-texto);
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 18px;
+    border: 1px solid var(--verde-borde);
+    line-height: 1.5;
+  }
+
+  button {
+    width: 100%;
+    padding: 12px;
+    background: var(--azul);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  button:hover { background: var(--azul-hover); }
+
+  .enlaces-cuenta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+    font-size: 12px;
+  }
+  .enlaces-cuenta a { color: var(--azul); text-decoration: none; font-weight: 600; }
+  .enlaces-cuenta a:hover { text-decoration: underline; }
+
+  .info-text {
+    text-align: center;
+    font-size: 12px;
+    color: var(--tenue);
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--borde);
+  }
+  .info-text strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--texto);
+  }
+{% block estilos %}{% endblock %}
+</style>
+</head>
+<body>
+<div class="login-container">
+  <div class="logo-area">
+    <div class="insignia"><img src="{{ url_for('static', filename='eva_logo.png') }}" alt="EvA"></div>
+    <p class="logo-text"><span class="eva">EvA</span><span class="airliner">Airliner</span></p>
+    <p class="logo-sub">Escuela Virtual Aérea</p>
+  </div>
+
+{% block contenido %}{% endblock %}
+</div>
+</body>
+</html>

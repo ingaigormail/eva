@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block nav_registro %}activo{% endblock %}
+{% block contenido %}
+<div class="tarjeta">
+  <h2>No se ha podido mostrar el vuelo</h2>
+  <p>{{ mensaje }}</p>
+  <p><a class="vuelo" href="{{ url_for('index') }}">Volver a la lista de vuelos</a></p>
+</div>
+{% endblock %}

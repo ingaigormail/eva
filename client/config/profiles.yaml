@@ -1,0 +1,135 @@
+# Perfiles de dificultad para la evaluacion de vuelos VFR.
+# Ver ../../docs/criterios_vfr.md para el significado y la justificacion de
+# cada regla. "normal" son los valores por defecto documentados alli.
+#
+# Los perfiles nunca se hardcodean en el motor de evaluacion (avcars/evaluation/
+# scoring.py): siempre se leen de aqui, para poder hacerlos mas faciles o mas
+# dificiles sin tocar codigo.
+
+normal:
+  pass_score: 70
+  runway_alignment_deg_max: 10
+  touchdown_zone_m_max: 600
+  # IAS objetivo en la estabilización queda pendiente: requiere una velocidad
+  # de referencia por avión (perfiles POH), que se deja para una fase futura.
+  stabilization:
+    alt_agl_ft: 500
+    alt_agl_tolerance_ft: 100
+    vs_fpm_min: -1000
+    vs_fpm_max: 0
+  landing_vs_bands:
+    butter: {max_fpm: 60, points: 0}
+    smooth: {max_fpm: 180, points: 0}
+    normal: {max_fpm: 300, points: 10}
+    hard: {max_fpm: 600, points: 25}
+    # por encima de hard.max_fpm (en valor absoluto) => FAIL automatico (very_hard)
+  fuel_reserve_kg_min: 20
+  pause_duration_s_max: 120
+  qnh:
+    min_inhg: 28.5
+    max_inhg: 31.2
+  bank_angle:
+    warn_deg: 30
+    fail_deg: 60
+    sustained_samples: 3
+  lights:
+    check_tolerance_s: 30
+  penalties:
+    runway_alignment_takeoff: 10
+    runway_alignment_landing: 15
+    not_stabilized_500ft: 20
+    touchdown_zone_exceeded: 10
+    fuel_below_reserve: 20
+    pause_exceeded: 10
+    sustained_bank_angle: 15
+    qnh_out_of_range: 10
+    gear_up_touchdown: 15
+    landing_light_off: 10
+    beacon_off_airborne: 10
+    nav_light_off_airborne: 10
+    taxi_light_off: 5
+    strobe_wrong_state: 5
+
+easy:
+  pass_score: 60
+  runway_alignment_deg_max: 15
+  touchdown_zone_m_max: 750
+  stabilization:
+    alt_agl_ft: 500
+    alt_agl_tolerance_ft: 150
+    vs_fpm_min: -1200
+    vs_fpm_max: 0
+    # ver nota de IAS en el bloque "normal"
+  landing_vs_bands:
+    butter: {max_fpm: 60, points: 0}
+    smooth: {max_fpm: 200, points: 0}
+    normal: {max_fpm: 350, points: 5}
+    hard: {max_fpm: 700, points: 15}
+  fuel_reserve_kg_min: 15
+  pause_duration_s_max: 180
+  qnh:
+    min_inhg: 28.0
+    max_inhg: 31.5
+  bank_angle:
+    warn_deg: 35
+    fail_deg: 70
+    sustained_samples: 4
+  lights:
+    check_tolerance_s: 45
+  penalties:
+    runway_alignment_takeoff: 5
+    runway_alignment_landing: 10
+    not_stabilized_500ft: 10
+    touchdown_zone_exceeded: 5
+    fuel_below_reserve: 10
+    pause_exceeded: 5
+    sustained_bank_angle: 10
+    qnh_out_of_range: 5
+    gear_up_touchdown: 10
+    landing_light_off: 5
+    beacon_off_airborne: 5
+    nav_light_off_airborne: 5
+    taxi_light_off: 5
+    strobe_wrong_state: 5
+
+hard:
+  pass_score: 80
+  runway_alignment_deg_max: 6
+  touchdown_zone_m_max: 450
+  stabilization:
+    alt_agl_ft: 500
+    alt_agl_tolerance_ft: 75
+    vs_fpm_min: -800
+    vs_fpm_max: 0
+    # ver nota de IAS en el bloque "normal"
+  landing_vs_bands:
+    butter: {max_fpm: 60, points: 0}
+    smooth: {max_fpm: 160, points: 0}
+    normal: {max_fpm: 260, points: 15}
+    hard: {max_fpm: 500, points: 35}
+  fuel_reserve_kg_min: 25
+  pause_duration_s_max: 90
+  qnh:
+    min_inhg: 28.8
+    max_inhg: 30.9
+  bank_angle:
+    warn_deg: 25
+    fail_deg: 50
+    sustained_samples: 2
+  lights:
+    check_tolerance_s: 20
+  penalties:
+    runway_alignment_takeoff: 15
+    runway_alignment_landing: 20
+    not_stabilized_500ft: 30
+    touchdown_zone_exceeded: 15
+    fuel_below_reserve: 30
+    pause_exceeded: 15
+    sustained_bank_angle: 20
+    qnh_out_of_range: 15
+    gear_up_touchdown: 20
+    landing_light_off: 15
+    beacon_off_airborne: 15
+    nav_light_off_airborne: 15
+    taxi_light_off: 10
+    strobe_wrong_state: 10

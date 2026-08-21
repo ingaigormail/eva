@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block titulo %}Vuelos — EvA{% endblock %}
+{% block nav_vuelos %}activo{% endblock %}
+{% block marca_sub %}Mis vuelos{% endblock %}
+
+{% block estilos %}
+  .aviso {
+    padding: 12px 14px; border-radius: 10px; margin-bottom: 14px;
+    font-size: 13px; line-height: 1.5; border: 1px solid transparent;
+  }
+  .aviso.exito { background: var(--verde-fondo); color: var(--verde-texto); border-color: var(--verde-borde); }
+  .aviso.error { background: var(--rojo-fondo); color: var(--rojo); border-color: var(--rojo-borde); }
+{% endblock %}
+
+{% block contenido %}
+      {% for categoria, texto in get_flashed_messages(with_categories=true) %}
+      <div class="aviso {{ 'exito' if categoria == 'exito' else 'error' }}">{{ texto }}</div>
+      {% endfor %}
+
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span>
+          <div>
+            <h2>Mis vuelos</h2>
+            <p>Los vuelos que has grabado y subido a tu cartilla.</p>
+          </div>
+        </div>
+
+        {% if vuelos %}
+        <table class="tabla-eva">
+          <thead>
+            <tr>
+              <th>Fecha y Hora</th>
+              <th>Duración</th>
+              <th>Distancia</th>
+              <th>Altitud Máx</th>
+              <th>Vel. Máx</th>
+              <th>Puntos</th>
+              <th></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for vuelo in vuelos %}
+            <tr>
+              <td>{{ vuelo.fecha }}</td>
+              <td>{{ vuelo.duracion_min }} min</td>
+              <td>{{ vuelo.distancia_nm }} NM</td>
+              <td>{{ vuelo.alt_max_ft }} ft</td>
+              <td>{{ vuelo.gs_max_kt }} kt</td>
+              <td>{{ vuelo.puntos }}</td>
+              {# Un .avlog.json tiene cartilla completa (veredicto, mapa, criterios);
+                 un .csv de fstelemetry solo da para la ficha de telemetría. #}
+              <td><a href="{{ url_for('detalle', nombre=vuelo.archivo) if vuelo.archivo.endswith('.avlog.json') else url_for('detalle_registro', nombre=vuelo.archivo) }}">Ver →</a></td>
+              <td>
+                <form method="POST" action="{{ url_for('borrar_mi_vuelo', nombre=vuelo.archivo) }}"
+                      onsubmit="return confirm('¿Borrar este vuelo? No se puede deshacer.');">
+                  <button class="mini peligro" type="submit">Borrar</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p style="margin-top: 16px; font-size: 12px; color: var(--tenue);">
+          Total: <strong>{{ total }}</strong> vuelos grabados
+        </p>
+        {% else %}
+        <div class="vacio">
+          <p class="grande">No tiene vuelos registrados.</p>
+          <p>Cuando grabes uno con EVA Airliner, súbelo y aparecerá aquí.</p>
+          <a class="mini" href="{{ url_for('registro') }}">Registrar un vuelo &rarr;</a>
+        </div>
+        {% endif %}
+      </section>
+{% endblock %}

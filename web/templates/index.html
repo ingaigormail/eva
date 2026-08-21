@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block nav_vuelos %}activo{% endblock %}
+{% block marca_sub %}{{ vuelos|length }} vuelo(s){% endblock %}
+
+{% block contenido %}
+<div class="tarjeta">
+  <div class="cabecera-tarjeta">
+    <span class="icono">📖</span>
+    <div>
+      <h2>Vuelos grabados</h2>
+      <p>Cartilla EvA — logs evaluables (.avlog.json).</p>
+    </div>
+  </div>
+
+  {% if vuelos %}
+  <table>
+    <thead>
+      <tr>
+        <th>Vuelo</th>
+        <th>Indicativo</th>
+        <th>Ruta</th>
+        <th>Duración</th>
+        <th>Puntos</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in vuelos %}
+      <tr>
+        <td><a class="vuelo" href="{{ url_for('detalle', nombre=v.nombre) }}">{{ v.nombre }}</a></td>
+        <td>{{ v.callsign }}</td>
+        <td>{{ v.salida }} → {{ v.llegada }}</td>
+        <td>{% if v.minutos %}{{ '%.0f'|format(v.minutos) }} min{% else %}—{% endif %}</td>
+        <td>{{ v.puntos }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="vacio">
+    No se ha encontrado ningún vuelo. Se buscan ficheros <code>.avlog.json</code> en:
+  </p>
+  <ul class="vacio">
+    {% for c in carpetas %}<li><code>{{ c }}</code></li>{% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

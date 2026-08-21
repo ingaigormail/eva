@@ -1,0 +1,99 @@
+# Configuracion de fstelemetry: captura automatica de telemetria de MSFS 2020
+# Todas las variables que queremos para EvA Airliner
+#
+# Fuente: Python-SimConnect + fstelemetry
+# Uso: fstelemetry --config client/config/fstelemetry.yaml
+
+variables:
+  # -- Posicion y Actitud --
+  - PLANE_LATITUDE
+  - PLANE_LONGITUDE
+  - PLANE_ALTITUDE
+  - PLANE_ALT_ABOVE_GROUND
+  - PLANE_HEADING_DEGREES_TRUE
+  - PLANE_BANK_DEGREES
+  - PLANE_PITCH_DEGREES
+
+  # -- Velocidades --
+  - GROUND_VELOCITY
+  - AIRSPEED_INDICATED
+  - AIRSPEED_TRUE
+  - VERTICAL_SPEED
+
+  # -- Peso y Carga (IMPORTANTE para D2 semaforo) --
+  - TOTAL_WEIGHT
+  - FUEL_TOTAL_QUANTITY_WEIGHT
+  - PAYLOAD_STATION_WEIGHT:0
+  - PAYLOAD_STATION_WEIGHT:1
+  - PAYLOAD_STATION_WEIGHT:2
+  - PAYLOAD_STATION_WEIGHT:3
+  - PAYLOAD_STATION_WEIGHT:4
+
+  # -- Configuracion de vuelo --
+  - GEAR_HANDLE_POSITION
+  - FLAPS_HANDLE_PERCENT
+  - SPOILER_HANDLE_POSITION
+  - ELEVATOR_TRIM_PCT
+  - RUDDER_TRIM_PCT
+  - AILERON_TRIM_PCT
+
+  # -- Motores --
+  - ENGINE_TYPE:1
+  - ENGINE_TYPE:2
+  - ENG_N1_RPM:1
+  - ENG_N1_RPM:2
+  - ENG_N2_RPM:1
+  - ENG_N2_RPM:2
+  - ENG_COMBUSTION:1
+  - ENG_COMBUSTION:2
+  - ENG_FUEL_FLOW_GPH:1
+  - ENG_FUEL_FLOW_GPH:2
+  - ENG_EXHAUST_GAS_TEMP:1
+  - ENG_EXHAUST_GAS_TEMP:2
+  - TURB_ENG_N1:1
+  - TURB_ENG_N1:2
+
+  # -- Sistemas --
+  - ELECTRICAL_MASTER_BATTERY
+  - BATTERY_LOAD
+  - ALTERNATOR_OUTPUT:1
+  - ALTERNATOR_OUTPUT:2
+  - HYDRAULIC_PRESSURE:1
+  - HYDRAULIC_PRESSURE:2
+
+  # -- Luces y switches --
+  - LIGHT_LANDING
+  - LIGHT_BEACON
+  - LIGHT_NAV
+  - LIGHT_TAXI
+  - LIGHT_STROBE
+  - CABIN_SEATBELTS_ALERT_SWITCH
+  - CABIN_NO_SMOKING_ALERT_SWITCH
+
+  # -- Ambiente --
+  - AMBIENT_TEMPERATURE
+  - AMBIENT_WIND_VELOCITY
+  - AMBIENT_WIND_DIRECTION
+  - KOHLSMAN_SETTING_HG
+  - SEA_LEVEL_PRESSURE
+
+  # -- Transponder y radios --
+  - TRANSPONDER_CODE:1
+  - TRANSPONDER_STATE:1
+  - COM_ACTIVE_FREQUENCY:1
+  - COM_ACTIVE_FREQUENCY:2
+  - NAV_ACTIVE_FREQUENCY:1
+  - NAV_ACTIVE_FREQUENCY:2
+
+  # -- Estado de simulacion --
+  - SIM_ON_GROUND
+  - SIM_PAUSED
+  - SIMULATION_RATE
+  - LOCAL_TIME
+  - ZULU_TIME
+
+# Intervalo de polling (segundos)
+interval: 1.0
+
+# Nombre de archivo CSV (por defecto: YYYYMMDDHHMMSS.csv)
+# output_dir: ./grabaciones

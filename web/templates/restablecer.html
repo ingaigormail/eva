@@ -1,0 +1,49 @@
+{% extends "cuenta_base.html" %}
+{% block titulo %}Nueva contraseña — EvA Airliner{% endblock %}
+
+{% block contenido %}
+  <p class="titulo-pantalla">Nueva contraseña</p>
+
+  {% if hecho %}
+  <div class="aviso-message">
+    <strong>Contraseña cambiada.</strong>
+    La anterior ya no vale y este enlace tampoco: es de un solo uso.
+  </div>
+  <div class="enlaces-cuenta">
+    <a href="{{ url_for('login_page') }}">Iniciar sesión &rarr;</a>
+  </div>
+
+  {% elif not valido %}
+  <div class="error-message">
+    Este enlace ya no vale: o ha caducado, o alguien lo usó antes.
+    <div class="error-accion">
+      <a href="{{ url_for('recuperar_password') }}">Pedir uno nuevo &rarr;</a>
+    </div>
+  </div>
+
+  {% else %}
+  <p class="subtitulo-pantalla">
+    Al guardarla, tu contraseña anterior deja de valer.
+  </p>
+
+  {% if error %}
+  <div class="error-message">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST">
+    <div class="form-group">
+      <label for="password">Contraseña nueva</label>
+      <input type="password" id="password" name="password" placeholder="••••••••"
+             minlength="6" required autofocus>
+    </div>
+
+    <div class="form-group">
+      <label for="password2">Repítela</label>
+      <input type="password" id="password2" name="password2" placeholder="••••••••"
+             minlength="6" required>
+    </div>
+
+    <button class="boton primario" type="submit">Guardar la contraseña</button>
+  </form>
+  {% endif %}
+{% endblock %}

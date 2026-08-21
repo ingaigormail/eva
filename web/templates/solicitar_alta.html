@@ -1,0 +1,69 @@
+{% extends "cuenta_base.html" %}
+{% block titulo %}Solicitar el alta — EvA Airliner{% endblock %}
+
+{% block contenido %}
+  <p class="titulo-pantalla">Solicitar el alta</p>
+  <p class="subtitulo-pantalla">
+    En EvA no hay registro automático. Envía estos datos y el responsable
+    creará la cuenta y te avisará por correo.
+  </p>
+
+  {% if enviado %}
+  <div class="aviso-message">
+    <strong>Solicitud enviada.</strong>
+    Queda <strong>pendiente de aprobación</strong>: el responsable de EvA la
+    revisará y te escribirá al correo que has indicado. Tu cuenta todavía
+    <strong>no existe</strong>, así que aún no puedes iniciar sesión.
+  </div>
+
+  {% if aviso_correo %}
+  <div class="error-message">{{ aviso_correo }}</div>
+  {% endif %}
+
+  <div class="enlaces-cuenta">
+    <a href="{{ url_for('login_page') }}">&larr; Volver al inicio de sesión</a>
+  </div>
+  {% else %}
+
+  {% if error %}
+  <div class="error-message">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST">
+    <div class="form-group">
+      <label for="license_id">Callsign / ID de EVA</label>
+      <input type="text" id="license_id" name="license_id" placeholder="ej: EVA18L"
+             value="{{ datos.license_id }}" required autofocus>
+    </div>
+
+    <div class="form-group">
+      <label for="nombre">Nombre y apellidos</label>
+      <input type="text" id="nombre" name="nombre" placeholder="Nombre y apellidos"
+             value="{{ datos.nombre }}" required>
+    </div>
+
+    <div class="form-group">
+      <label for="discord">Nombre en el Discord de EvA</label>
+      <input type="text" id="discord" name="discord" placeholder="ej: piloto#1234"
+             value="{{ datos.discord }}">
+    </div>
+
+    <div class="form-group">
+      <label for="correo">Correo donde recibir el alta</label>
+      <input type="email" id="correo" name="correo" placeholder="tu@correo.com"
+             value="{{ datos.correo }}" required>
+    </div>
+
+    <button class="boton primario" type="submit">Enviar solicitud</button>
+  </form>
+
+  <div class="enlaces-cuenta">
+    <a href="{{ url_for('login_page') }}">&larr; Volver al inicio de sesión</a>
+  </div>
+
+  <div class="info-text">
+    <strong>Enviar no crea la cuenta</strong>
+    La fecha y hora de la solicitud se añaden automáticamente.
+  </div>
+  {% endif %}
+{% endblock %}

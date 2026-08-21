@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block titulo %}Aerolínea — EvA{% endblock %}
+{% block marca_sub %}Estadísticas de la aerolínea{% endblock %}
+{% block nav_aerolinea %}activo{% endblock %}
+{% block contenido_clase %}ancho{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+{% endblock %}
+
+{% block contenido %}
+  <section class="tarjeta">
+    <div class="cabecera-tarjeta">
+      <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span>
+      <div>
+        <h2>Flota</h2>
+        <p>Datos reales de la cartilla de todos los pilotos.</p>
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="valor">{{ kpis.total_vuelos }}</div><div class="etiqueta">Total de vuelos</div></div>
+      <div class="kpi"><div class="valor">{{ kpis.vuelos_hoy }}</div><div class="etiqueta">Vuelos hoy</div></div>
+      <div class="kpi"><div class="valor">{{ kpis.horas_totales }}</div><div class="etiqueta">Horas de vuelo</div></div>
+      <div class="kpi"><div class="valor">{{ kpis.total_pilotos }}</div><div class="etiqueta">Pilotos activos</div></div>
+      <div class="kpi apto">
+        <div class="valor">{{ kpis.pct_apto if kpis.pct_apto is not none else '—' }}{{ '%' if kpis.pct_apto is not none }}</div>
+        <div class="etiqueta">Vuelos APTO</div>
+      </div>
+      <div class="kpi ambar">
+        <div class="valor">{{ kpis.pct_no_evaluable if kpis.pct_no_evaluable is not none else '—' }}{{ '%' if kpis.pct_no_evaluable is not none }}</div>
+        <div class="etiqueta">No evaluables</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="cabecera-tarjeta">
+      <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5l3 2"/></svg></span>
+      <div>
+        <h2>Incidencias más repetidas en la flota</h2>
+        <p>De qué falla más la gente, para saber dónde insistir.</p>
+      </div>
+    </div>
+    {% if incidencias %}
+    <table class="tabla-eva">
+      <thead><tr><th>Regla</th><th>Vuelos</th><th>% de los evaluados</th></tr></thead>
+      <tbody>
+        {% for i in incidencias %}
+        <tr><td>{{ i.regla }}</td><td>{{ i.vuelos }}</td><td>{{ i.pct }}%</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="vacio"><p class="grande">Sin vuelos evaluados todavía.</p></div>
+    {% endif %}
+  </section>
+
+  <div class="dos-columnas">
+    <section class="tarjeta">
+      <div class="cabecera-tarjeta">
+        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M6 19a6 6 0 0 1 12 0"/></svg></span>
+        <div>
+          <h2>Top pilotos — actividad</h2>
+          <p>Por número de vuelos.</p>
+        </div>
+      </div>
+      {% if top_actividad %}
+      <table class="tabla-eva top3">
+        <thead><tr><th>#</th><th>Piloto</th><th>Vuelos</th><th>Horas</th><th>NM</th></tr></thead>
+        <tbody>
+          {% for p in top_actividad %}
+          <tr><td>{{ loop.index }}</td><td>{{ p.license_id }}</td><td>{{ p.vuelos }}</td><td>{{ p.horas }}</td><td>{{ p.distancia_nm }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="vacio"><p>Sin vuelos todavía.</p></div>{% endif %}
+    </section>
+
+    <section class="tarjeta">
+      <div class="cabecera-tarjeta">
+        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 6.6H21l-5.4 4 2.1 6.5L12 16.6 6.3 20.1 8.4 13.6 3 9.6h6.8z"/></svg></span>
+        <div>
+          <h2>Top pilotos — calidad</h2>
+          <p>% de vuelos APTO, mínimo {{ minimo_calidad }} vuelos evaluados.</p>
+        </div>
+      </div>
+      {% if top_calidad %}
+      <table class="tabla-eva top3">
+        <thead><tr><th>#</th><th>Piloto</th><th>% APTO</th><th>Evaluados</th></tr></thead>
+        <tbody>
+          {% for p in top_calidad %}
+          <tr><td>{{ loop.index }}</td><td>{{ p.license_id }}</td><td class="etiqueta-pct">{{ p.pct_apto }}%</td><td>{{ p.vuelos_evaluados }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="vacio"><p>Nadie llega aún al mínimo de vuelos.</p></div>{% endif %}
+    </section>
+  </div>
+
+  <div class="dos-columnas">
+    <section class="tarjeta">
+      <div class="cabecera-tarjeta">
+        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19h16M7 16l5-11 5 11"/><path d="M9 12h6"/></svg></span>
+        <div>
+          <h2>Top rutas</h2>
+          <p>Las más voladas en la cartilla.</p>
+        </div>
+      </div>
+      {% if top_rutas %}
+      <table class="tabla-eva">
+        <thead><tr><th>Ruta</th><th>Vuelos</th><th>Distancia total</th></tr></thead>
+        <tbody>
+          {% for r in top_rutas %}
+          <tr><td>{{ r.origen }} → {{ r.destino }}</td><td>{{ r.vuelos }}</td><td>{{ r.distancia_total_nm }} NM</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="vacio"><p>Sin rutas todavía.</p></div>{% endif %}
+    </section>
+
+    <section class="tarjeta">
+      <div class="cabecera-tarjeta">
+        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11z"/><circle cx="12" cy="10" r="2.2"/></svg></span>
+        <div>
+          <h2>Top aeropuertos</h2>
+          <p>Salidas y llegadas sumadas.</p>
+        </div>
+      </div>
+      {% if top_aeropuertos %}
+      <table class="tabla-eva">
+        <thead><tr><th>ICAO</th><th>Operaciones</th><th>Salidas</th><th>Llegadas</th></tr></thead>
+        <tbody>
+          {% for a in top_aeropuertos %}
+          <tr><td>{{ a.icao }}</td><td>{{ a.operaciones }}</td><td>{{ a.salidas }}</td><td>{{ a.llegadas }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="vacio"><p>Sin aeropuertos todavía.</p></div>{% endif %}
+    </section>
+  </div>
+
+  <section class="tarjeta">
+    <div class="cabecera-tarjeta">
+      <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M7 14l4-5 3 3 5-6"/></svg></span>
+      <div>
+        <h2>Actividad mensual</h2>
+        <p>Vuelos por mes (últimos periodos con datos).</p>
+      </div>
+    </div>
+    {% if mensual %}
+    <svg id="grafico-mensual" class="grafico-mensual" viewBox="0 0 640 200" role="img" aria-label="Vuelos por mes"></svg>
+    <table class="tabla-eva">
+      <thead><tr><th>Mes</th><th>Vuelos</th><th>Horas</th><th>NM</th></tr></thead>
+      <tbody>
+        {% for m in mensual %}
+        <tr><td>{{ m.mes }}</td><td>{{ m.vuelos }}</td><td>{{ m.horas }}</td><td>{{ m.distancia_nm }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="vacio"><p>Sin datos todavía.</p></div>
+    {% endif %}
+  </section>
+
+  <section class="tarjeta">
+    <div class="cabecera-tarjeta">
+      <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>
+      <div>
+        <h2>Mapa de España</h2>
+        <p>Aeropuertos y rutas del ranking, con grosor según vuelos. Solo ICAO conocidos.</p>
+      </div>
+    </div>
+    <div id="mapa-flota" class="mapa-flota"></div>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function () {
+  const mensual = {{ mensual|tojson }};
+  const svg = document.getElementById("grafico-mensual");
+  if (svg && mensual && mensual.length) {
+    const W = 640, H = 200, padL = 36, padR = 16, padT = 16, padB = 36;
+    const innerW = W - padL - padR, innerH = H - padT - padB;
+    const maxV = Math.max(1, ...mensual.map(m => Number(m.vuelos) || 0));
+    const n = mensual.length;
+    const xAt = (i) => padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+    const yAt = (v) => padT + innerH - (v / maxV) * innerH;
+    const pts = mensual.map((m, i) => [xAt(i), yAt(Number(m.vuelos) || 0)]);
+    const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+    const area = line + " L" + pts[pts.length - 1][0].toFixed(1) + " " + (padT + innerH) +
+      " L" + pts[0][0].toFixed(1) + " " + (padT + innerH) + " Z";
+    let html = '<path class="area" d="' + area + '"/>';
+    html += '<line class="eje" x1="' + padL + '" y1="' + (padT + innerH) + '" x2="' + (W - padR) + '" y2="' + (padT + innerH) + '"/>';
+    html += '<path class="linea" d="' + line + '"/>';
+    pts.forEach((p, i) => {
+      html += '<circle class="punto" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="4"><title>' +
+        mensual[i].mes + ": " + mensual[i].vuelos + " vuelos</title></circle>";
+      html += '<text class="mes" text-anchor="middle" x="' + p[0].toFixed(1) + '" y="' + (H - 12) + '">' +
+        String(mensual[i].mes).slice(5) + "</text>";
+    });
+    svg.innerHTML = html;
+  }
+
+  const geo = {{ mapa_flota|tojson }};
+  const el = document.getElementById("mapa-flota");
+  if (!el || typeof L === "undefined") return;
+  const map = L.map("mapa-flota", { attributionControl: false });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 12,
+    attribution: "© OpenStreetMap"
+  }).addTo(map);
+  const espana = L.latLngBounds([[35.9, -18.2], [43.9, 4.4]]);
+  map.fitBounds(espana);
+
+  (geo.rutas || []).forEach(r => {
+    const w = Math.min(8, 1.5 + Number(r.vuelos) * 0.8);
+    L.polyline(
+      [[r.origen_lat, r.origen_lon], [r.destino_lat, r.destino_lon]],
+      { color: "#2563eb", weight: w, opacity: 0.55 }
+    ).bindPopup(r.origen + " → " + r.destino + "<br>" + r.vuelos + " vuelos").addTo(map);
+  });
+
+  const bounds = [];
+  (geo.puntos || []).forEach(p => {
+    const rad = Math.min(14, 5 + Math.sqrt(Number(p.operaciones) || 0) * 1.6);
+    L.circleMarker([p.lat, p.lon], {
+      radius: rad, color: "#1e3a8a", weight: 2, fillColor: "#2563eb", fillOpacity: 0.75
+    }).bindPopup("<b>" + p.icao + "</b><br>" + p.operaciones + " operaciones").addTo(map);
+    bounds.push([p.lat, p.lon]);
+  });
+  if (bounds.length) {
+    map.fitBounds(bounds, { padding: [28, 28], maxZoom: 7 });
+  }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+{% block titulo %}{{ flight.pilot.callsign }} — Cartilla EvA{% endblock %}
+{% block nav_registro %}activo{% endblock %}
+{% block marca_sub %}{{ flight.pilot.callsign }} · {{ flight.flight_plan.departure_icao }} → {{ flight.flight_plan.arrival_icao }}{% endblock %}
+
+{% block estilos %}
+  .veredicto {
+    display: flex; align-items: center; gap: 24px;
+    border-left: 5px solid var(--tenue);
+  }
+  .veredicto.apto { border-left-color: var(--verde); }
+  .veredicto.no-apto { border-left-color: var(--rojo); }
+  .veredicto.no-evaluable { border-left-color: var(--ambar); }
+
+  .veredicto .titulo { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  .veredicto.apto .titulo { color: var(--verde); }
+  .veredicto.no-apto .titulo { color: var(--rojo); }
+  .veredicto.no-evaluable .titulo { color: var(--ambar); }
+
+  .nota { font-size: 40px; font-weight: 200; line-height: 1; }
+  .nota small { font-size: 15px; color: var(--tenue); }
+
+  .barra { flex: 1; }
+  .barra .pista { height: 8px; background: var(--panel-alto); border-radius: 4px; overflow: hidden; position: relative; }
+  .barra .relleno { height: 100%; border-radius: 4px; }
+  .barra .umbral { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--texto); opacity: .6; }
+  .barra .pie { display: flex; justify-content: space-between; color: var(--tenue); font-size: 11px; margin-top: 6px; }
+
+  .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--borde); border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; }
+  .dato { background: var(--panel-alto); padding: 12px 14px; }
+  .dato .et { color: var(--tenue); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  .dato .vl { font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .dato .vl small { font-size: 11px; color: var(--tenue); font-weight: 400; }
+
+  .criterio { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--borde); }
+  .criterio:last-child { border-bottom: none; }
+  .criterio .marca { width: 18px; font-weight: 700; flex-shrink: 0; display: inline; }
+  .criterio.ok .marca { color: var(--verde); }
+  .criterio.mal .marca { color: var(--rojo); }
+  .criterio .nombre { font-weight: 600; width: 210px; flex-shrink: 0; }
+  .criterio .detalle { color: var(--tenue); flex: 1; }
+  .criterio .puntos { color: var(--rojo); font-weight: 600; }
+
+  .aviso { background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 14px; margin-bottom: 18px; }
+  .aviso h3 { margin: 0 0 8px; font-size: 13px; color: var(--ambar); }
+  .aviso ul { margin: 0; padding-left: 18px; }
+  .aviso li { margin: 3px 0; }
+
+  .fallo-duro { background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px; margin-bottom: 18px; }
+  .fallo-duro h3 { margin: 0 0 8px; font-size: 13px; color: var(--rojo); }
+
+  .perfiles a { color: var(--tenue); text-decoration: none; padding: 4px 10px; border-radius: 8px; font-size: 12px; }
+  .perfiles a.activo { background: var(--azul); color: #fff; font-weight: 600; }
+
+  .pendientes { color: var(--tenue); font-size: 12px; columns: 2; }
+  .pendientes li { margin: 2px 0; break-inside: avoid; }
+
+  canvas { width: 100%; height: 180px; display: block; background: var(--panel-alto); border-radius: 12px; }
+  #mapa-vuelo { border-radius: 12px; overflow: hidden; }
+{% endblock %}
+
+{% block contenido %}
+
+<!-- VEREDICTO -->
+<div class="panel veredicto {{ veredicto.clase }}">
+  <div>
+    <div class="titulo">{{ veredicto.titulo }}</div>
+    <div style="color:var(--tenue);font-size:12px">perfil {{ perfil }}</div>
+  </div>
+
+  {% if veredicto.evaluable %}
+  <div class="nota">{{ veredicto.score }}<small>/100</small></div>
+  <div class="barra">
+    <div class="pista">
+      <div class="relleno" style="width: {{ veredicto.score }}%; background: {{ 'var(--verde)' if veredicto.score >= umbral else 'var(--rojo)' }}"></div>
+      <div class="umbral" style="left: {{ umbral }}%"></div>
+    </div>
+    <div class="pie">
+      <span>0</span>
+      <span>aprobado a partir de {{ umbral }}</span>
+      <span>100</span>
+    </div>
+  </div>
+  {% else %}
+  <div style="color:var(--tenue)">
+    No se puede puntuar este vuelo: los datos grabados no permiten comprobar los criterios.
+  </div>
+  {% endif %}
+
+  <div class="perfiles">
+    {% for p in perfiles %}
+    <a href="{{ url_for('detalle', nombre=nombre, perfil=p) }}" class="{{ 'activo' if p == perfil }}">{{ p }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- CALIDAD DEL DATO -->
+{% if veredicto.quality and (veredicto.quality.problemas or veredicto.quality.avisos) %}
+<div class="{{ 'fallo-duro' if not veredicto.evaluable else 'aviso' }}">
+  <h3>{{ veredicto.quality.resumen }}</h3>
+  <ul>
+    {% for p in veredicto.quality.problemas %}<li>{{ p }}</li>{% endfor %}
+    {% for a in veredicto.quality.avisos %}<li>{{ a }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<!-- FALLOS AUTOMÁTICOS -->
+{% if fallos_automaticos %}
+<div class="fallo-duro">
+  <h3>Suspenso automático</h3>
+  <ul>{% for f in fallos_automaticos %}<li>{{ f }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<!-- TELEMETRÍA -->
+<div class="panel">
+  <h2>Telemetría del vuelo</h2>
+  <div class="rejilla">
+    <div class="dato"><div class="et">Duración</div><div class="vl">{% if telemetria.duracion_min %}{{ '%.0f'|format(telemetria.duracion_min) }}<small> min</small>{% else %}—{% endif %}</div></div>
+    <div class="dato"><div class="et">Distancia</div><div class="vl">{% if telemetria.distancia_nm is not none %}{{ '%.1f'|format(telemetria.distancia_nm) }}<small> NM</small>{% else %}—{% endif %}</div></div>
+    <div class="dato"><div class="et">Alt. máxima</div><div class="vl">{{ '%.0f'|format(telemetria.alt_max_ft) }}<small> ft</small></div></div>
+    <div class="dato"><div class="et">Vel. máxima</div><div class="vl">{{ '%.0f'|format(telemetria.gs_max_kt) }}<small> kt</small></div></div>
+    <div class="dato"><div class="et">Escora máx.</div><div class="vl">{{ '%.0f'|format(telemetria.escora_max_deg) }}<small>°</small></div></div>
+    <div class="dato"><div class="et">Descenso máx.</div><div class="vl">{{ '%.0f'|format(telemetria.vs_min_fpm) }}<small> fpm</small></div></div>
+    <div class="dato"><div class="et">Combustible</div><div class="vl">{% if telemetria.combustible_kg is not none %}{{ '%.1f'|format(telemetria.combustible_kg) }}<small> kg</small>{% else %}—{% endif %}</div></div>
+    <div class="dato"><div class="et">Puntos</div><div class="vl">{{ telemetria.puntos }}</div></div>
+    <div class="dato"><div class="et">Eventos</div><div class="vl">{{ telemetria.eventos }}</div></div>
+    <div class="dato"><div class="et">En vuelo</div><div class="vl">{{ '%.0f'|format(telemetria.tiempo_en_vuelo_pct) }}<small>%</small></div></div>
+    <div class="dato"><div class="et">Avión</div><div class="vl" style="font-size:13px">{{ telemetria.matricula or '—' }}</div></div>
+    <div class="dato"><div class="et">Simulador</div><div class="vl" style="font-size:13px">{{ telemetria.simulador }}</div></div>
+  </div>
+</div>
+
+<!-- MAPA DEL VUELO W1 -->
+{% if mapa.route %}
+<div class="panel">
+  <h2>Mapa de ruta</h2>
+  <div id="mapa-vuelo" style="width:100%;height:420px;border-radius:12px;"></div>
+</div>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function() {
+  const mapaDatos = {{ mapa|tojson }};
+  const rutaPlan = {{ ruta_planificada|tojson }};
+  const bounds = mapaDatos.bounds;
+  const map = L.map('mapa-vuelo', { attributionControl: false });
+
+  // Tiles OpenStreetMap (gratis, sin API key)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Ruta planificada (discontinua naranja — Aproximada)
+  if (rutaPlan && rutaPlan.length >= 2) {
+    const planLatLngs = rutaPlan.map(p => [p.lat, p.lon]);
+    L.polyline(planLatLngs, {
+      color: '#f59e0b', weight: 2, dashArray: '8,6', opacity: 0.7
+    }).addTo(map).bindPopup(
+      '<b>Ruta planificada</b><br>' +
+      '<span style="font-size:11px;color:#888">\u201cAproximada\u201d \u2014 solo aeropuertos conocidos en la ruta</span>'
+    );
+    // Marcadores ICAO de la ruta planificada
+    rutaPlan.forEach(p => {
+      L.circleMarker([p.lat, p.lon], { radius: 4, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.6 })
+        .bindPopup('<b>' + p.icao + '</b><br><span style="font-size:11px">ruta planificada (aprox.)</span>')
+        .addTo(map);
+    });
+  }
+
+  // Ruta real
+  const latlngs = mapaDatos.route.map(p => [p.lat, p.lon]);
+  const rutaReal = L.polyline(latlngs, { color: '#3b82f6', weight: 3, opacity: 0.85 }).addTo(map);
+
+  // Bounds con padding
+  if (bounds && bounds.lat_min !== undefined) {
+    map.fitBounds([
+      [bounds.lat_min, bounds.lon_min],
+      [bounds.lat_max, bounds.lon_max]
+    ], { padding: [40, 40] });
+  } else if (latlngs.length) {
+    map.fitBounds(latlngs, { padding: [40, 40] });
+  }
+
+  // Marcador salida (verde)
+  if (latlngs.length) {
+    const inicio = latlngs[0];
+    L.circleMarker(inicio, { radius: 8, color: '#12b76a', fillColor: '#12b76a', fillOpacity: 1 })
+      .bindPopup('<b>Salida</b><br>' + (mapaDatos.airports.departure ? mapaDatos.airports.departure.icao : ''))
+      .addTo(map);
+  }
+
+  // Marcador llegada (rojo)
+  if (latlngs.length > 1) {
+    const fin = latlngs[latlngs.length - 1];
+    L.circleMarker(fin, { radius: 8, color: '#d92d20', fillColor: '#d92d20', fillOpacity: 1 })
+      .bindPopup('<b>Llegada</b><br>' + (mapaDatos.airports.arrival ? mapaDatos.airports.arrival.icao : ''))
+      .addTo(map);
+  }
+
+  // Incidencias
+  (mapaDatos.incidents || []).forEach(inc => {
+    const color = inc.passed ? '#f59e0b' : '#d92d20';
+    const texto = inc.passed ? 'Advertencia' : 'Incidencia';
+    L.circleMarker([inc.lat, inc.lon], { radius: 5, color: color, fillColor: color, fillOpacity: 0.9 })
+      .bindPopup('<b>' + texto + '</b><br>' + inc.rule + '<br><span style="font-size:11px;color:#666">' + inc.detail + '</span>')
+      .addTo(map);
+  });
+
+  // Eventos (despegue, touchdown, pausas…)
+  (mapaDatos.events || []).forEach(ev => {
+    if (!ev.pos) return;
+    let label = ev.type;
+    if (ev.airport) label += ' · ' + ev.airport;
+    if (ev.runway) label += ' · RWY ' + ev.runway;
+    const color = ev.type === 'takeoff' ? '#12b76a' : (ev.type === 'touchdown' ? '#d92d20' : '#9aa3ad');
+    L.circleMarker([ev.pos.lat, ev.pos.lon], { radius: 6, color: color, fillColor: color, fillOpacity: 0.8 })
+      .bindPopup('<b>' + label + '</b>')
+      .addTo(map);
+  });
+
+  // Marcador de sync (perfil ↔ mapa) — amarillo, se mueve con hover
+  var syncMarker = L.circleMarker([0, 0], {
+    radius: 7, color: '#eab308', fillColor: '#eab308', fillOpacity: 0.9,
+    opacity: 0, interactive: false
+  }).addTo(map);
+
+  // Estado compartido de scrubbing (mapa ↔ gráfica)
+  window._scrubState = {
+    idx: -1,
+    marker: syncMarker,
+    route: mapaDatos.route,
+    map: map,
+    onScrub: null  // la gráfica registra su callback aquí
+  };
+
+  // Hover sobre la ruta real → sincronizar con la gráfica
+  rutaReal.on('mousemove', function(e) {
+    var route = mapaDatos.route;
+    var minD = Infinity, best = 0;
+    for (var i = 0; i < route.length; i++) {
+      var dx = e.latlng.lat - route[i].lat, dy = e.latlng.lng - route[i].lon;
+      var d = dx * dx + dy * dy;
+      if (d < minD) { minD = d; best = i; }
+    }
+    if (window._scrubState.onScrub) window._scrubState.onScrub(best);
+  });
+  rutaReal.on('mouseout', function() {
+    if (window._scrubState.onScrub) window._scrubState.onScrub(-1);
+  });
+})();
+</script>
+{% endif %}
+
+<!-- PERFIL DEL VUELO -->
+{% if graficas.t %}
+<div class="panel">
+  <h2>Perfil de altitud y velocidad</h2>
+  <canvas id="perfil"></canvas>
+</div>
+{% endif %}
+
+<!-- DESGLOSE -->
+<div class="panel">
+  <h2>Criterios superados ({{ veredicto.superados|length }})</h2>
+  {% for i in veredicto.superados %}
+  <div class="criterio ok">
+    <span class="marca">✓</span>
+    <span class="nombre">{{ i.rule }}</span>
+    <span class="detalle">{{ i.detail }}</span>
+  </div>
+  {% else %}
+  <p class="vacio">Ninguno.</p>
+  {% endfor %}
+</div>
+
+<div class="panel">
+  <h2>Criterios no superados ({{ veredicto.fallados|length }}) · −{{ veredicto.penalizacion }} puntos</h2>
+  {% for i in veredicto.fallados %}
+  <div class="criterio mal">
+    <span class="marca">✕</span>
+    <span class="nombre">{{ i.rule }}</span>
+    <span class="detalle">{{ i.detail }}</span>
+    <span class="puntos">−{{ i.points }}</span>
+  </div>
+  {% else %}
+  <p class="vacio">Ninguno. Vuelo limpio.</p>
+  {% endfor %}
+</div>
+
+{% if no_evaluados %}
+<div class="panel">
+  <h2>Criterios sin comprobar ({{ no_evaluados|length }})</h2>
+  <p style="color:var(--tenue);font-size:12px;margin-top:0">
+    El vuelo no contiene los datos necesarios para juzgarlos. No cuentan ni a favor ni en contra.
+  </p>
+  <ul class="pendientes">
+    {% for r in no_evaluados %}<li>{{ r }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Fichero</h2>
+  <p style="margin:0"><code>{{ nombre }}</code></p>
+</div>
+
+{% if graficas.t %}
+<script>
+  // Gráfica sin librerías externas: dos series sobre un mismo eje de tiempo.
+  // OC-02: sincronización bidireccional mapa ↔ perfil.
+  const datos = {{ graficas|tojson }};
+
+  const lienzo = document.getElementById('perfil');
+  const ctx = lienzo.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+
+  var _scrubIdx = -1;  // índice del punto resaltado (-1 = ninguno)
+
+  function dibujar() {
+    const w = lienzo.clientWidth, h = lienzo.clientHeight;
+    lienzo.width = w * dpr; lienzo.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const pad = { arriba: 14, abajo: 24, izq: 46, der: 46 };
+    const ancho = w - pad.izq - pad.der;
+    const alto = h - pad.arriba - pad.abajo;
+
+    const tMax = Math.max(...datos.t) || 1;
+    const altMax = Math.max(...datos.alt) || 1;
+    const gsMax = Math.max(...datos.gs) || 1;
+
+    const x = t => pad.izq + (t / tMax) * ancho;
+    const yAlt = v => pad.arriba + alto - (v / altMax) * alto;
+    const yGs = v => pad.arriba + alto - (v / gsMax) * alto;
+
+    // Rejilla horizontal
+    ctx.strokeStyle = '#e2e6ee';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.arriba + (alto / 4) * i;
+      ctx.beginPath(); ctx.moveTo(pad.izq, y); ctx.lineTo(w - pad.der, y); ctx.stroke();
+    }
+
+    function serie(valores, escala, color, relleno) {
+      ctx.beginPath();
+      datos.t.forEach((t, i) => {
+        const px = x(t), py = escala(valores[i]);
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      });
+      if (relleno) {
+        ctx.lineTo(x(tMax), pad.arriba + alto);
+        ctx.lineTo(x(0), pad.arriba + alto);
+        ctx.closePath();
+        ctx.fillStyle = relleno;
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    serie(datos.alt, yAlt, '#2563eb', 'rgba(37,99,235,.12)');
+    serie(datos.alt, yAlt, '#2563eb', null);
+    serie(datos.gs, yGs, '#16a34a', null);
+
+    // Etiquetas de los ejes
+    ctx.fillStyle = '#7c8698';
+    ctx.font = '11px "Segoe UI", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(altMax) + ' ft', pad.izq - 6, pad.arriba + 4);
+    ctx.textAlign = 'left';
+    ctx.fillText(Math.round(gsMax) + ' kt', w - pad.der + 6, pad.arriba + 4);
+    ctx.textAlign = 'center';
+    ctx.fillText('0', pad.izq, h - 6);
+    ctx.fillText(tMax.toFixed(0) + ' min', w - pad.der, h - 6);
+
+    // Leyenda
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#2563eb'; ctx.fillText('altitud', pad.izq + 8, pad.arriba + 4);
+    ctx.fillStyle = '#16a34a'; ctx.fillText('velocidad', pad.izq + 60, pad.arriba + 4);
+
+    // ── Cursor de scrubbing (OC-02) ──
+    if (_scrubIdx >= 0 && window._scrubState && window._scrubState.route) {
+      var pt = window._scrubState.route[_scrubIdx];
+      if (pt) {
+        // Línea vertical punteada
+        const cx = x(pt.t);
+        ctx.strokeStyle = 'rgba(30,41,59,.35)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath(); ctx.moveTo(cx, pad.arriba); ctx.lineTo(cx, pad.arriba + alto); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Encontrar el punto más cercano en graficas.t
+        let gi = 0, bestDt = Infinity;
+        for (let i = 0; i < datos.t.length; i++) {
+          const dt = Math.abs(datos.t[i] - pt.t);
+          if (dt < bestDt) { bestDt = dt; gi = i; }
+        }
+        const cx2 = x(datos.t[gi]);
+        // Punto altitud
+        ctx.fillStyle = '#2563eb';
+        ctx.beginPath(); ctx.arc(cx2, yAlt(datos.alt[gi]), 4, 0, Math.PI * 2); ctx.fill();
+        // Punto GS
+        ctx.fillStyle = '#16a34a';
+        ctx.beginPath(); ctx.arc(cx2, yGs(datos.gs[gi]), 4, 0, Math.PI * 2); ctx.fill();
+        // Tooltip
+        ctx.fillStyle = '#1e293b';
+        ctx.font = '11px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('t=' + pt.t.toFixed(1) + ' min  alt=' + pt.alt + ' ft  gs=' + pt.gs + ' kt', cx, pad.arriba - 2);
+      }
+    }
+  }
+
+  /** Función global de scrub: la llama el mapa (hover ruta) o el propio canvas. */
+  function _onScrub(idx) {
+    _scrubIdx = idx;
+    if (window._scrubState) {
+      window._scrubState.idx = idx;
+      if (idx >= 0 && window._scrubState.route && idx < window._scrubState.route.length) {
+        var pt = window._scrubState.route[idx];
+        window._scrubState.marker.setLatLng([pt.lat, pt.lon]);
+        window._scrubState.marker.setStyle({ opacity: 1 });
+      } else {
+        window._scrubState.marker.setStyle({ opacity: 0 });
+      }
+    }
+    dibujar();
+  }
+  // Exponer para que el mapa pueda llamarlo
+  window._scrubState = window._scrubState || {};
+  window._scrubState.onScrub = _onScrub;
+
+  // Hover en la gráfica → buscar el punto del track más cercano por tiempo
+  lienzo.addEventListener('mousemove', function(e) {
+    if (!window._scrubState || !window._scrubState.route || !datos.t.length) return;
+    const rect = lienzo.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const padIzq = 46, padDer = 46;
+    const ancho = rect.width - padIzq - padDer;
+    const tMax = Math.max(...datos.t) || 1;
+    const tHover = Math.max(0, Math.min(((px - padIzq) / ancho) * tMax, tMax));
+
+    const route = window._scrubState.route;
+    let idx = 0, minDist = Infinity;
+    for (let i = 0; i < route.length; i++) {
+      const d = Math.abs(route[i].t - tHover);
+      if (d < minDist) { minDist = d; idx = i; }
+    }
+    _onScrub(idx);
+  });
+
+  lienzo.addEventListener('mouseleave', function() { _onScrub(-1); });
+
+  dibujar();
+  window.addEventListener('resize', dibujar);
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block titulo %}Registrar un vuelo — EvA{% endblock %}
+{% block nav_registro %}activo{% endblock %}
+{% block marca_sub %}Registrar un vuelo{% endblock %}
+
+{% block estilos %}
+  .upload-area {
+    border: 2px dashed var(--azul);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+  }
+  .upload-area:hover, .upload-area.dragover {
+    background: var(--azul-claro);
+    border-color: var(--verde);
+  }
+  .tras-subir { margin-top: 18px; font-size: 12.5px; color: var(--tenue); }
+  .tras-subir a { color: var(--azul); text-decoration: none; font-weight: 600; }
+  .tras-subir a:hover { text-decoration: underline; }
+{% endblock %}
+
+{% block contenido %}
+      <section class="tarjeta" id="seccion-upload">
+        <div class="cabecera-tarjeta">
+          <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg></span>
+          <div>
+            <h2>Registrar un vuelo</h2>
+            <p>Sube el fichero que grabó EVA Airliner e incorpóralo a tu cartilla.</p>
+          </div>
+        </div>
+
+        <div class="upload-area" id="upload-area">
+          <input type="file" id="file-input" accept=".csv,.avlog.json" style="display: none;">
+          <div style="text-align: center; padding: 30px;">
+            <span class="icono" aria-hidden="true" style="width:36px;height:36px;margin:0 auto;color:var(--azul);display:flex;"><svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M12 4v12"/><path d="m7 9 5-5 5 5"/></svg></span>
+            <p style="margin: 10px 0 0; color: var(--tenue);">Arrastra aquí un <strong>.avlog.json</strong> o un <strong>.csv</strong>, o</p>
+            <a href="#" onclick="document.getElementById('file-input').click(); return false;"
+               style="color: var(--azul); text-decoration: none; font-weight: 600;">selecciona un archivo</a>
+          </div>
+          <div id="upload-estado" style="text-align: center; margin-top: 12px; display: none; color: var(--tenue);">
+            ⏳ Subiendo...
+          </div>
+        </div>
+
+        <p class="tras-subir">
+          Una vez subido lo tienes en
+          <a href="{{ url_for('vuelos') }}">Vuelos</a>, con su detalle y su
+          evaluación. Un mismo vuelo no entra dos veces.
+        </p>
+      </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const uploadArea = document.getElementById('upload-area');
+const fileInput = document.getElementById('file-input');
+
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadArea.classList.add('dragover');
+});
+uploadArea.addEventListener('dragleave', () => {
+  uploadArea.classList.remove('dragover');
+});
+uploadArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) {
+    fileInput.files = e.dataTransfer.files;
+    subirArchivo();
+  }
+});
+fileInput.addEventListener('change', subirArchivo);
+
+async function subirArchivo() {
+  if (fileInput.files.length === 0) return;
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  const estadoDiv = document.getElementById('upload-estado');
+  estadoDiv.style.display = 'block';
+  try {
+    const res = await fetch('/api/registro/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.success) {
+      // Subido: lo suyo es enseñárselo, no dejarlo en la misma pantalla.
+      estadoDiv.textContent = '✅ ' + data.message;
+      fileInput.value = '';
+      setTimeout(() => { window.location.href = '{{ url_for("vuelos") }}'; }, 1500);
+    } else {
+      estadoDiv.textContent = '❌ ' + data.message;
+    }
+  } catch (e) {
+    estadoDiv.textContent = '❌ Error de conexión';
+  }
+}
+</script>
+{% endblock %}

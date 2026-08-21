@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block titulo %}Usuarios — EvA{% endblock %}
+{% block marca_sub %}Gestión de usuarios{% endblock %}
+{% block nav_usuarios %}activo{% endblock %}
+
+{% block estilos %}
+  .aviso {
+    padding: 12px 14px; border-radius: 10px; margin-bottom: 14px;
+    font-size: 13px; line-height: 1.5; border: 1px solid transparent;
+  }
+  .aviso.exito { background: var(--verde-fondo); color: var(--verde-texto); border-color: var(--verde-borde); }
+  .aviso.error { background: var(--rojo-fondo); color: var(--rojo); border-color: var(--rojo-borde); }
+  .aviso.avisar { background: var(--ambar-fondo); color: var(--ambar-texto); border-color: var(--ambar-borde); }
+
+  .panel-alta {
+    background: var(--panel); border: 1px solid var(--borde);
+    border-radius: 16px; padding: 22px 24px; margin-bottom: 20px;
+    box-shadow: var(--sombra);
+  }
+  .panel-alta h2 { font-size: 17px; font-weight: 700; margin: 0 0 4px; }
+  .contador {
+    display: inline-block; margin-left: 6px; padding: 2px 8px;
+    border-radius: 999px; background: var(--azul); color: #fff;
+    font-size: 11px; font-weight: 700; vertical-align: middle;
+  }
+  td.tenue { color: var(--tenue); font-size: 12px; white-space: nowrap; }
+  .panel-alta p.pie { font-size: 12.5px; color: var(--tenue); margin: 0 0 14px; }
+  .fila-campos { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .campo { display: flex; flex-direction: column; gap: 5px; }
+  .campo label {
+    font-size: 10.5px; font-weight: 700; color: var(--tenue);
+    text-transform: uppercase; letter-spacing: .5px;
+  }
+  .campo input, .campo select {
+    padding: 10px 12px; border: 1px solid var(--borde); border-radius: 10px;
+    font-size: 13.5px; font-family: inherit; color: var(--texto); background: #fff;
+    outline: none;
+  }
+  .campo input:focus, .campo select:focus {
+    border-color: var(--azul); box-shadow: 0 0 0 3px var(--azul-claro);
+  }
+  .campo input { min-width: 190px; }
+
+  .yo { font-size: 10px; color: var(--tenue); font-weight: 700; }
+
+  .etiqueta {
+    display: inline-block; padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+  }
+  .etiqueta.activa { background: var(--verde-fondo); color: var(--verde-texto); }
+  .etiqueta.bloqueada { background: var(--rojo-fondo); color: var(--rojo); }
+  .etiqueta.admin { background: var(--azul-claro); color: var(--azul-oscuro); }
+  .etiqueta.piloto { background: var(--panel-alto); color: var(--tenue); }
+
+  .sin-correo { color: var(--rojo); font-size: 12px; }
+  .mini-input {
+    padding: 6px 8px; border: 1px solid var(--borde); border-radius: 8px;
+    font-size: 12px; font-family: inherit; width: 165px;
+  }
+{% endblock %}
+
+{% block contenido %}
+  <p style="font-size:12.5px;margin:0 0 16px">
+    <a href="{{ url_for('gestion_vuelos') }}" style="color:var(--azul);font-weight:600;text-decoration:none">
+      Gestión de vuelos &rarr;</a>
+    <span style="color:var(--tenue)"> — subir en nombre de un piloto, o borrar cualquier vuelo</span>
+  </p>
+
+  {% for categoria, texto in get_flashed_messages(with_categories=true) %}
+  <div class="aviso {{ 'exito' if categoria == 'exito' else ('error' if categoria == 'error' else 'avisar') }}">{{ texto }}</div>
+  {% endfor %}
+
+  {% if not correo_listo %}
+  <div class="aviso avisar">
+    <strong>El correo no está configurado en este servidor.</strong>
+    Puedes dar de alta cuentas, pero el enlace para poner la contraseña no
+    saldrá. Rellena <code>web/data/correo.json</code> (tienes
+    <code>correo.ejemplo.json</code> al lado) y vuelve a enviarlo desde aquí.
+  </div>
+  {% endif %}
+
+  <div class="panel-alta">
+    <h2>Solicitudes pendientes {% if solicitudes %}<span class="contador">{{ solicitudes|length }}</span>{% endif %}</h2>
+    {% if not solicitudes %}
+    <p class="pie">No hay ninguna esperando. Las que lleguen desde
+      <code>/solicitar-alta</code> aparecerán aquí aunque falle el correo.</p>
+    {% else %}
+    <p class="pie">Aprobar crea la cuenta y le manda el enlace para poner su
+      contraseña. Rechazar no avisa a nadie: díselo tú si procede.</p>
+    <table class="tabla-eva">
+      <thead>
+        <tr>
+          <th>Callsign / ID</th>
+          <th>Nombre</th>
+          <th>Discord</th>
+          <th>Correo</th>
+          <th>Solicitada</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in solicitudes %}
+        <tr>
+          <td><strong>{{ s.license_id }}</strong></td>
+          <td>{{ s.nombre }}</td>
+          <td>{{ s.discord or '—' }}</td>
+          <td>{{ s.correo }}</td>
+          <td class="tenue">{{ s.creado|replace('T', ' ')|replace('+00:00', ' UTC') }}</td>
+          <td>
+            <div class="acciones">
+              <form method="POST" action="{{ url_for('gestion_solicitud', solicitud_id=s.id) }}">
+                <input type="hidden" name="accion" value="aprobar">
+                <select name="rol" class="mini-input" style="width: auto;">
+                  <option value="piloto">piloto</option>
+                  <option value="admin">admin</option>
+                </select>
+                <button class="mini primario" type="submit">Aprobar y dar de alta</button>
+              </form>
+              <form method="POST" action="{{ url_for('gestion_solicitud', solicitud_id=s.id) }}">
+                <input type="hidden" name="accion" value="rechazar">
+                <button class="mini peligro" type="submit">Rechazar</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <div class="panel-alta">
+    <h2>Dar de alta a un piloto</h2>
+    <p class="pie">
+      Las solicitudes llegan a <strong>{{ correo_gestion }}</strong>. Aquí no se
+      escribe ninguna contraseña: el piloto recibe un enlace y pone la suya.
+    </p>
+    <form method="POST" action="{{ url_for('gestion_alta') }}">
+      <div class="fila-campos">
+        <div class="campo">
+          <label for="license_id">Callsign / ID de EVA</label>
+          <input type="text" id="license_id" name="license_id" placeholder="EVA18L" required>
+        </div>
+        <div class="campo">
+          <label for="correo">Correo</label>
+          <input type="email" id="correo" name="correo" placeholder="piloto@correo.com" required>
+        </div>
+        <div class="campo">
+          <label for="rol">Rol</label>
+          <select id="rol" name="rol">
+            <option value="piloto">piloto</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+        <button class="mini primario" type="submit">Dar de alta</button>
+      </div>
+    </form>
+  </div>
+
+  <table class="tabla-eva">
+    <thead>
+      <tr>
+        <th>Piloto</th>
+        <th>Correo</th>
+        <th>Estado</th>
+        <th>Rol</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in usuarios %}
+      <tr class="{{ u.estado }}">
+        <td>
+          <strong>{{ u.license_id }}</strong>
+          {% if u.license_id == usuario_actual %}<div class="yo">ERES TÚ</div>{% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+            <input type="hidden" name="accion" value="correo">
+            <input class="mini-input" type="email" name="correo" value="{{ u.correo }}"
+                   placeholder="sin correo" required>
+            <button class="mini" type="submit">Guardar</button>
+          </form>
+          {% if not u.correo %}<div class="sin-correo">Sin correo: no puede recuperar la contraseña.</div>{% endif %}
+        </td>
+        <td><span class="etiqueta {{ u.estado }}">{{ u.estado }}</span></td>
+        <td>
+          <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+            <input type="hidden" name="accion" value="rol">
+            <select name="rol" class="mini-input" style="width: auto;">
+              <option value="piloto" {% if u.rol == 'piloto' %}selected{% endif %}>piloto</option>
+              <option value="admin" {% if u.rol == 'admin' %}selected{% endif %}>admin</option>
+            </select>
+            <button class="mini" type="submit">Cambiar</button>
+          </form>
+        </td>
+        <td>
+          <div class="acciones">
+            {% if u.estado == 'activa' %}
+            <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+              <input type="hidden" name="accion" value="bloquear">
+              <button class="mini peligro" type="submit"
+                      {% if u.license_id == usuario_actual %}disabled title="No puedes bloquearte a ti mismo"{% endif %}>Bloquear</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+              <input type="hidden" name="accion" value="desbloquear">
+              <button class="mini" type="submit">Desbloquear</button>
+            </form>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+              <input type="hidden" name="accion" value="enlace">
+              <button class="mini" type="submit" title="Le manda un enlace de un solo uso para poner contraseña nueva">Enviar enlace de contraseña</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

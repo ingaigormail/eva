@@ -1,0 +1,40 @@
+{% extends "cuenta_base.html" %}
+{% block titulo %}Login — EvA Airliner{% endblock %}
+
+{% block contenido %}
+  {% if error %}
+  <div class="error-message">
+    {{ error }}
+    {% if sugerir_alta %}
+    <div class="error-accion">
+      En EvA no hay auto-registro: el alta la aprueba el responsable.
+      <a href="{{ url_for('solicitar_alta') }}">Solicitar el alta &rarr;</a>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="POST">
+    <div class="form-group">
+      <label for="user_id">ID de piloto</label>
+      <input type="text" id="user_id" name="user_id" placeholder="ej: WVN89 9" required autofocus>
+    </div>
+
+    <div class="form-group">
+      <label for="password">Contraseña</label>
+      <input type="password" id="password" name="password" placeholder="••••••••" required>
+    </div>
+
+    <button class="boton primario" type="submit">Iniciar sesión</button>
+  </form>
+
+  <div class="enlaces-cuenta">
+    <a href="{{ url_for('recuperar_password') }}">He olvidado mi contraseña</a>
+    <a href="{{ url_for('solicitar_alta') }}">Solicitar el alta</a>
+  </div>
+
+  <div class="info-text">
+    <strong>Acceso restringido</strong>
+    Solo usuarios dados de alta: el alta la concede el responsable de EvA.
+  </div>
+{% endblock %}
