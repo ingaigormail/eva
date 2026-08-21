@@ -1,0 +1,11 @@
+{
+  "callsign": "N12345",
+  "eva_api_url": "https://eva-ma0i.onrender.com",
+  "api_key": "",
+  "auto_sync": false,
+  "sync_interval_segundos": 300,
+  "grabador": {
+    "tipo": "msfs",
+    "intervalo_ms": 1000
+  }
+}
