@@ -6,3 +6,5 @@ gunicorn>=23.0  # WSGI server
 Flask-WTF>=1.2  # CSRF protection
 bleach>=6.0  # HTML sanitization
 markupsafe>=2.1  # HTML escaping
+numpy>=1.24  # csv_reader.py
+pandas>=2.0  # csv_reader.py
