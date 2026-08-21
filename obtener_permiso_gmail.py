@@ -28,7 +28,7 @@ import http.server
 import json
 import secrets
 import sys
-import threading
+import time
 import urllib.parse
 import urllib.request
 import webbrowser
@@ -80,14 +80,54 @@ class _Recogida(http.server.BaseHTTPRequestHandler):
         """Sin ruido: el navegador pide también el favicon y no interesa."""
 
 
+def _del_json_de_google(path: Path) -> tuple[str, str]:
+    """Saca ID y secreto del fichero que se descarga de Google Cloud.
+
+    Lo guardan anidado bajo «installed» (apps de escritorio) o «web».
+    """
+    datos = json.loads(path.read_text(encoding="utf-8"))
+    dentro = datos.get("installed") or datos.get("web") or datos
+    return str(dentro.get("client_id", "")).strip(), str(
+        dentro.get("client_secret", "")
+    ).strip()
+
+
+def _buscar_json_descargado() -> Path | None:
+    """Google lo llama `client_secret_….json`. Se mira aquí y en Descargas."""
+    candidatos: list[Path] = []
+    for carpeta in (RAIZ, Path.home() / "Downloads", Path.home() / "Descargas"):
+        try:
+            candidatos.extend(carpeta.glob("client_secret*.json"))
+        except OSError:
+            continue
+    if not candidatos:
+        return None
+    return max(candidatos, key=lambda p: p.stat().st_mtime)
+
+
 def main() -> int:
     print("Permiso de Gmail para EvA")
     print("=========================\n")
-    print("Pega las credenciales del «ID de cliente de OAuth» que creaste en")
-    print("Google Cloud (tipo «Aplicación de escritorio»).\n")
 
-    client_id = input("ID de cliente    : ").strip()
-    client_secret = input("Secreto de cliente: ").strip()
+    client_id = client_secret = ""
+
+    # Si se pasa el fichero de Google (o se encuentra solo), nada de copiar
+    # y pegar credenciales largas: de ahí salen la mitad de los errores.
+    path = Path(sys.argv[1]) if len(sys.argv) > 1 else _buscar_json_descargado()
+
+    if path and path.exists():
+        try:
+            client_id, client_secret = _del_json_de_google(path)
+        except (OSError, ValueError, AttributeError):
+            print(f"No se pudo leer {path.name}; se piden a mano.\n")
+        else:
+            print(f"Credenciales leídas de: {path.name}\n")
+
+    if not client_id or not client_secret:
+        print("Pega las credenciales del «ID de cliente de OAuth» que creaste")
+        print("en Google Cloud (tipo «Aplicación de escritorio»).\n")
+        client_id = input("ID de cliente     : ").strip()
+        client_secret = input("Secreto de cliente: ").strip()
 
     if not client_id or not client_secret:
         print("\nHacen falta las dos cosas.")
@@ -109,16 +149,31 @@ def main() -> int:
     )
 
     servidor = http.server.HTTPServer(("localhost", PUERTO), _Recogida)
-    threading.Thread(target=servidor.handle_request, daemon=True).start()
+    #: Para poder rendirse en vez de quedarse colgado si nadie contesta.
+    servidor.timeout = 1
 
     url = f"{AUTORIZAR_URL}?{parametros}"
     print("\nAbriendo el navegador para que des el permiso…")
     print("Si no se abre solo, entra a mano en:\n")
     print(f"  {url}\n")
     webbrowser.open(url)
-    print("Esperando a que aceptes…")
+    print("Esperando a que aceptes… (Ctrl+C para dejarlo)")
+
+    # Se atiende **aquí**, no en otro hilo: el servidor tiene que seguir
+    # escuchando hasta que Google redirija de vuelta. Cerrarlo antes deja al
+    # navegador con un ERR_CONNECTION_REFUSED en las narices.
+    #
+    # Y en bucle porque el navegador pide también `/favicon.ico`, que
+    # consumiría la única petición atendida y nos dejaría sin el código.
+    limite = time.monotonic() + 300
+    while not _recibido and time.monotonic() < limite:
+        servidor.handle_request()
 
     servidor.server_close()
+
+    if not _recibido:
+        print("\n✗ Se agotó la espera sin respuesta de Google.")
+        return 1
 
     if _recibido.get("state") != estado:
         print("\n✗ La respuesta no coincide con la petición. Repite el proceso.")
