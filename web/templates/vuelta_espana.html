@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block titulo %}Vuelta a España — EvA{% endblock %}
+{% block marca_sub %}Vuelta a España 2026{% endblock %}
+{% block nav_vuelta_espana %}activo{% endblock %}
+
+{% block estilos %}
+  .progreso-resumen {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .stat {
+    background: #f4f6fa;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid var(--borde);
+  }
+  .stat .label { font-size: 11px; font-weight: 700; color: var(--tenue); text-transform: uppercase; letter-spacing: .4px; }
+  .stat .valor { font-size: 22px; font-weight: 800; color: var(--azul); margin-top: 6px; }
+  .stat .unidad { font-size: 12px; color: var(--tenue); margin-left: 4px; }
+  .barra-fondo {
+    background: var(--borde);
+    border-radius: 999px;
+    height: 10px;
+    overflow: hidden;
+    margin-top: 14px;
+  }
+  .barra-hecha {
+    background: var(--verde, #12b76a);
+    height: 100%;
+    border-radius: 999px;
+    transition: width .3s;
+  }
+  table.etapas { width: 100%; }
+  table.etapas th, table.etapas td { padding: 8px 10px; }
+  table.etapas th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--tenue); }
+  .fila-hecha { background: #f0fbf5; }
+  .distintivo {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .distintivo.hecha { background: #d3f5e3; color: #067647; }
+  .distintivo.pendiente { background: #f4f6fa; color: var(--tenue); }
+  .trayecto-vae { font-family: ui-monospace, Consolas, monospace; font-weight: 700; }
+{% endblock %}
+
+{% block contenido %}
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <h3>Vuelta a España 2026</h3>
+          <p>21 etapas por la costa mediterránea, el Cantábrico, Galicia y Portugal — 1.900&nbsp;NM en circuito cerrado desde Gibraltar. Se pueden volar en cualquier orden.</p>
+        </div>
+
+        <div class="progreso-resumen">
+          <div class="stat">
+            <div class="label">Etapas hechas</div>
+            <div class="valor">{{ completadas }}<span class="unidad">/ {{ total_etapas }}</span></div>
+          </div>
+          <div class="stat">
+            <div class="label">Distancia volada</div>
+            <div class="valor">{{ distancia_hecha|round|int|formato_numero }}<span class="unidad">NM</span></div>
+          </div>
+          <div class="stat">
+            <div class="label">Te quedan</div>
+            <div class="valor">{{ (distancia_total - distancia_hecha)|round|int|formato_numero }}<span class="unidad">NM</span></div>
+          </div>
+        </div>
+
+        <div class="barra-fondo">
+          <div class="barra-hecha" style="width: {{ ((completadas / total_etapas * 100) if total_etapas else 0)|round|int }}%"></div>
+        </div>
+
+        {% if total_etapas and completadas == total_etapas %}
+        <p style="margin-top:14px; color: var(--verde, #12b76a); font-weight: 700;">
+          ✓ Vuelta completada. Enhorabuena.
+        </p>
+        {% endif %}
+      </section>
+
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <h3>Etapas</h3>
+        </div>
+
+        {% if not etapas %}
+        <p>Todavía no hay etapas cargadas.</p>
+        {% else %}
+        <table class="etapas">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Trayecto</th>
+              <th>Distancia</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in etapas %}
+            <tr class="{{ 'fila-hecha' if e.estado == 'completada' else '' }}">
+              <td>{{ e.stage_number }}</td>
+              <td class="trayecto-vae">{{ e.origin_icao }} → {{ e.destination_icao }}</td>
+              <td>{{ e.distance_nm|round|int if e.distance_nm else '—' }} NM</td>
+              <td>
+                {% if e.estado == 'completada' %}
+                <span class="distintivo hecha">✓ hecha</span>
+                {% else %}
+                <span class="distintivo pendiente">pendiente</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </section>
+{% endblock %}

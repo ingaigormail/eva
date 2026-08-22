@@ -1007,7 +1007,7 @@ def test_rutas_vfr_importadas(cliente, oc05_datos):
 
 
 def _avlog_etapa(origen, destino, huella):
-    """Vuelo AVLOG sintético LEAX→LEGR basado en el fixture real WVN89."""
+    """Vuelo AVLOG sintético LXGB→LEMG basado en el fixture real WVN89."""
     import json
 
     fixture = (
@@ -1024,19 +1024,19 @@ def _avlog_etapa(origen, destino, huella):
 
 
 def test_progreso_ruta_detectado(cliente, oc05_datos, cartilla_aislada):
-    """Subir un vuelo LEAX→LEGR completa la etapa en progreso_rutas."""
+    """Subir un vuelo LXGB→LEMG completa la etapa en progreso_rutas."""
     from io import BytesIO
 
     from avcars import cuentas
 
     with cuentas.conexion() as con:
         ruta = con.execute(
-            "SELECT id FROM rutas_vfr WHERE origin_icao='LEAX' AND destination_icao='LEGR'"
+            "SELECT id FROM rutas_vfr WHERE origin_icao='LXGB' AND destination_icao='LEMG'"
         ).fetchone()
     assert ruta is not None
 
     _login(cliente)
-    contenido = _avlog_etapa("LEAX", "LEGR", "h-oc05-1")
+    contenido = _avlog_etapa("LXGB", "LEMG", "h-oc05-1")
     respuesta = cliente.post(
         "/api/registro/upload",
         data={"file": (BytesIO(contenido), "etapa01.avlog.json")},
@@ -1062,13 +1062,13 @@ def test_progreso_ruta_no_duplica(cliente, oc05_datos, cartilla_aislada):
 
     with cuentas.conexion() as con:
         ruta = con.execute(
-            "SELECT id FROM rutas_vfr WHERE origin_icao='LEAX' AND destination_icao='LEGR'"
+            "SELECT id FROM rutas_vfr WHERE origin_icao='LXGB' AND destination_icao='LEMG'"
         ).fetchone()
     assert ruta is not None
 
     _login(cliente)
     for huella in ("h-oc05-2", "h-oc05-3"):
-        contenido = _avlog_etapa("LEAX", "LEGR", huella)
+        contenido = _avlog_etapa("LXGB", "LEMG", huella)
         respuesta = cliente.post(
             "/api/registro/upload",
             data={"file": (BytesIO(contenido), f"{huella}.avlog.json")},

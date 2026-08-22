@@ -1343,11 +1343,22 @@ def detalle_registro(nombre: str):
     if resumen is None:
         abort(404)
 
+    # El CSV de fstelemetry no lleva plan de vuelo, así que no hay origen ni
+    # destino con los que comprobar una etapa. Solo aplica al AVLOG.
+    etapa_vuelta = None
+    if nombre.endswith(".avlog.json"):
+        vuelo = load_flight(archivo_path)
+        if vuelo is not None:
+            etapa_vuelta = _etapa_de_vuelta_espana(
+                vuelo.flight_plan.departure_icao, vuelo.flight_plan.arrival_icao
+            )
+
     return render_template(
         "detalle_registro.html",
         nombre=nombre,
         resumen=resumen,
         graficas=graficas,
+        etapa_vuelta=etapa_vuelta,
     )
 
 
@@ -1739,6 +1750,68 @@ def info_aeropuerto(icao: str) -> dict:
 
     # 2. Fallback a airports.json global
     return AIRPORTS.get(icao, {})
+
+
+RUTA_VUELTA_ESPANA = "vae-2026"
+
+
+@app.route("/vuelta-espana")
+@login_requerido
+def vuelta_espana():
+    """Las 21 etapas de la Vuelta a España y qué lleva hecho el piloto.
+
+    Sin orden obligatorio: cada etapa se completa en el momento en que se
+    sube un vuelo con ese origen y destino, la que sea. No hace falta haber
+    volado la anterior.
+    """
+    piloto = piloto_actual()
+    etapas = []
+    try:
+        with cuentas.conexion() as con:
+            filas = con.execute(
+                """SELECT r.*, p.estado, p.completada_en, p.vuelo_huella
+                   FROM rutas_vfr r
+                   LEFT JOIN progreso_rutas p
+                     ON p.ruta_id = r.id AND p.license_id = ?
+                   WHERE r.route_id = ? AND r.is_active = 1
+                   ORDER BY r.stage_number""",
+                (piloto, RUTA_VUELTA_ESPANA),
+            ).fetchall()
+            etapas = [dict(f) for f in filas]
+    except Exception:  # noqa: BLE001 — sin datos importados, la página no revienta
+        etapas = []
+
+    completadas = [e for e in etapas if e.get("estado") == "completada"]
+    distancia_total = sum(e["distance_nm"] or 0 for e in etapas)
+    distancia_hecha = sum(e["distance_nm"] or 0 for e in completadas)
+
+    return render_template(
+        "vuelta_espana.html",
+        etapas=etapas,
+        total_etapas=len(etapas),
+        completadas=len(completadas),
+        distancia_total=distancia_total,
+        distancia_hecha=distancia_hecha,
+    )
+
+
+def _etapa_de_vuelta_espana(origen: str, destino: str) -> Optional[dict]:
+    """¿Este origen/destino es una etapa activa de la Vuelta a España?
+
+    Devuelve la fila de `rutas_vfr` (como dict) o `None`. Se usa tanto para
+    avisar en la ficha de un vuelo como para la propia página de la Vuelta.
+    """
+    try:
+        with cuentas.conexion() as con:
+            fila = con.execute(
+                """SELECT * FROM rutas_vfr
+                   WHERE route_id = ? AND origin_icao = ? AND destination_icao = ?
+                   AND is_active = 1""",
+                (RUTA_VUELTA_ESPANA, origen.upper(), destino.upper()),
+            ).fetchone()
+            return dict(fila) if fila else None
+    except Exception:  # noqa: BLE001 — una tabla que falte no debe romper la ficha
+        return None
 
 
 def _verificar_progreso_rutas(huella: str, flight, piloto: str) -> None:

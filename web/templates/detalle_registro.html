@@ -28,6 +28,19 @@
   table.telemetria td:first-child { font-weight: 600; }
   .volver { display: inline-block; margin-bottom: 20px; color: var(--azul); text-decoration: none; font-weight: 600; }
   .volver:hover { text-decoration: underline; }
+  .aviso-etapa {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #d3f5e3;
+    color: #067647;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 14px;
+    font-weight: 600;
+    font-size: 13.5px;
+  }
+  .aviso-etapa a { color: inherit; text-decoration: underline; }
 {% endblock %}
 
 {% block contenido %}
@@ -41,6 +54,12 @@
             <p>{{ nombre }} — {{ resumen.points_recorded }} puntos grabados</p>
           </div>
         </div>
+
+        {% if etapa_vuelta %}
+        <div class="aviso-etapa">
+          ✓ Cuenta para la <a href="{{ url_for('vuelta_espana') }}">Vuelta a España</a> · Etapa {{ etapa_vuelta.stage_number }} de 21
+        </div>
+        {% endif %}
 
         <div class="stats">
           <div class="stat">
