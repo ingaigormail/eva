@@ -46,7 +46,9 @@ FG = "#e8eaed"
 FG_DIM = "#9aa3ad"
 ACCENT = "#3b82f6"
 GREEN = "#12b76a"
+AMBER = "#f79009"  # avisos: ni un OK ni un impedimento
 RED = "#d92d20"
+GREY = "#4a5159"  # el botón de instalar cuando aún no se puede pulsar
 
 
 def _bundled_dir() -> Path:
