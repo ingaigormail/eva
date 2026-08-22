@@ -8,3 +8,4 @@ bleach>=6.0  # HTML sanitization
 markupsafe>=2.1  # HTML escaping
 numpy>=1.24  # csv_reader.py
 pandas>=2.0  # csv_reader.py
+openpyxl>=3.1  # pandas.read_excel en importar_vuelta_espana.py
