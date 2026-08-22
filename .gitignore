@@ -1,0 +1,34 @@
+# Secretos y datos reales: nunca al repositorio, es público.
+web/data/correo.json
+web/data/secret_key.txt
+web/data/eva.db
+web/data/sesion_activa.json
+web/data/trusted_log.json
+web/data/importados.json
+web/data/usuarios.json*
+web/logs/
+.env
+.env.*
+!.env.ejemplo
+
+# Grabaciones y configuración local del cliente: son de cada piloto.
+client/grabaciones/
+client/eva.config.json
+client/eva-debug.log
+client/eva.debug
+
+# Construidos: se regeneran con tools/build_exe.py; 90+ MB no aportan nada
+# al repo y solo lo hacen pesado de clonar.
+client/build/
+client/dist/
+*.egg-info/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.venv/
+venv/
+
+# Datos externos y de trabajo que no son código.
+/data/
