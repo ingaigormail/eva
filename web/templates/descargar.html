@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block titulo %}Descargar EvA Airliner — EvA{% endblock %}
+{% block marca_sub %}Descargar EvA Airliner{% endblock %}
+{% block nav_descargar %}activo{% endblock %}
+
+{% block estilos %}
+  .descarga {
+    text-align: center;
+    padding: 26px 20px;
+    border: 2px dashed var(--azul);
+    border-radius: 12px;
+    background: var(--azul-claro);
+  }
+  .boton-descarga {
+    display: inline-block;
+    background: var(--azul);
+    color: #fff;
+    padding: 14px 34px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 16px;
+    text-decoration: none;
+  }
+  .boton-descarga:hover { filter: brightness(1.1); }
+  .version { margin-top: 10px; font-size: 12.5px; color: var(--tenue); }
+  .pasos { counter-reset: paso; list-style: none; padding: 0; margin: 0; }
+  .pasos li {
+    counter-increment: paso;
+    position: relative;
+    padding: 0 0 16px 42px;
+    margin: 0;
+  }
+  .pasos li::before {
+    content: counter(paso);
+    position: absolute;
+    left: 0; top: 0;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--azul);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pasos strong { display: block; margin-bottom: 2px; }
+  .pasos span { font-size: 13px; color: var(--tenue); }
+  .aviso {
+    border-left: 4px solid var(--ambar, #d98324);
+    background: #fff8ef;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    font-size: 13.5px;
+  }
+  .aviso h4 { margin: 0 0 6px; font-size: 14px; }
+  .aviso ol { margin: 8px 0 0; padding-left: 20px; }
+  .requisitos { list-style: none; padding: 0; font-size: 13.5px; }
+  .requisitos li { padding: 4px 0 4px 22px; position: relative; }
+  .requisitos li::before {
+    content: "·"; position: absolute; left: 8px; font-weight: 700;
+    color: var(--azul); font-size: 18px; line-height: 1;
+  }
+{% endblock %}
+
+{% block contenido %}
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <h3>EvA Airliner</h3>
+          <p>El programa que graba tus vuelos en el simulador para traerlos a la cartilla.</p>
+        </div>
+
+        <div class="descarga">
+          <a class="boton-descarga" href="{{ enlace_descarga }}" rel="noopener">
+            Descargar para Windows
+          </a>
+          <div class="version">
+            {{ version_visible }} · unos 53 MB · Windows 10 y 11
+          </div>
+        </div>
+      </section>
+
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <h3>Qué necesitas</h3>
+        </div>
+        <ul class="requisitos">
+          <li>Windows 10 u 11 (64 bits)</li>
+          <li>Microsoft Flight Simulator 2020 o 2024</li>
+          <li>No hace falta instalar Python ni nada más: va todo dentro</li>
+        </ul>
+      </section>
+
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <h3>Cómo se usa</h3>
+          <p>De la descarga al vuelo en tu cartilla.</p>
+        </div>
+        <ol class="pasos">
+          <li>
+            <strong>Instálalo</strong>
+            <span>Doble clic en el fichero descargado y elige dónde ponerlo. Crea también la carpeta donde se guardarán tus vuelos.</span>
+          </li>
+          <li>
+            <strong>Abre primero el simulador</strong>
+            <span>Entra en Flight Simulator y quédate en la cabina, listo para volar. EvA Airliner necesita que el simulador ya esté en marcha para engancharse a él.</span>
+          </li>
+          <li>
+            <strong>Abre EvA Airliner</strong>
+            <span>Verás que detecta el simulador y empieza a leer los datos del avión.</span>
+          </li>
+          <li>
+            <strong>Vuela</strong>
+            <span>La grabación se ocupa sola: detecta el despegue y el aterrizaje. Al terminar, pulsa FINALIZAR y se guarda el fichero del vuelo.</span>
+          </li>
+          <li>
+            <strong>Súbelo a tu cartilla</strong>
+            <span>Vuelve aquí, entra en <a href="{{ url_for('registro') }}">REGISTRO</a> y suelta ahí el fichero. Se evalúa y pasa a contar en tus estadísticas y en las de la aerolínea.</span>
+          </li>
+        </ol>
+      </section>
+
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <h3>Windows te dirá que no lo conoce</h3>
+        </div>
+        <div class="aviso">
+          <h4>Es normal, y no significa que el programa sea peligroso.</h4>
+          <p style="margin:0">
+            Windows avisa de todos los programas que no llevan un certificado
+            de pago. EvA Airliner no lo lleva, así que al abrirlo verás
+            <em>«Windows protegió su PC»</em>. Para continuar:
+          </p>
+          <ol>
+            <li>Pulsa <strong>Más información</strong></li>
+            <li>Pulsa <strong>Ejecutar de todas formas</strong></li>
+          </ol>
+          <p style="margin:8px 0 0">
+            Si tu antivirus también protesta, es por lo mismo. El programa se
+            construye a partir del
+            <a href="https://github.com/ingaigormail/eva" rel="noopener">código público de EvA</a>,
+            que puedes revisar.
+          </p>
+        </div>
+      </section>
+{% endblock %}

@@ -1,0 +1,39 @@
+[project]
+name = "avcars-client"
+version = "0.1.0"
+description = "Cliente de grabacion y evaluacion de vuelos VFR para la aerolinea virtual (MSFS 2024, X-Plane, Prepar3D)"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.6",
+    "PyYAML>=6.0",
+    "click>=8.1",
+    "pillow>=10.0",
+    # SimConnect solo existe en Windows: en Linux/macOS el paquete se instala
+    # igual (para poder ejecutar los tests y el motor de evaluacion), pero
+    # sin el conector del simulador.
+    'SimConnect>=0.4.26; sys_platform == "win32"',
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+# Herramientas de publicacion: generar el icono y empaquetar el ejecutable.
+# No las necesita quien solo vuela.
+build = [
+    "pillow>=10.0",
+    "pyinstaller>=6.0",
+]
+
+[project.scripts]
+avcars = "avcars.cli:cli"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["avcars*"]
+
+[tool.setuptools.package-data]
+avcars = ["assets/*"]

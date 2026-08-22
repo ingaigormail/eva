@@ -140,4 +140,6 @@ def test_el_icono_solo_sale_cuando_se_puede(permitido, monkeypatch):
     monkeypatch.setenv("EVA_LANZAR_LOCAL", "0")
     html = _cliente().get("/").get_data(as_text=True)
     assert 'id="lanzar-vuelo"' not in html
-    assert "se abre desde el escritorio" in html
+    # Donde no se puede lanzar, el icono lleva a bajarse el programa: es un
+    # piloto entrando desde su casa, no desde la máquina del servidor.
+    assert 'href="/descargar"' in html

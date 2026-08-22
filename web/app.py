@@ -1154,6 +1154,31 @@ def aerolinea():
     )
 
 
+#: Dónde se publica el instalador. Va en GitHub y no en el propio servidor a
+#: propósito: son 53 MB por descarga, y el disco del VPS anda justo. GitHub no
+#: cobra tráfico en repositorios públicos y además guarda las versiones.
+DESCARGA_URL = os.environ.get(
+    "EVA_DESCARGA_URL",
+    "https://github.com/ingaigormail/eva/releases/latest/download/setup.exe",
+)
+DESCARGA_VERSION = os.environ.get("EVA_DESCARGA_VERSION", "Última versión")
+
+
+@app.route("/descargar")
+@login_requerido
+def descargar():
+    """De dónde se baja EvA Airliner y cómo se usa.
+
+    En el servidor el botón VUELO no puede abrir el grabador — está en el PC
+    del piloto, no aquí —, así que lleva a esta página.
+    """
+    return render_template(
+        "descargar.html",
+        enlace_descarga=DESCARGA_URL,
+        version_visible=DESCARGA_VERSION,
+    )
+
+
 @app.route("/registro")
 @login_requerido
 def registro():

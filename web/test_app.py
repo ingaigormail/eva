@@ -875,19 +875,21 @@ def test_plan_apunta_a_la_ruta_d2(cliente):
     assert 'href="/plan"' in html
 
 
-def test_vuelo_sigue_siendo_inerte_sin_permiso_de_lanzar_en_local(cliente):
+def test_desde_el_servidor_no_se_ofrece_lanzar_el_grabador(cliente):
     """D4 es la app de escritorio: desde la web no se puede lanzar,
 
     salvo que el servidor esté en modo desarrollo y la petición sea local
     (ver `se_puede_lanzar_en_local` en app.py) — el fixture `cliente` no
-    cumple ninguna de las dos condiciones por defecto, así que sigue inerte.
+    cumple ninguna de las dos condiciones por defecto.
 
-    Antes también era inerte PLANES, porque D3 no existía. Ya existe
-    (`/planes-de-vuelo`), así que ese ancla ahora sí enlaza.
+    Antes, en ese caso, el icono VUELO quedaba muerto y no llevaba a ningún
+    sitio. Ahora lleva a la página de descarga, que es lo que le hace falta a
+    un piloto que entra desde su casa: bajarse el programa. Lo que no puede
+    aparecer en ningún caso es el control de lanzar.
     """
     html = cliente.get("/").get_data(as_text=True)
-    assert '<a class="inerte" title="D4 · EVA Airliner se abre desde el escritorio">' in html
     assert 'id="lanzar-vuelo"' not in html
+    assert 'href="/descargar"' in html
     assert "pendiente de construir" not in html
 
 

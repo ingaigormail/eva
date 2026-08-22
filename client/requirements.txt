@@ -1,0 +1,21 @@
+# EvA Airliner - Cliente de escritorio
+# Dependencias de Python
+
+# SimConnect: conexión con MSFS 2020/2024
+SimConnect>=0.4.10
+
+# fstelemetry: captura automática de telemetría de MSFS (OPCIONAL pero recomendado)
+# Proporciona lectura automática, CSV, configuración flexible
+# Si no está instalado, el sistema cae back a Python-SimConnect directo
+fstelemetry>=0.1.0
+
+# Framework web (si se necesita cliente web local)
+Flask>=2.3.0
+Flask-CORS>=4.0.0
+
+# Data serialization
+pydantic>=2.0.0
+PyYAML>=6.0
+
+# Logging y utilities
+python-dotenv>=1.0.0
