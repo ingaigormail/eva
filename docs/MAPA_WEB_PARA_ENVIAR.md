@@ -54,13 +54,16 @@ WEB  (Flask; app.py documenta :5000)
 
 ```
 /login → / (cartilla)
-          → /plan → guardar → /planes-de-vuelo
+          → /plan → GENERAR PLAN ICAO o ABRIR EN VATSIM
           → VUELO → (local) lanzar gui  |  (servidor) /descargar
-          → volar → .avlog.json
+          → volar → .avlog.json en Grabaciones
           → /registro → upload → /vuelos → /vuelo/<nombre>
           → /aerolinea  (flota)
           → /vuelta-espana
 ```
+
+Sin **GENERAR PLAN ICAO** ni **ABRIR EN VATSIM**, la cartilla indica que el
+vuelo **no se evalúa**. `[CONF]` `descargar.html`
 
 ---
 

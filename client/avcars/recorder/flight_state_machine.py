@@ -9,8 +9,10 @@ Estados y transiciones:
     ESPERANDO_SIMULADOR
         ↓ hay conexión y datos válidos
     EN_TIERRA (armado, no graba)
+        ↓ en tierra y velocidad > 5 km/h (empieza a rodar)
+    RODANDO ← empieza a grabar (rodaje completo: luces, taxi...)
         ↓ en tierra y velocidad > 50 kt
-    CARRERA_DESPEGUE ← empieza a grabar
+    CARRERA_DESPEGUE (sigue grabando, ya iba a 50kt desde el principio)
         ↓ sin contacto 3s y altitud > 50 ft
     EN_VUELO
         ↓ toca tierra
@@ -22,6 +24,17 @@ Estados y transiciones:
     GUARDANDO ← escribe fichero
         ↓ éxito o error
     EN_TIERRA (listo para otro vuelo)
+
+El umbral de arranque (RODANDO) es deliberadamente bajo: hasta ahora la
+grabación empezaba en la carrera de despegue, así que el rodaje entero
+quedaba fuera del log — y con él, cualquier posibilidad de verificar
+`taxi_light`/`strobe_taxi` (que dependen justo de datos de rodaje, ver
+`evaluation/reglas_info.py`). RODANDO no hereda la lógica de aborto de
+CARRERA_DESPEGUE: parar en un cruce o en el holding point no debe cortar
+la grabación, solo bajar de 50 kt en plena carrera de despegue sí (aborto
+real). Que el vuelo llegue a su destino o no ya no lo decide esta máquina:
+lo filtra el servidor al subirlo (solo cuentan para estadísticas los
+vuelos completos).
 
 La robustez viene de:
 - Exigir permanencia temporal, no cambios por un dato aislado.
@@ -39,9 +52,15 @@ from ..connectors.base import SimState
 
 from .. import timing
 
-# Velocidad de arranque: decisión cerrada del proyecto, no configurable.
-# Por encima de cualquier rodaje y por debajo de cualquier rotación.
+# Velocidad de rotación: decisión cerrada del proyecto, no configurable.
+# Marca la carrera de despegue (y, si se frena por debajo tras alcanzarla,
+# el aborto). Por encima de cualquier rodaje y por debajo de cualquier
+# rotación real.
 SPEED_THRESHOLD_KT = 50.0
+
+# Velocidad para EMPEZAR a grabar: el primer movimiento de rodaje, no el
+# despegue (~5 km/h). Deliberadamente bajo para capturar el rodaje entero.
+TAXI_MOVEMENT_THRESHOLD_KT = 2.7
 
 # Los tiempos de confirmación se definen en avcars/timing.py, donde se
 # comprueba que encajan con la cadencia de muestreo y con la detección de
@@ -57,6 +76,7 @@ class FlightState(Enum):
 
     ESPERANDO_SIMULADOR = "esperando_simulador"
     EN_TIERRA = "en_tierra"
+    RODANDO = "rodando"
     CARRERA_DESPEGUE = "carrera_despegue"
     EN_VUELO = "en_vuelo"
     EN_PISTA = "en_pista"
@@ -115,7 +135,9 @@ class FlightStateMachine:
         if self.state == FlightState.ESPERANDO_SIMULADOR:
             return "esperando conexión con el simulador"
         if self.state == FlightState.EN_TIERRA:
-            return "listo en tierra, empezará a grabar al despegar"
+            return "listo en tierra, empezará a grabar al rodar"
+        if self.state == FlightState.RODANDO:
+            return "rodando, grabando"
         if self.state == FlightState.CARRERA_DESPEGUE:
             return "carrera de despegue, grabando"
         if self.state == FlightState.EN_VUELO:
@@ -165,12 +187,34 @@ class FlightStateMachine:
 
         if self.state == FlightState.EN_TIERRA:
             if state.on_ground and state.gs_kt >= SPEED_THRESHOLD_KT:
-                # Empieza la carrera de despegue.
+                # Ya iba a velocidad de rotación desde la primera muestra:
+                # directo a la carrera de despegue, sin pasar por rodaje.
                 self.state = FlightState.CARRERA_DESPEGUE
                 self.recording = True
                 action = "empezar_grabacion"
                 self._last_reason = "carrera de despegue iniciada"
                 self._time_without_contact_s = 0.0
+            elif state.on_ground and state.gs_kt >= TAXI_MOVEMENT_THRESHOLD_KT:
+                # Empieza a rodar: arranca la grabación ya, para cubrir todo
+                # el rodaje (luces incluidas).
+                self.state = FlightState.RODANDO
+                self.recording = True
+                action = "empezar_grabacion"
+                self._last_reason = "empieza a rodar"
+            return action, self.describe_state()
+
+        if self.state == FlightState.RODANDO:
+            if state.on_ground and state.gs_kt >= SPEED_THRESHOLD_KT:
+                # Alcanza velocidad de rotación: empieza la carrera de
+                # despegue de verdad. Ya se estaba grabando, no hay acción.
+                self.state = FlightState.CARRERA_DESPEGUE
+                self._last_reason = "carrera de despegue iniciada"
+                self._time_without_contact_s = 0.0
+            # Si sigue en tierra por debajo de 50 kt —rodando despacio,
+            # parado en un cruce o en el holding point— no pasa nada: se
+            # sigue grabando. A diferencia de CARRERA_DESPEGUE, aquí no hay
+            # aborto por velocidad baja: es justo el rango que se quiere
+            # capturar.
             return action, self.describe_state()
 
         if self.state == FlightState.CARRERA_DESPEGUE:

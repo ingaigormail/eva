@@ -53,7 +53,7 @@ luces de red, no para autenticar la cartilla. `[CONF]` `dashboard.py`,
 | Req. | Estado |
 |---|---|
 | Grabación manual | Hecho (`gui.py` + `MODO_MANUAL`) |
-| Grabación automática | Hecho (`FlightStateMachine`, 50 kt) |
+| Grabación automática | Hecho (`FlightStateMachine`: rodaje ~2,7 kt; 50 kt = carrera) |
 | SimConnect MSFS/P3D | Hecho (unidades con heurística `_coerce_*`) |
 | X-Plane `poll()` | **No** (`NotImplementedError`) |
 | Muestreo adaptativo | Hecho (1 s / 10 s, 1500 ft AGL) |
@@ -65,12 +65,14 @@ luces de red, no para autenticar la cartilla. `[CONF]` `dashboard.py`,
 
 ## 4. Plan de vuelo `[CONF]`
 
-- UI: `GET /plan`, persistencia `POST /api/plan/guardar` → tabla `planes`.
+- UI: `GET /plan`. Botones: **GUARDAR PLAN SIN VATSIM**, **GENERAR PLAN ICAO**,
+  **ABRIR EN VATSIM** (`plan.html`).
+- Persistencia: `POST /api/plan/guardar` → tabla `planes` (los tres botones
+  pueden guardar).
 - Listado: `/planes-de-vuelo`.
 - FPL ICAO: `POST /api/plan/fpl` → `prefile.icao_fpl`.
-- VATSIM/IVAO: URLs de formulario (`vatsim_prefile_url`, IVAO base64).
-  **EvA no confirma** que el piloto pulsara Submit. `[CONF]` docstring de
-  `prefile.py`
+- VATSIM: `POST /api/plan/vatsim-url`. **EvA no confirma** el Submit.
+  `[CONF]` `prefile.py`
 - `POST /api/plan/apply-payload`: existe; el significado exacto de
   `success: true` en todos los casos **no se ha auditado línea a línea**
   en esta pasada. `[PEND]`

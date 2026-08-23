@@ -108,6 +108,86 @@ class TestFase1Seguridad:
 
         assert exc_info.value.codigo == 403
 
+class TestVueloCompleto:
+    """Regla 3 de `importacion.revisar`: solo entran vuelos que llegaron al
+    destino declarado en el plan (2026-08-23, a raíz de bajar el umbral de
+    grabación automática al rodaje — ver `flight_state_machine.RODANDO`)."""
+
+    AEROPUERTOS = {
+        "LEMD": {"lat": 40.4719, "lon": -3.5626, "name": "Madrid-Barajas"},
+        "LEBL": {"lat": 41.2971, "lon": 2.0785, "name": "Barcelona-El Prat"},
+    }
+
+    def _avlog(self, destino, ultimo_punto):
+        track_points = [
+            {
+                "t": 0.0, "lat": 40.0, "lon": -3.0, "alt_agl_ft": 1000,
+                "alt_msl_ft": 2000, "hdg_deg": 180.0, "gs_kt": 100.0,
+                "ias_kt": 95.0, "vs_fpm": 0.0, "on_ground": False,
+            },
+            ultimo_punto,
+        ]
+        datos = {
+            "pilot": {"license_id": "PILOTO1", "callsign": "TST1"},
+            "flight_plan": {"arrival_icao": destino},
+            "track": track_points,
+            "integrity": {"track_hash": "h-completo"},
+        }
+        return json.dumps(datos).encode("utf-8")
+
+    def test_llega_cerca_del_destino_se_acepta(self):
+        ultimo = {
+            "t": 3600.0, "lat": 41.2971, "lon": 2.0785, "alt_agl_ft": 0,
+            "alt_msl_ft": 10, "hdg_deg": 90.0, "gs_kt": 5.0, "ias_kt": 5.0,
+            "vs_fpm": 0.0, "on_ground": True,
+        }
+        nombre, _ = importacion.revisar(
+            self._avlog("LEBL", ultimo), "test.avlog.json", "PILOTO1",
+            aeropuertos=self.AEROPUERTOS,
+        )
+        assert nombre == "test.avlog.json"
+
+    def test_se_queda_a_medio_camino_se_rechaza(self):
+        ultimo = {
+            "t": 1800.0, "lat": 40.8, "lon": -1.0, "alt_agl_ft": 5000,
+            "alt_msl_ft": 6000, "hdg_deg": 90.0, "gs_kt": 200.0, "ias_kt": 190.0,
+            "vs_fpm": 0.0, "on_ground": False,
+        }
+        with pytest.raises(importacion.ImportacionRechazada) as exc_info:
+            importacion.revisar(
+                self._avlog("LEBL", ultimo), "test.avlog.json", "PILOTO1",
+                aeropuertos=self.AEROPUERTOS,
+            )
+        assert exc_info.value.codigo == 400
+        assert "LEBL" in exc_info.value.mensaje
+
+    def test_solo_rodo_sin_despegar_se_rechaza(self):
+        """El caso que motivó la regla: grabar solo el rodaje para ver luces."""
+        ultimo = {
+            "t": 120.0, "lat": 40.472, "lon": -3.561, "alt_agl_ft": 0,
+            "alt_msl_ft": 2000, "hdg_deg": 90.0, "gs_kt": 8.0, "ias_kt": 8.0,
+            "vs_fpm": 0.0, "on_ground": True,
+        }
+        with pytest.raises(importacion.ImportacionRechazada):
+            importacion.revisar(
+                self._avlog("LEBL", ultimo), "test.avlog.json", "PILOTO1",
+                aeropuertos=self.AEROPUERTOS,
+            )
+
+    def test_sin_aeropuertos_se_omite_la_comprobacion(self):
+        """Sin pasar `aeropuertos` (compatibilidad), la regla 3 no se aplica."""
+        ultimo = {
+            "t": 120.0, "lat": 40.472, "lon": -3.561, "alt_agl_ft": 0,
+            "alt_msl_ft": 2000, "hdg_deg": 90.0, "gs_kt": 8.0, "ias_kt": 8.0,
+            "vs_fpm": 0.0, "on_ground": True,
+        }
+        nombre, _ = importacion.revisar(
+            self._avlog("LEBL", ultimo), "test.avlog.json", "PILOTO1"
+        )
+        assert nombre == "test.avlog.json"
+
+
+class TestAuditarImportacion:
     def test_auditar_importacion_escribe_log(self, tmp_path):
         """auditar_importacion() escribe en trusted_log.json."""
         import importacion

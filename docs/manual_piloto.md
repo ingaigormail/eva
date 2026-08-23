@@ -46,18 +46,31 @@ defecto del instalador en una máquina real.
 
 ---
 
-## Cómo se usa el grabador
+## Cómo se usa (piloto)
 
-Ventana: `client/avcars/gui.py` (`EvaApp`). `[CONF]`
+El procedimiento publicado en la web (`/descargar`) es el de operación.
+Los nombres de botones son los de **PLAN** y del grabador. `[CONF]`
 
-Hay **dos modos** (`settings.py`: `MODO_AUTOMATICO`, `MODO_MANUAL`). `[CONF]`
+1. Instalar EvA Airliner (Windows). Se crea la carpeta de vuelos.
+2. En **PLAN** (`/plan`): crear el plan y usar **GENERAR PLAN ICAO** o
+   **ABRIR EN VATSIM**. Sin una de las dos, **el vuelo no se evalúa**.
+   **GUARDAR PLAN SIN VATSIM** solo guarda el plan en local.
+3. Abrir **primero el simulador**, luego EvA Airliner.
+4. Grabar: **GRABAR** (manual) o automático al **empezar a rodar**.
+   Al terminar, **FINALIZAR VUELO**.
+5. Fichero en **Grabaciones** (carpeta de instalación).
+6. Subirlo en **REGISTRO** (`/registro`).
 
-- **Automático**: la máquina de estados
-  (`recorder/flight_state_machine.py`) empieza a grabar en la carrera de
-  despegue (umbral **50 kt** de GS, constante `SPEED_THRESHOLD_KT`) y cierra
-  cuando confirma aterrizaje y parada. `[CONF]`
-- **Manual**: el piloto pulsa para empezar y para parar. `[CONF]` docstring
-  de `gui.py`
+### Qué hace el grabador por debajo `[CONF]`
+
+Ventana: `client/avcars/gui.py` (`EvaApp`).
+
+Modos (`settings.py`: `MODO_AUTOMATICO`, `MODO_MANUAL`):
+
+- **Automático**: al rodar (~**2,7 kt**, `TAXI_MOVEMENT_THRESHOLD_KT`) pasa a
+  `TAXIING` y **empieza a grabar**. A **50 kt** GS (`SPEED_THRESHOLD_KT`) entra
+  en carrera de despegue. Cierra al confirmar toma y parada.
+- **Manual**: el piloto pulsa **GRABAR** / **FINALIZAR VUELO**.
 
 Tiempos de confirmación (`timing.py`): `[CONF]`
 

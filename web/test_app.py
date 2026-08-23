@@ -1027,6 +1027,8 @@ def _avlog_etapa(origen, destino, huella):
     """Vuelo AVLOG sintético LXGB→LEMG basado en el fixture real WVN89."""
     import json
 
+    from app import AIRPORTS
+
     fixture = (
         Path(__file__).resolve().parent.parent
         / "client" / "tests" / "fixtures"
@@ -1037,6 +1039,15 @@ def _avlog_etapa(origen, destino, huella):
     doc["flight_plan"]["departure_icao"] = origen
     doc["flight_plan"]["arrival_icao"] = destino
     doc["integrity"] = {"hash_algorithm": "sha256", "track_hash": huella}
+    # El fixture real aterriza en Barcelona: para que la comprobación de
+    # "vuelo completo" (importacion.vuelo_llego_a_destino) no rechace este
+    # vuelo sintético, el último punto de la traza se mueve al destino que
+    # se está declarando.
+    aeropuerto = AIRPORTS.get(destino.upper())
+    if aeropuerto and doc.get("track"):
+        doc["track"][-1]["lat"] = aeropuerto["lat"]
+        doc["track"][-1]["lon"] = aeropuerto["lon"]
+        doc["track"][-1]["on_ground"] = True
     return json.dumps(doc).encode("utf-8")
 
 

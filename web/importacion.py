@@ -1,9 +1,20 @@
 """Control de qué vuelos entran en la cartilla y de quién son.
 
-Dos reglas, las dos pedidas por el usuario el 2026-08-17:
+Tres reglas:
 
 1. **Un vuelo no se importa dos veces.** Ni renombrando el fichero.
+   (2026-08-17)
 2. **Un vuelo no lo importa otro piloto.** El vuelo dice de quién es.
+   (2026-08-17)
+3. **Solo entran vuelos completos**: que aterrizaron cerca del aeródromo de
+   destino declarado en el plan. (2026-08-23, a raíz de bajar el umbral de
+   grabación automática al rodaje: sin esto, cualquier rodaje grabado para
+   verificar luces —sin despegar siquiera— contaría igual que un vuelo de
+   verdad). Un vuelo incompleto no se sube ni a la cartilla ni a
+   estadísticas: no deja ni rastro, se puede reintentar sin más. Entre los
+   completos, además, solo los aprobados cuentan para estadísticas — los
+   suspensos sí quedan en la cartilla (ver `_resumir_para_estadisticas` en
+   `app.py`).
 
 Cómo se reconoce un vuelo
 -------------------------
@@ -233,13 +244,80 @@ def auditar_importacion(
         pass
 
 
+# -- vuelo completo (llegó al destino declarado) ------------------------
+
+#: Margen alrededor del aeródromo de destino: un aeródromo real tiene
+#: pistas y plataformas separadas varios km del punto de referencia que
+#: se guarda en `airports.json`/`aerodromos_es`, así que exigir coincidencia
+#: exacta rechazaría vuelos que sí llegaron. 10 NM (~18,5 km) es de sobra
+#: para eso sin aceptar un desvío a un aeródromo distinto.
+DESTINO_RADIO_NM = 10.0
+
+
+def _distancia_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Distancia aproximada en millas náuticas entre dos puntos.
+
+    Aproximación plana con corrección de latitud: sobra de precisión a la
+    escala de "¿aterrizó cerca del aeródromo?" y evita depender de una
+    librería geodésica solo para esto.
+    """
+    import math
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    mean_lat = math.radians((lat1 + lat2) / 2.0)
+    x = dlon * math.cos(mean_lat)
+    return math.hypot(dlat, x) * 60.0  # 1° de latitud ~= 60 NM
+
+
+def vuelo_llego_a_destino(datos: dict, aeropuertos: dict) -> bool:
+    """¿El vuelo terminó cerca del aeródromo de destino declarado?
+
+    Se mira dónde acaba la traza, no un evento concreto: da igual el motivo
+    por el que no llegara —nunca despegó, se desvió, se cortó a medias—,
+    en todos esos casos el último punto queda lejos del destino. No hace
+    falta encontrar el touchdown, basta con dónde terminó de verdad, y en
+    tierra (sobrevolar cerca sin aterrizar no cuenta).
+
+    `aeropuertos` es el `icao -> {"lat", "lon", ...}` de la web
+    (`AIRPORTS`); sin coordenadas del destino no se puede afirmar que
+    llegó, así que se rechaza.
+    """
+    plan = datos.get("flight_plan") or {}
+    destino = str(plan.get("arrival_icao") or "").strip().upper()
+    aeropuerto = aeropuertos.get(destino)
+    if not aeropuerto:
+        return False
+
+    track = datos.get("track") or []
+    if not track:
+        return False
+    ultimo = track[-1]
+    if not ultimo.get("on_ground"):
+        return False
+    lat, lon = ultimo.get("lat"), ultimo.get("lon")
+    if lat is None or lon is None:
+        return False
+
+    distancia = _distancia_nm(lat, lon, aeropuerto["lat"], aeropuerto["lon"])
+    return distancia <= DESTINO_RADIO_NM
+
+
 # -- la comprobación completa ------------------------------------------
 
 
-def revisar(contenido: bytes, nombre: str, piloto_sesion: str) -> tuple[str, str]:
+def revisar(
+    contenido: bytes,
+    nombre: str,
+    piloto_sesion: str,
+    aeropuertos: Optional[dict] = None,
+) -> tuple[str, str]:
     """Decide si el vuelo puede entrar. Devuelve (nombre_seguro, huella).
 
-    Lanza `ImportacionRechazada` con el motivo si no puede.
+    Lanza `ImportacionRechazada` con el motivo si no puede. `aeropuertos`
+    habilita la comprobación de vuelo completo (regla 3 arriba); si no se
+    pasa, se omite — así los tests que no le dan importancia a esto no
+    tienen que fabricar coordenadas.
     """
     nombre = nombre_seguro(nombre)
 
@@ -253,6 +331,22 @@ def revisar(contenido: bytes, nombre: str, piloto_sesion: str) -> tuple[str, str
                 "Cada piloto importa solo sus vuelos.",
                 403,
             )
+        if aeropuertos is not None:
+            try:
+                datos = json.loads(contenido.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError):
+                datos = {}
+            if not vuelo_llego_a_destino(datos, aeropuertos):
+                destino = str(
+                    (datos.get("flight_plan") or {}).get("arrival_icao") or "???"
+                ).upper()
+                raise ImportacionRechazada(
+                    f"Este vuelo no llegó a {destino}, el destino declarado "
+                    "en el plan. Solo se suben vuelos completos: un rodaje, "
+                    "un despegue abortado o un desvío no entran en la "
+                    "cartilla.",
+                    400,
+                )
     elif nombre.endswith(".csv"):
         huella = huella_de_csv(contenido)
     else:

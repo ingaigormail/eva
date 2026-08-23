@@ -9,12 +9,12 @@
 ```
 1. Alta: /solicitar-alta → admin /gestion/usuarios
 2. Login: /login  (o dashboard.py)
-3. Plan: /plan → POST /api/plan/guardar
-4. (opcional) POST /api/plan/vatsim-url  → el piloto envía en VATSIM
-5. Grabar: gui.py → .avlog.json
-6. Subir: POST /api/registro/upload
-7. Ver: /vuelo/<nombre>  (mismo evaluate_flight)
-8. Flota: /aerolinea
+3. Plan: /plan → **GENERAR PLAN ICAO** o **ABRIR EN VATSIM**
+   (`POST /api/plan/fpl` / `POST /api/plan/vatsim-url`)
+4. Grabar: gui.py → .avlog.json (automático al rodar, o GRABAR)
+5. Subir: POST /api/registro/upload
+6. Ver: /vuelo/<nombre>  (mismo evaluate_flight)
+7. Flota: /aerolinea
 ```
 
 Paso 5 en X-Plane **no** está cerrado (`poll` no implementado). `[CONF]`

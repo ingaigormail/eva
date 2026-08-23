@@ -44,8 +44,8 @@ No custodia USER/PASS de VATSIM. `[CONF]`
 ### D4 — Grabación `[CONF]` `gui.py`
 
 Always-on-top, LED de conexión, tiempo grabado, transpondedor, modo
-auto/manual, botón grabar. Indicativo sale de settings, no se pide el
-plan en la ventana (docstring: lo rellena el sim).
+auto/manual. Botones **GRABAR** y **FINALIZAR VUELO**. Automático: graba al
+rodar. Indicativo sale de settings; el plan no se pide en esa ventana.
 
 ### D5 — Compacto
 

@@ -31,6 +31,7 @@ from typing import Optional
 
 from . import debuglog, paths, settings as settings_module, timing
 from .connectors.base import TRANSPONDER_LABELS, SimState
+from .connectors.flight_plan import read_flight_plan
 from .connectors.sim_poller import SimPoller
 from .connectors.simconnect_client import SimConnectConnector
 from .recorder import flight_log_writer as writer
@@ -60,6 +61,7 @@ ACCENT = "#2563eb"
 RED = "#dc2626"
 GREEN = "#16a34a"
 GREY = "#9ca3af"
+BORDER = "#cbd5e1"
 
 
 def _apply_icon(root: tk.Tk) -> None:
@@ -68,6 +70,43 @@ def _apply_icon(root: tk.Tk) -> None:
         ico = paths.assets_dir() / "eva.ico"
         if ico.exists():
             root.iconbitmap(str(ico))
+    except Exception:
+        pass
+
+
+def _quitar_controles_nativos(root: tk.Tk) -> None:
+    """Quita el minimizar y el cerrar (✕) de la barra de título de Windows.
+
+    Ya hay un botón "minimizar" propio en la interfaz (ver `_minimize`, que
+    no reduce a la barra de tareas sino que deja un widget flotante sobre el
+    simulador), así que el minimizar nativo es redundante y confunde: el
+    piloto puede pulsar el equivocado y esperar el otro comportamiento.
+    Quitar `WS_SYSMENU` se lleva también el aspa nativa y el icono de la
+    barra de título; Alt+F4 sigue cerrando la ventana igualmente (no depende
+    del menú de sistema), así que no hace falta un botón de cerrar propio.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        GWL_STYLE = -16
+        WS_MINIMIZEBOX = 0x00020000
+        WS_MAXIMIZEBOX = 0x00010000
+        WS_SYSMENU = 0x00080000
+        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_FRAMECHANGED = 0x2, 0x1, 0x4, 0x20
+
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetParent(root.winfo_id())
+        estilo = user32.GetWindowLongW(hwnd, GWL_STYLE)
+        estilo &= ~WS_MINIMIZEBOX
+        estilo &= ~WS_MAXIMIZEBOX
+        estilo &= ~WS_SYSMENU
+        user32.SetWindowLongW(hwnd, GWL_STYLE, estilo)
+        user32.SetWindowPos(
+            hwnd, 0, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+        )
     except Exception:
         pass
 
@@ -130,11 +169,20 @@ class EvaApp:
         self.root.configure(bg=BG)
         self.root.resizable(False, False)
         _apply_icon(self.root)
+        self.root.update_idletasks()
+        _quitar_controles_nativos(self.root)
 
         # Ventana siempre al frente
         self.root.attributes("-topmost", True)
 
         self.settings = settings_module.load(paths.settings_file())
+
+        # Salida/llegada mostradas en cabecera: lo que el piloto haya puesto
+        # en preferencias, hasta que se detecte el plan cargado en MSFS (más
+        # fiable, ver `connectors.flight_plan`).
+        self._plan_salida = self.settings.salida
+        self._plan_llegada = self.settings.llegada
+        self._route_blink_on = False
 
         self.recorder: Optional[FlightRecorder] = None
         self.state_machine: Optional[FlightStateMachine] = None
@@ -162,6 +210,8 @@ class EvaApp:
         self._build_ui()
         self._connect_sim()
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        self._refresh_flight_plan_display()
+        self._parpadear_led_ruta()
         self._poll_status()
         self._update_sim_display()
 
@@ -193,6 +243,28 @@ class EvaApp:
             fg=FG,
             font=("Segoe UI Semibold", 12)
         ).pack(side="left")
+
+        # Origen -> destino del plan de vuelo (detectado en MSFS, o lo que
+        # el piloto tenga puesto en preferencias si aún no hay avión cargado).
+        # El LED avisa si falta: rojo parpadeante hasta que haya salida Y
+        # llegada, verde fijo en cuanto las hay (ver `_refresh_flight_plan_display`
+        # y `_parpadear_led_ruta`). Grabar está bloqueado mientras esté en rojo.
+        route_frame = tk.Frame(outer, bg=BG)
+        route_frame.pack(fill="x", pady=(0, 10))
+
+        self.route_led = tk.Label(
+            route_frame, text="●", bg=BG, fg=RED, font=("Segoe UI", 10)
+        )
+        self.route_led.pack(side="left", padx=(0, 6))
+
+        self.route_label = tk.Label(
+            route_frame,
+            text=_describir_ruta({"salida": self._plan_salida, "llegada": self._plan_llegada}),
+            bg=BG,
+            fg=FG_DIM,
+            font=("Segoe UI Semibold", 9),
+        )
+        self.route_label.pack(side="left")
 
         # Panel principal
         panel = tk.Frame(outer, bg=PANEL, relief="flat", bd=1)
@@ -300,20 +372,33 @@ class EvaApp:
         )
         self.boton_finalizar.bind("<Button-1>", lambda _e: self._finalizar_vuelo())
 
-        # Boton Minimizar
+        # Boton Minimizar: con pinta de boton (borde, fondo, hover) para que
+        # se note que es clicable, ya que sustituye por completo al
+        # minimizar nativo de Windows (ver `_quitar_controles_nativos`).
         links = tk.Frame(outer, bg=BG)
         links.pack(fill="x", pady=(8, 0))
 
         self._minimize_button = tk.Label(
             links,
-            text="minimizar",
-            bg=BG,
+            text="▁  Minimizar",
+            bg=PANEL,
             fg=FG_DIM,
-            font=("Segoe UI", 7, "underline"),
-            cursor="hand2"
+            font=("Segoe UI Semibold", 8),
+            relief="solid",
+            borderwidth=1,
+            highlightbackground=BORDER,
+            padx=10,
+            pady=4,
+            cursor="hand2",
         )
         self._minimize_button.pack(side="left")
         self._minimize_button.bind("<Button-1>", lambda _e: self._minimize())
+        self._minimize_button.bind(
+            "<Enter>", lambda _e: self._minimize_button.configure(bg=ACCENT, fg="white")
+        )
+        self._minimize_button.bind(
+            "<Leave>", lambda _e: self._minimize_button.configure(bg=PANEL, fg=FG_DIM)
+        )
 
         self._set_status()
 
@@ -403,6 +488,16 @@ class EvaApp:
             )
             return
 
+        if not self._recording and not self._ruta_completa():
+            messagebox.showerror(
+                APP_NAME,
+                "Falta origen o destino del plan de vuelo.\n\n"
+                "Carga un plan en MSFS o ponlos en preferencias antes de "
+                "grabar; el indicador de arriba se pone en verde en cuanto "
+                "estén los dos."
+            )
+            return
+
         if self._recording:
             self._stop()
         else:
@@ -422,8 +517,8 @@ class EvaApp:
 
         return FlightPlanInfo(
             rules="VFR",
-            departure_icao=self.settings.salida,
-            arrival_icao=self.settings.llegada,
+            departure_icao=self._plan_salida,
+            arrival_icao=self._plan_llegada,
             alternate_icao=None,
             route=None,
             aircraft_icao_type=aircraft_type,
@@ -438,6 +533,13 @@ class EvaApp:
     def _start(self) -> None:
         """Inicia grabacion."""
         if self._recording:
+            return
+
+        # Cubre también el modo automático: la máquina de estados llama aquí
+        # directo, sin pasar por `_on_button_click`. Sin salida/llegada no
+        # se graba; en cuanto el LED se ponga verde, el siguiente intento
+        # (automático reintenta solo, manual con otro clic) sí arranca.
+        if not self._ruta_completa():
             return
 
         # Puede estar abierto y aún no responder (cargando, o en el menú):
@@ -833,8 +935,48 @@ class EvaApp:
             self.led_msfs.configure(fg=GREEN if self._msfs_connected else GREY)
             self._set_button_idle()
 
+        self._refresh_flight_plan_display()
+
         # Cada 5 s: es un vistazo a la lista de procesos, no hace falta más.
         self.root.after(5000, self._poll_status)
+
+    def _refresh_flight_plan_display(self) -> None:
+        """Actualiza el origen/destino de la cabecera.
+
+        Prioridad: el plan cargado en el simulador (fichero `.PLN`, fiable
+        y no requiere que el piloto teclee nada) y, si no hay avión cargado
+        todavía, lo que tenga puesto en preferencias.
+        """
+        try:
+            detectado = read_flight_plan()
+        except Exception as exc:
+            debuglog.fallo("lectura del plan de vuelo activo", exc)
+            detectado = None
+
+        self._plan_salida = (
+            (detectado.departure_icao if detectado else None) or self.settings.salida
+        )
+        self._plan_llegada = (
+            (detectado.arrival_icao if detectado else None) or self.settings.llegada
+        )
+        completa = self._ruta_completa()
+        self.route_label.configure(
+            text=_describir_ruta({"salida": self._plan_salida, "llegada": self._plan_llegada}),
+            fg=FG_DIM if completa else RED,
+        )
+
+    def _ruta_completa(self) -> bool:
+        """Si hay salida y llegada: sin esto no se puede empezar a grabar."""
+        return bool(self._plan_salida) and bool(self._plan_llegada)
+
+    def _parpadear_led_ruta(self) -> None:
+        """Verde fijo con el plan completo; rojo parpadeante mientras falte."""
+        if self._ruta_completa():
+            self.route_led.configure(fg=GREEN)
+        else:
+            self._route_blink_on = not self._route_blink_on
+            self.route_led.configure(fg=RED if self._route_blink_on else BG)
+        self.root.after(500, self._parpadear_led_ruta)
 
     def _tick_automatico(self, state: SimState) -> None:
         """Deja que la máquina de estados decida cuándo grabar.
@@ -853,7 +995,10 @@ class EvaApp:
         accion, motivo = self.state_machine.update(state, transcurrido)
 
         if accion == "empezar_grabacion" and not self._recording:
-            self._start()
+            if self._ruta_completa():
+                self._start()
+            else:
+                motivo = "Falta origen/destino del plan de vuelo — no se graba"
         elif accion == "parar_grabacion" and self._recording:
             self._stop()
             # Vuelo cerrado: la máquina queda lista para el siguiente sin

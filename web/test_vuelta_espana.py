@@ -78,6 +78,16 @@ def _fixture_avlog(origen: str, destino: str, huella: str) -> bytes:
     doc["flight_plan"]["departure_icao"] = origen
     doc["flight_plan"]["arrival_icao"] = destino
     doc["integrity"] = {"hash_algorithm": "sha256", "track_hash": huella}
+    # El fixture real aterriza en Barcelona: sin esto, la comprobación de
+    # "vuelo completo" (importacion.vuelo_llego_a_destino) rechazaría este
+    # vuelo sintético por no coincidir con el destino que se declara aquí.
+    from app import AIRPORTS
+
+    aeropuerto = AIRPORTS.get(destino.upper())
+    if aeropuerto and doc.get("track"):
+        doc["track"][-1]["lat"] = aeropuerto["lat"]
+        doc["track"][-1]["lon"] = aeropuerto["lon"]
+        doc["track"][-1]["on_ground"] = True
     return json.dumps(doc).encode("utf-8")
 
 

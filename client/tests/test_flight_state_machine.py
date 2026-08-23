@@ -112,6 +112,53 @@ class TestEnTierra:
         assert not machine.recording
 
 
+class TestRodando:
+    def test_empieza_a_rodar_arranca_grabacion(self):
+        """Rodaje lento (5 km/h ~ 2.7 kt): ya graba, sin esperar a 50 kt."""
+        machine = FlightStateMachine()
+        machine.state = FlightState.EN_TIERRA
+
+        action, _ = machine.update(_state(gs_kt=5, on_ground=True), 1.0)
+
+        assert action == "empezar_grabacion"
+        assert machine.recording
+        assert machine.state == FlightState.RODANDO
+
+    def test_por_debajo_del_umbral_no_arranca(self):
+        machine = FlightStateMachine()
+        machine.state = FlightState.EN_TIERRA
+
+        action, _ = machine.update(_state(gs_kt=1, on_ground=True), 1.0)
+
+        assert action == "nada"
+        assert not machine.recording
+        assert machine.state == FlightState.EN_TIERRA
+
+    def test_parar_en_un_cruce_no_corta_la_grabacion(self):
+        """A diferencia de la carrera de despegue, aquí frenar no aborta."""
+        machine = FlightStateMachine()
+        machine.state = FlightState.RODANDO
+        machine.recording = True
+
+        for gs in (10, 0, 0, 3, 15):
+            action, _ = machine.update(_state(gs_kt=gs, on_ground=True), 1.0)
+            assert action == "nada"
+            assert machine.recording
+            assert machine.state == FlightState.RODANDO
+
+    def test_alcanza_velocidad_de_rotacion_pasa_a_carrera_despegue(self):
+        machine = FlightStateMachine()
+        machine.state = FlightState.RODANDO
+        machine.recording = True
+
+        action, _ = machine.update(_state(gs_kt=60, on_ground=True), 1.0)
+
+        # Ya se estaba grabando: solo cambia de estado, no hay nueva acción.
+        assert action == "nada"
+        assert machine.recording
+        assert machine.state == FlightState.CARRERA_DESPEGUE
+
+
 class TestCarreraDespegue:
     def test_frena_durante_carrera_vuelve_a_tierra(self):
         """Despegue abortado: frena y queda en tierra."""

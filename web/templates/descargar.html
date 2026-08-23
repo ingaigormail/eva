@@ -24,13 +24,13 @@
   .boton-descarga:hover { filter: brightness(1.1); }
   .version { margin-top: 10px; font-size: 12.5px; color: var(--tenue); }
   .pasos { counter-reset: paso; list-style: none; padding: 0; margin: 0; }
-  .pasos li {
+  .pasos > li {
     counter-increment: paso;
     position: relative;
     padding: 0 0 16px 42px;
     margin: 0;
   }
-  .pasos li::before {
+  .pasos > li::before {
     content: counter(paso);
     position: absolute;
     left: 0; top: 0;
@@ -43,7 +43,21 @@
     display: flex; align-items: center; justify-content: center;
   }
   .pasos strong { display: block; margin-bottom: 2px; }
-  .pasos span { font-size: 13px; color: var(--tenue); }
+  .pasos > li > span { font-size: 13px; color: var(--tenue); }
+  .pasos span p { margin: 0 0 8px; }
+  .pasos span p:last-child { margin-bottom: 0; }
+  .pasos span ul { margin: 8px 0; padding-left: 18px; }
+  .pasos span ul li { margin: 4px 0; }
+  .pasos span ul strong { display: inline; }
+  .pasos .importante {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-left: 4px solid var(--rojo, #dc2626);
+    background: #fef2f2;
+    border-radius: 0 8px 8px 0;
+    color: var(--texto);
+    font-size: 13px;
+  }
   .aviso {
     border-left: 4px solid var(--ambar, #d98324);
     background: #fff8ef;
@@ -65,7 +79,7 @@
       <section class="tarjeta">
         <div class="cabecera-tarjeta">
           <h3>EvA Airliner</h3>
-          <p>El programa que graba tus vuelos en el simulador para traerlos a la cartilla.</p>
+          <p>El grabador de escritorio: se engancha al simulador, guarda el vuelo en tu PC y tú lo subes a la cartilla para evaluarlo.</p>
         </div>
 
         <div class="descarga">
@@ -84,8 +98,8 @@
         </div>
         <ul class="requisitos">
           <li>Windows 10 u 11 (64 bits)</li>
-          <li>Microsoft Flight Simulator 2020 o 2024</li>
-          <li>No hace falta instalar Python ni nada más: va todo dentro</li>
+          <li>Microsoft Flight Simulator 2020 o 2024 (Prepar3D también, si ya tienes SimConnect)</li>
+          <li>No hace falta instalar Python ni nada dentro del simulador: va todo en el instalador</li>
         </ul>
       </section>
 
@@ -97,23 +111,43 @@
         <ol class="pasos">
           <li>
             <strong>Instálalo</strong>
-            <span>Doble clic en el fichero descargado y elige dónde ponerlo. Crea también la carpeta donde se guardarán tus vuelos.</span>
+            <span>Doble clic en el fichero descargado y elige dónde instalarlo. Se creará también la carpeta donde se guardarán tus vuelos.</span>
+          </li>
+          <li>
+            <strong>Crea tu plan de vuelo y prepáralo en VATSIM</strong>
+            <span>
+              <p>En la pestaña <a href="{{ url_for('plan') }}">PLAN</a>, crea tu plan de vuelo.</p>
+              <p>Después, usa una de estas dos opciones de esa misma página:</p>
+              <ul>
+                <li><strong>GENERAR PLAN ICAO</strong> para obtener el texto ICAO y pegarlo en «Import ICAO FPL» del formulario de VATSIM.</li>
+                <li><strong>ABRIR EN VATSIM</strong> para abrir la ventana de VATSIM con todos los datos del plan ya preparados. EvA no envía el plan: tú lo revisas y lo envías.</li>
+              </ul>
+              <p class="importante"><strong>Importante:</strong> hay que usar una de estas dos opciones para que la grabación del vuelo sea correcta. Si no lo haces, <strong>el vuelo no será evaluado</strong>.</p>
+            </span>
           </li>
           <li>
             <strong>Abre primero el simulador</strong>
             <span>Entra en Flight Simulator y quédate en la cabina, listo para volar. EvA Airliner necesita que el simulador ya esté en marcha para engancharse a él.</span>
           </li>
           <li>
-            <strong>Abre EvA Airliner</strong>
-            <span>Verás que detecta el simulador y empieza a leer los datos del avión.</span>
+            <strong>Abre EvA Airliner y comienza la grabación</strong>
+            <span>
+              <p>Verás que detecta el simulador y empieza a leer los datos del avión.</p>
+              <p>Puedes iniciar la grabación de <strong>dos formas</strong>:</p>
+              <ul>
+                <li><strong>Manual:</strong> pulsa el botón <strong>GRABAR</strong> cuando quieras comenzar a registrar el vuelo.</li>
+                <li><strong>Automática:</strong> EvA Airliner iniciará la grabación automáticamente cuando detecte que el avión <strong>empieza a rodar</strong>.</li>
+              </ul>
+              <p>Una vez iniciada la grabación, EvA Airliner registra el vuelo y detecta automáticamente el despegue y el aterrizaje. Al terminar, pulsa <strong>FINALIZAR</strong> para completar y guardar la grabación.</p>
+            </span>
           </li>
           <li>
-            <strong>Vuela</strong>
-            <span>La grabación se ocupa sola: detecta el despegue y el aterrizaje. Al terminar, pulsa FINALIZAR y se guarda el fichero del vuelo.</span>
+            <strong>Encuentra tu vuelo grabado</strong>
+            <span>Los vuelos grabados se guardan en la pestaña <strong>GRABACIONES</strong>, dentro de la carpeta donde hayas instalado <strong>EvA Airliner</strong>. Desde ahí podrás localizar el fichero correspondiente al vuelo.</span>
           </li>
           <li>
             <strong>Súbelo a tu cartilla</strong>
-            <span>Vuelve aquí, entra en <a href="{{ url_for('registro') }}">REGISTRO</a> y suelta ahí el fichero. Se evalúa y pasa a contar en tus estadísticas y en las de la aerolínea.</span>
+            <span>Vuelve aquí, entra en <a href="{{ url_for('registro') }}">REGISTRO</a> y suelta ahí el fichero de tu vuelo. Se evaluará y pasará a contar en tus estadísticas y en las de la aerolínea.</span>
           </li>
         </ol>
       </section>

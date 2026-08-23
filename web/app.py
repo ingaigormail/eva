@@ -1826,7 +1826,9 @@ def _importar_vuelo(
     🔐 FASE 1: `ip_cliente` se registra en trusted_log.json para auditoría.
     """
     try:
-        filename, huella = importacion.revisar(contenido, nombre_original, piloto)
+        filename, huella = importacion.revisar(
+            contenido, nombre_original, piloto, aeropuertos=AIRPORTS
+        )
     except importacion.ImportacionRechazada as rechazo:
         # Registrar rechazos en auditoría
         importacion.auditar_importacion(
@@ -1998,9 +2000,14 @@ def _resumir_para_estadisticas(huella: str, filepath: Path, piloto: str) -> None
                 if flight.timing and flight.timing.block_off_utc
                 else None
             )
-            estadisticas.registrar_avlog(
-                huella, flight, verdict, perfil=DEFAULT_PROFILE, fecha=fecha
-            )
+            # Llegado hasta aquí el vuelo ya es completo (lo filtró
+            # `importacion.revisar` antes de escribirlo): queda siempre en
+            # la cartilla. Pero solo el aprobado cuenta para estadísticas —
+            # el suspenso se queda en la cartilla como "completo suspenso".
+            if verdict.passed:
+                estadisticas.registrar_avlog(
+                    huella, flight, verdict, perfil=DEFAULT_PROFILE, fecha=fecha
+                )
             # NUEVO (OC-05): verificar progreso en Vuelta a España
             _verificar_progreso_rutas(huella, flight, piloto)
         elif filepath.name.endswith(".csv"):
