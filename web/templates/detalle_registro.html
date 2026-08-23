@@ -99,7 +99,7 @@
 
 {% block extra_js %}
 {% if graficas.t %}
-<script>
+<script nonce="{{ csp_nonce }}">
 const datos = {{ graficas|tojson }};
 const lienzo = document.getElementById('perfil');
 const ctx = lienzo.getContext('2d');

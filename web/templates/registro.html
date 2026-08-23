@@ -35,7 +35,7 @@
           <div style="text-align: center; padding: 30px;">
             <span class="icono" aria-hidden="true" style="width:36px;height:36px;margin:0 auto;color:var(--azul);display:flex;"><svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M12 4v12"/><path d="m7 9 5-5 5 5"/></svg></span>
             <p style="margin: 10px 0 0; color: var(--tenue);">Arrastra aquí un <strong>.avlog.json</strong> o un <strong>.csv</strong>, o</p>
-            <a href="#" onclick="document.getElementById('file-input').click(); return false;"
+            <a href="#" id="selecciona-archivo"
                style="color: var(--azul); text-decoration: none; font-weight: 600;">selecciona un archivo</a>
           </div>
           <div id="upload-estado" style="text-align: center; margin-top: 12px; display: none; color: var(--tenue);">
@@ -52,10 +52,14 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce }}">
 const uploadArea = document.getElementById('upload-area');
 const fileInput = document.getElementById('file-input');
 
+document.getElementById('selecciona-archivo').addEventListener('click', (e) => {
+  e.preventDefault();
+  fileInput.click();
+});
 uploadArea.addEventListener('click', () => fileInput.click());
 uploadArea.addEventListener('dragover', (e) => {
   e.preventDefault();
@@ -82,7 +86,11 @@ async function subirArchivo() {
   const estadoDiv = document.getElementById('upload-estado');
   estadoDiv.style.display = 'block';
   try {
-    const res = await fetch('/api/registro/upload', { method: 'POST', body: formData });
+    const res = await fetch('/api/registro/upload', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+      body: formData,
+    });
     const data = await res.json();
     if (data.success) {
       // Subido: lo suyo es enseñárselo, no dejarlo en la misma pantalla.

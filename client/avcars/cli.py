@@ -7,7 +7,13 @@ from pathlib import Path
 
 import click
 
-from avcars.config import DEFAULT_PROFILES_PATH, get_profile, load_profiles
+from avcars.config import (
+    DEFAULT_AIRCRAFT_PATH,
+    DEFAULT_PROFILES_PATH,
+    get_profile,
+    load_aircraft,
+    load_profiles,
+)
 from avcars.evaluation.scoring import RULES_VERSION, Verdict, evaluate_flight
 from avcars.schema import EvaluationInfo, FlightLog, Incident
 
@@ -66,15 +72,26 @@ def cli() -> None:
     show_default=True,
     help="Guarda el resultado dentro del propio fichero de vuelo.",
 )
-def evaluate(log_path: Path, profile: str, profiles_file: Path, save: bool) -> None:
+@click.option(
+    "--aircraft-file",
+    type=click.Path(exists=True, path_type=Path),
+    default=DEFAULT_AIRCRAFT_PATH,
+    show_default=True,
+    help="aircraft.yaml: límites POH/simulador por avión.",
+)
+def evaluate(
+    log_path: Path, profile: str, profiles_file: Path, save: bool, aircraft_file: Path
+) -> None:
     """Evalúa un fichero de log de vuelo (.avlog.json) y muestra el veredicto."""
     data = json.loads(log_path.read_text(encoding="utf-8"))
     flight = FlightLog.model_validate(data)
 
     profiles = load_profiles(profiles_file)
     selected_profile = get_profile(profile, profiles)
+    flota = load_aircraft(aircraft_file)
+    aeronave = flota.get(flight.flight_plan.aircraft_icao_type)
 
-    verdict = evaluate_flight(flight, selected_profile)
+    verdict = evaluate_flight(flight, selected_profile, aircraft=aeronave)
 
     click.echo(
         f"Vuelo: {flight.pilot.callsign} "

@@ -19,6 +19,8 @@ sys.path.insert(0, str(WEB_DIR))
 
 from app import app, find_flights, load_flight, telemetry  # noqa: E402
 
+FIXTURES = WEB_DIR.parent / "client" / "tests" / "fixtures"
+
 
 @pytest.fixture(autouse=True)
 def _sesion_de_escritorio_aislada(tmp_path, monkeypatch):
@@ -47,6 +49,21 @@ def _altas_aisladas(tmp_path):
         cuentas.crear_cuenta(piloto, "clave", f"{piloto.lower()}@ejemplo.test")
     yield
     cuentas.configurar_almacen(original)
+
+
+@pytest.fixture(autouse=True)
+def _vuelos_de_fixtures(monkeypatch):
+    """Los vuelos que ve la app en los tests: solo los del fixtures/, nunca
+    los del equipo que ejecuta pytest.
+
+    `SEARCH_DIRS` ya no incluye `fixtures/` en la app real (era ruido en el
+    panel de admin); aquí se restringe a propósito para que estos tests
+    sigan siendo deterministas y no dependan de qué haya en las carpetas de
+    grabaciones reales de quien ejecuta la prueba.
+    """
+    import app as app_module
+
+    monkeypatch.setattr(app_module, "SEARCH_DIRS", [FIXTURES])
 
 
 @pytest.fixture
@@ -237,7 +254,7 @@ def test_no_se_puede_salir_de_las_carpetas(cliente):
 
 
 def test_la_telemetria_resume_el_vuelo():
-    ruta = next(p for p in find_flights() if p.name == "sample_flight_pass.json")
+    ruta = FIXTURES / "sample_flight_pass.json"
     flight = load_flight(ruta)
     assert flight is not None
 
@@ -755,7 +772,7 @@ def test_map_data_extrae_ruta_y_bounds():
     from app import map_data
     from avcars.evaluation.scoring import Verdict
 
-    ruta = next(p for p in find_flights() if p.name == "sample_flight_pass.json")
+    ruta = FIXTURES / "sample_flight_pass.json"
     flight = load_flight(ruta)
     assert flight is not None
 
@@ -805,7 +822,7 @@ def test_planned_route_points_extrae_waypoints():
     """OC-02: planned_route_points() resuelve ICAO de la ruta del FPL contra airports.json."""
     from app import planned_route_points
 
-    ruta = next(p for p in find_flights() if p.name == "sample_flight_pass.json")
+    ruta = FIXTURES / "sample_flight_pass.json"
     flight = load_flight(ruta)
     assert flight is not None
 
@@ -821,7 +838,7 @@ def test_chart_points_incluye_lat_lon():
     """OC-02: chart_points() incluye lat/lon para sincronización con mapa."""
     from app import chart_points
 
-    ruta = next(p for p in find_flights() if p.name == "sample_flight_pass.json")
+    ruta = FIXTURES / "sample_flight_pass.json"
     flight = load_flight(ruta)
     assert flight is not None
 

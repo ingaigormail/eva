@@ -52,6 +52,7 @@ from avcars.config import (  # noqa: E402
 )
 from avcars.evaluation.data_quality import Quality  # noqa: E402
 from avcars.evaluation.scoring import Verdict, evaluate_flight  # noqa: E402
+from avcars.evaluation import reglas_info  # noqa: E402
 from avcars.prefile import PrefileExtras, icao_fpl, vatsim_prefile_url  # noqa: E402
 from avcars.schema import FlightLog, FlightPlanInfo, PilotInfo  # noqa: E402
 from avcars import (  # noqa: E402
@@ -185,7 +186,6 @@ SEARCH_DIRS = [
     CLIENT_DIR / "grabaciones",
     Path.home() / "EvA" / "grabaciones",
     Path.home() / "Documents" / "EvA" / "grabaciones",
-    CLIENT_DIR / "tests" / "fixtures",
 ]
 
 
@@ -959,6 +959,132 @@ def gestion_borrar_vuelo(nombre: str):
     return redirect(url_for("gestion_vuelos"))
 
 
+# -- Gestión de pistas (solo admin): referencia para detectar la pista ----
+# usada en cada vuelo, y así poder puntuar `runway_alignment_*` y
+# `planned_runway_match` contra un dato real en vez de dejarlos sin evaluar.
+
+
+def _rumbo_desde_designador(ident: str) -> Optional[float]:
+    """«32L» -> 320.0, «07» -> 70.0. None si no se puede leer."""
+    digitos = "".join(ch for ch in ident if ch.isdigit())
+    if not digitos:
+        return None
+    try:
+        return float(int(digitos) * 10)
+    except ValueError:
+        return None
+
+
+@app.route("/gestion/pistas")
+@permiso_requerido(PERM_GESTIONAR_USUARIOS)
+def gestion_pistas():
+    """Aeropuertos con ICAO real (LE.../GC...) sin pistas registradas.
+
+    Sin esto, `runway_alignment_*` y `planned_runway_match` no se pueden
+    evaluar en la mayoría de aeródromos pequeños: no hay con qué comparar
+    el rumbo del avión al despegar o aterrizar.
+    """
+    with cuentas.conexion() as con:
+        faltan = con.execute(
+            """SELECT icao, name, municipality FROM aerodromos_es
+               WHERE icao GLOB '[LG][ECG][A-Z][A-Z]' AND length(icao) = 4
+                 AND type NOT IN ('heliport', 'balloonport', 'closed', 'seaplane_base')
+                 AND type IS NOT NULL
+                 AND name NOT LIKE '%HOSPITAL%' AND name NOT LIKE '%HELIPORT%'
+                 AND name NOT LIKE '%HELIPAD%' AND name NOT LIKE '%HELIPUERTO%'
+                 AND icao NOT IN (SELECT DISTINCT icao FROM pistas_es)
+               ORDER BY icao"""
+        ).fetchall()
+    icao_precargado = request.args.get("icao", "").strip().upper()
+    return render_template(
+        "gestion_pistas.html",
+        faltan=[dict(f) for f in faltan],
+        icao_precargado=icao_precargado,
+    )
+
+
+@app.route("/gestion/pistas/guardar", methods=["POST"])
+@permiso_requerido(PERM_GESTIONAR_USUARIOS)
+def gestion_pistas_guardar():
+    icao = sanitize_input(request.form.get("icao", ""), 4).strip().upper()
+    pista_le = sanitize_input(request.form.get("pista_le", ""), 3).strip().upper()
+    pista_he = sanitize_input(request.form.get("pista_he", ""), 3).strip().upper()
+    preferente = sanitize_input(request.form.get("preferente", ""), 3).strip().upper()
+
+    if not (icao and pista_le and pista_he):
+        flash("Faltan campos: ICAO y las dos cabeceras de la pista.", "error")
+        return redirect(url_for("gestion_pistas"))
+    if preferente not in (pista_le, pista_he):
+        flash(
+            f"La pista preferente debe ser {pista_le} o {pista_he}, "
+            f"tal como se han escrito.",
+            "error",
+        )
+        return redirect(url_for("gestion_pistas", icao=icao))
+
+    with cuentas.conexion() as con:
+        existe = con.execute(
+            "SELECT 1 FROM aerodromos_es WHERE icao = ?", (icao,)
+        ).fetchone()
+        if existe is None:
+            # El aeropuerto ni siquiera constaba: se da de alta con lo mínimo.
+            con.execute(
+                "INSERT INTO aerodromos_es (icao, default_runway, sources) "
+                "VALUES (?, ?, 'admin')",
+                (icao, preferente),
+            )
+        else:
+            con.execute(
+                "UPDATE aerodromos_es SET default_runway = ? WHERE icao = ?",
+                (preferente, icao),
+            )
+
+        # Un aeródromo pequeño solo tiene una pista física (dos cabeceras);
+        # si ya había una fila para este ICAO, se sustituye en vez de
+        # duplicar — el formulario describe la pista entera, no un extremo.
+        con.execute("DELETE FROM pistas_es WHERE icao = ?", (icao,))
+        con.execute(
+            """INSERT INTO pistas_es
+               (icao, designator, le_ident, le_heading, he_ident, he_heading)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                icao,
+                f"{pista_le}/{pista_he}",
+                pista_le,
+                _rumbo_desde_designador(pista_le),
+                pista_he,
+                _rumbo_desde_designador(pista_he),
+            ),
+        )
+
+    flash(f"{icao}: pista {pista_le}/{pista_he} guardada (preferente {preferente}).", "exito")
+    return redirect(url_for("gestion_pistas"))
+
+
+# -- Gestión de reglas de puntuación (solo admin, de solo lectura) --------
+
+
+@app.route("/gestion/reglas")
+@permiso_requerido(PERM_GESTIONAR_USUARIOS)
+def gestion_reglas():
+    """Las 26 reglas del motor de evaluación, con su trazabilidad exacta.
+
+    Fuente única: `avcars.evaluation.reglas_info`. El alcance y qué reglas
+    están bloqueadas se derivan en vivo del motor; solo las explicaciones
+    en español están escritas a mano, y en un solo sitio.
+    """
+    return render_template("gestion_reglas.html", reglas=reglas_info.listar())
+
+
+@app.route("/gestion/reglas/<regla_id>")
+@permiso_requerido(PERM_GESTIONAR_USUARIOS)
+def gestion_regla_detalle(regla_id: str):
+    regla = reglas_info.obtener(regla_id)
+    if regla is None:
+        abort(404)
+    return render_template("gestion_regla_detalle.html", r=regla)
+
+
 def verdict_summary(verdict: Verdict) -> dict:
     """Traduce el veredicto a lo que necesita la plantilla."""
     quality = verdict.quality
@@ -1025,7 +1151,8 @@ def detalle(nombre: str):
     if perfil not in PROFILES:
         perfil = DEFAULT_PROFILE
 
-    verdict = evaluate_flight(flight, PROFILES[perfil])
+    aeronave = AIRCRAFT.get(flight.flight_plan.aircraft_icao_type)
+    verdict = evaluate_flight(flight, PROFILES[perfil], aircraft=aeronave)
     datos_veredicto = verdict_summary(verdict)
     datos_telemetria = telemetry(flight)
     datos_grafica = chart_points(flight)
@@ -1455,11 +1582,13 @@ def guardar_plan():
     """Guarda el plan del planificador. Del piloto de la sesión, de nadie más."""
     datos = request.get_json(silent=True) or {}
     plan_id = datos.pop("plan_id", None)
+    via = datos.pop("via", "")
     try:
         ident = planes_guardados.guardar(
             piloto_actual(),
             datos,
             plan_id=int(plan_id) if plan_id else None,
+            via=via,
         )
     except (ValueError, TypeError) as exc:
         return jsonify({"ok": False, "mensaje": str(exc)}), 422
@@ -1862,7 +1991,8 @@ def _resumir_para_estadisticas(huella: str, filepath: Path, piloto: str) -> None
             if flight is None:
                 return
             perfil = get_profile(DEFAULT_PROFILE, PROFILES)
-            verdict = evaluate_flight(flight, perfil)
+            aeronave = AIRCRAFT.get(flight.flight_plan.aircraft_icao_type)
+            verdict = evaluate_flight(flight, perfil, aircraft=aeronave)
             fecha = (
                 flight.timing.block_off_utc.isoformat()
                 if flight.timing and flight.timing.block_off_utc

@@ -95,3 +95,79 @@ def test_borrar_quita_solo_ese(almacen_tmp):
     assert planes.borrar(uno, "EvA18L") is True
     assert planes.cuantos("EvA18L") == 1
     assert planes.obtener(uno, "EvA18L") is None
+
+
+# -- via: con cuál de los tres botones se guardó -------------------------
+
+
+def test_via_se_guarda_y_se_lista(almacen_tmp):
+    ident = planes.guardar("EvA18L", PLAN, via="vatsim")
+
+    assert planes.obtener(ident, "EvA18L")["via"] == "vatsim"
+    assert planes.listar("EvA18L")[0]["via"] == "vatsim"
+
+
+def test_via_no_reconocida_se_guarda_vacia(almacen_tmp):
+    ident = planes.guardar("EvA18L", PLAN, via="lo-que-sea")
+    assert planes.obtener(ident, "EvA18L")["via"] == ""
+
+
+def test_via_por_defecto_es_vacia(almacen_tmp):
+    ident = planes.guardar("EvA18L", PLAN)
+    assert planes.obtener(ident, "EvA18L")["via"] == ""
+
+
+def test_actualizar_sin_via_mantiene_la_que_ya_tenia(almacen_tmp):
+    ident = planes.guardar("EvA18L", PLAN, via="icao")
+    planes.guardar("EvA18L", {**PLAN, "arrival": "LEZL"}, plan_id=ident)
+
+    assert planes.obtener(ident, "EvA18L")["via"] == "icao"
+
+
+def test_actualizar_con_via_nueva_la_cambia(almacen_tmp):
+    ident = planes.guardar("EvA18L", PLAN, via="icao")
+    planes.guardar("EvA18L", PLAN, plan_id=ident, via="vatsim")
+
+    assert planes.obtener(ident, "EvA18L")["via"] == "vatsim"
+
+
+def test_una_base_de_datos_de_antes_de_via_se_migra_sola(tmp_path):
+    """`CREATE TABLE IF NOT EXISTS` no añade columnas a una tabla que ya
+    existe: sin `_migrar_esquema()`, una base real con planes guardados
+    antes de esta columna se quedaría sin poder guardar `via`.
+    """
+    import sqlite3
+
+    original = cuentas.DB_PATH
+    cuentas.configurar_almacen(tmp_path)
+    try:
+        # Fabrica una base "de antes": la tabla planes tal como era, sin `via`.
+        con = sqlite3.connect(cuentas.DB_PATH)
+        con.execute(
+            """CREATE TABLE planes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                license_id TEXT NOT NULL, callsign TEXT NOT NULL DEFAULT '',
+                origen TEXT NOT NULL DEFAULT '', destino TEXT NOT NULL DEFAULT '',
+                alterno TEXT NOT NULL DEFAULT '', aeronave TEXT NOT NULL DEFAULT '',
+                nivel TEXT NOT NULL DEFAULT '', ruta TEXT NOT NULL DEFAULT '',
+                datos TEXT NOT NULL, creado TEXT NOT NULL, actualizado TEXT NOT NULL
+            )"""
+        )
+        con.execute(
+            "INSERT INTO planes (license_id, origen, destino, datos, creado, actualizado) "
+            "VALUES ('EvA18L', 'LEMD', 'LEIB', '{}', 'x', 'x')"
+        )
+        con.commit()
+        con.close()
+
+        cuentas.crear_cuenta("EvA18L", "clave", "uno@ejemplo.com")
+
+        # Cualquier acceso normal dispara la migración sin que nadie la pida.
+        antiguos = planes.listar("EvA18L")
+        assert len(antiguos) == 1
+        assert antiguos[0]["via"] == ""  # el plan de antes no lo tenía
+
+        nuevo = planes.guardar("EvA18L", PLAN, via="sin_vatsim")
+        assert planes.obtener(nuevo, "EvA18L")["via"] == "sin_vatsim"
+    finally:
+        cuentas.configurar_almacen(original)

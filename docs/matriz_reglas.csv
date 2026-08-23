@@ -1,0 +1,27 @@
+num;regla;scope;log_schema;aircraft_yaml;airports_eva_db;profiles_yaml;scoring_py;evaluable
+1;runway_alignment_takeoff;ambas;events[takeoff].runway_alignment_deg (Event:61) + utc;;;"runway_alignment_deg_max=10, penalties.runway_alignment_takeoff=10 (normal:11/38)";scoring.py:476;SI si evento existe
+2;runway_alignment_landing;ambas;events[touchdown].runway_alignment_deg;;;;penalties.runway_alignment_landing=15;scoring.py:493;SI
+3;touchdown_zone;ambas;events[touchdown].distance_from_threshold_m (Event:64);;;;"touchdown_zone_m_max=600 (normal:12)";scoring.py:507;SI
+4;landing_vs;ambas;events[touchdown].vs_fpm (Event:63);;;;landing_vs_bands butter60 smooth180 normal300 hard600 (normal:20-25);scoring.py:520;SI FAIL si very_hard
+5;stabilized_500ft;ambas;track[].alt_agl_ft (TrackPoint:75) + vs_fpm (79) + on_ground;;;stabilization alt 500 tol100 vs -1000/0 (normal:15-19);scoring.py:545;SI
+6;fuel_reserve;ambas;summary.fuel_remaining_kg (SummaryInfo:111) situado en track[-1];;;fuel_reserve_kg_min=20 (normal:26);scoring.py:566;SI
+7;pause_duration;ambas;events[pause].duration_s (Event:66);;;;pause_duration_s_max=120 (normal:27);scoring.py:583;SI
+8;time_compression;ambas;timing.max_sim_rate_observed (TimingInfo:44);;;;FAIL si >1.0;scoring.py:597;SI
+9;bank_angle;ambas;track[].bank_deg (TrackPoint:81);;;;bank_angle warn30 fail60 sustained3 (normal:31-34);scoring.py:226;SI
+10;landing_light_takeoff;ambas;events[takeoff].utc + nearest track.landing_light (TrackPoint:101);;;;lights.check_tolerance_s=30 (normal:36);scoring.py:380;SI
+11;landing_light_landing;ambas;events[touchdown].utc + nearest track.landing_light;;;;lights.check_tolerance_s;scoring.py:380;SI
+12;beacon_airborne;ambas;track[airborne].beacon_light (TrackPoint:102);;;;penalties.beacon_off_airborne=10;scoring.py:397;SI
+13;nav_light_airborne;ambas;track[airborne].nav_light (TrackPoint:103);;;;penalties.nav_light_off_airborne=10;scoring.py:413;SI
+14;taxi_light;ambas;track[on_ground && gs>2].taxi_light (TrackPoint:104);;;;penalties.taxi_light_off=5;scoring.py:427;SI
+15;strobe_taxi;ambas;track[taxiing].strobe_light OFF (TrackPoint:105);;;;penalties.strobe_wrong_state=5;scoring.py:443;SI
+16;stall_warning;ambas;track[].stall_warning (TrackPoint:86);;;;;scoring.py:284;SI si dato !=None
+17;overspeed_warning;ambas;track[].overspeed_warning (TrackPoint:87);limites_poh.vmo/mmo NO usado (solo DHC6/C25C);;FAIL duro;scoring.py:301;SI
+18;qnh;ambas;track[].qnh_inhg (TrackPoint:85);;;;qnh 28.5-31.2 (normal:28-30);scoring.py:318;SI
+19;gear_on_touchdown;ambas;events[touchdown].utc + nearest 5s track.gear_down (TrackPoint:83);configuracion.tren fijo->skip;;penalties.gear_up_touchdown=15;scoring.py:338;SI (skip tren fijo)
+20;route_deviation;ambas;flight_plan.route (FlightPlanInfo:31 string) + track lat/lon;;puntos_vfr_es lat/lon + airports.json coords;;scoring.py:466;NO falta parseo ruta
+21;cruise_altitude_semicircular;VFR;flight_plan.planned_cruise_alt_ft (FlightPlanInfo:32) + track.alt_msl_ft;;;;scoring.py:467;NO sin altitud fiable
+22;speed_below_10000ft;ambas;track.ias_kt (78) + alt_msl_ft;limites_poh.vno/vne null 6/8;;;"scoring.py:468";NO
+23;assigned_squawk;ambas;track.squawk (97) + transponder_state (100);;;;;scoring.py:469;NO falta asignado
+24;planned_runway_match;ambas;events[].runway (Event:59) + flight_plan departure/arrival;;pistas_es designator + default_runway;;scoring.py:470;NO falta planificada
+25;runway_excursion;ambas;track lat/lon + on_ground + events.position_pct;;airports.json sin geometria -> bloqueado;;scoring.py:471;NO requiere geometria
+26;structural_overspeed;ambas;track.ias_kt;limites_poh vne/vmo (POH real, 8/8 aviones) via limite_efectivo();;;scoring.py:472;SI

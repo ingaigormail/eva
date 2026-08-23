@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block titulo %}{{ r.nombre }} — Reglas — EvA{% endblock %}
+{% block marca_sub %}Ficha de regla{% endblock %}
+{% block nav_gestion_reglas %}activo{% endblock %}
+
+{% block estilos %}
+  .panel-alta {
+    background: var(--panel); border: 1px solid var(--borde); border-radius: 16px;
+    padding: 22px 24px; margin-bottom: 20px; box-shadow: var(--sombra);
+  }
+  .panel-alta h2 { font-size: 15px; font-weight: 700; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--tenue); }
+  .fila-dato { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--borde); font-size: 13.5px; }
+  .fila-dato:last-child { border-bottom: none; }
+  .fila-dato .etq { width: 160px; flex-shrink: 0; color: var(--tenue); font-weight: 600; }
+  .fila-dato .val { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  .fila-dato .val.prosa { font-family: inherit; font-size: 13.5px; }
+  .badge-estado {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  }
+  .badge-estado.evaluable { background: var(--verde-fondo); color: var(--verde-texto); }
+  .badge-estado.condicional { background: var(--ambar-fondo); color: var(--ambar-texto); }
+  .badge-estado.bloqueada { background: var(--rojo-fondo); color: var(--rojo); }
+  .aviso-bloqueo, .aviso-condicion {
+    padding: 14px 16px; border-radius: 10px; font-size: 13px; line-height: 1.6;
+    border-left: 4px solid;
+  }
+  .aviso-bloqueo { background: var(--rojo-fondo); border-color: var(--rojo); }
+  .aviso-condicion { background: var(--ambar-fondo); border-color: var(--ambar); }
+  .aviso-bloqueo h3, .aviso-condicion h3 { margin: 0 0 6px; font-size: 13px; }
+{% endblock %}
+
+{% block contenido %}
+  <p style="font-size:12.5px;margin:0 0 16px">
+    <a href="{{ url_for('gestion_reglas') }}" style="color:var(--azul);font-weight:600;text-decoration:none">
+      &larr; Todas las reglas</a>
+  </p>
+
+  <div class="panel-alta">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <h1 style="font-size:19px;margin:0">{{ r.nombre }}</h1>
+      {% if r.estado == 'evaluable' %}
+        <span class="badge-estado evaluable">🟢 Evaluable</span>
+      {% elif r.estado == 'condicional' %}
+        <span class="badge-estado condicional">🟡 Evaluable con condición</span>
+      {% else %}
+        <span class="badge-estado bloqueada">🔴 No evaluable todavía</span>
+      {% endif %}
+    </div>
+    <p style="font-size:13.5px;color:var(--tenue);margin:0">{{ r.descripcion }}</p>
+  </div>
+
+  {% if r.estado == 'bloqueada' %}
+  <div class="panel-alta">
+    <div class="aviso-bloqueo">
+      <h3>Por qué no se evalúa hoy</h3>
+      <p style="margin:0 0 10px">{{ r.motivo_bloqueo }}</p>
+      <h3>Para activarla falta</h3>
+      <p style="margin:0">{{ r.que_falta }}</p>
+    </div>
+  </div>
+  {% elif r.estado == 'condicional' %}
+  <div class="panel-alta">
+    <div class="aviso-condicion">
+      <h3>Condición</h3>
+      <p style="margin:0">{{ r.condicion_estructural }}</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="panel-alta">
+    <h2>Regla</h2>
+    <div class="fila-dato"><div class="etq">ID</div><div class="val">{{ r.id }}</div></div>
+    <div class="fila-dato"><div class="etq">Alcance</div><div class="val">{{ r.alcance }}</div></div>
+    <div class="fila-dato"><div class="etq">Dónde se aplica</div><div class="val">{{ r.scoring_ref }}</div></div>
+  </div>
+
+  <div class="panel-alta">
+    <h2>Datos observados</h2>
+    <div class="fila-dato"><div class="etq">Campo del log</div><div class="val">{{ r.campo_log }}</div></div>
+    <div class="fila-dato"><div class="etq">Referencia / umbral</div><div class="val">{{ r.referencia }}</div></div>
+    <div class="fila-dato"><div class="etq">Lógica</div><div class="val prosa">{{ r.logica }}</div></div>
+  </div>
+{% endblock %}

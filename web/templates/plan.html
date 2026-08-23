@@ -220,6 +220,22 @@
           </div>
         </div>
 
+        <div class="grupo-titulo">Otros datos</div>
+        <div class="fila">
+          <div class="campo" style="flex:1 1 100%">
+            <label>Observaciones (PBN/, RMK/…)</label>
+            <textarea id="remarks" placeholder="PBN/A1B1C1D1S2"></textarea>
+          </div>
+        </div>
+
+        <div class="fila" style="margin-top:20px">
+          <button class="boton" id="btn-guardar" title="Guarda origen, destino y observaciones en «Planes de vuelo», sin necesidad de VATSIM">GUARDAR PLAN SIN VATSIM</button>
+          <button class="boton" id="btn-generar">GENERAR PLAN ICAO</button>
+          <button class="boton primario" id="btn-vatsim">ABRIR EN VATSIM</button>
+        </div>
+        <pre class="fpl" id="salida-fpl" style="display:none"></pre>
+        <div class="aviso" id="aviso-fpl"></div>
+
         <div class="caja-distancia">
           <div class="etq">DISTANCIA (ORTODRÓMICA)</div>
           <div class="num" id="distancia">— NM</div>
@@ -310,27 +326,11 @@
           </button>
         </div>
         <div class="aviso" id="aviso-payload"></div>
-
-        <div class="grupo-titulo">Otros datos</div>
-        <div class="fila">
-          <div class="campo" style="flex:1 1 100%">
-            <label>Observaciones (PBN/, RMK/…)</label>
-            <textarea id="remarks" placeholder="PBN/A1B1C1D1S2"></textarea>
-          </div>
-        </div>
-
-        <div class="fila" style="margin-top:20px">
-          <button class="boton" id="btn-guardar" title="Guarda este plan en «Planes de vuelo»">GUARDAR</button>
-          <button class="boton" id="btn-generar">GENERAR PLAN ICAO</button>
-          <button class="boton primario" id="btn-vatsim">ABRIR EN VATSIM</button>
-        </div>
-        <pre class="fpl" id="salida-fpl" style="display:none"></pre>
-        <div class="aviso" id="aviso-fpl"></div>
       </section>
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce }}">
 const $ = (id) => document.getElementById(id);
 $("fecha").value = new Date().toISOString().slice(0, 10);
 
@@ -431,32 +431,44 @@ function cuerpoDelPlan() {
 // -- guardar el plan (D3) ------------------------------------------------
 // Se guarda exactamente el mismo cuerpo que se manda a generar el FPL: así
 // al reabrirlo el planificador queda como estaba, sin formatos paralelos.
+//
+// Los tres botones guardan, no solo GUARDAR: si el hábito del piloto es
+// "relleno el plan y pulso ABRIR EN VATSIM", origen/destino tienen que
+// llegar igual a la base de datos — no puede depender de que se acuerde de
+// pulsar un botón aparte. `via` deja constancia de cuál se usó, para saber
+// después cómo se declaró ese vuelo.
 let planAbiertoId = {{ plan_guardado.id if plan_guardado else 'null' }};
+
+async function guardarPlan(via) {
+  const cuerpo = cuerpoDelPlan();
+  if (planAbiertoId) cuerpo.plan_id = planAbiertoId;
+  cuerpo.via = via;
+
+  const r = await fetch("/api/plan/guardar", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content,
+    },
+    body: JSON.stringify(cuerpo),
+  });
+  const datos = await r.json();
+  if (!r.ok || !datos.ok) {
+    throw new Error(datos.mensaje || "No se pudo guardar el plan.");
+  }
+  planAbiertoId = datos.id;   // seguir guardando pisa el mismo, no copias
+  return datos;
+}
 
 $("btn-guardar").addEventListener("click", async () => {
   const aviso = $("aviso-fpl");
   aviso.classList.remove("error");
   aviso.textContent = "Guardando…";
-
-  const cuerpo = cuerpoDelPlan();
-  if (planAbiertoId) cuerpo.plan_id = planAbiertoId;
-
   try {
-    const r = await fetch("/api/plan/guardar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cuerpo),
-    });
-    const datos = await r.json();
-    if (!r.ok || !datos.ok) {
-      aviso.textContent = datos.mensaje || "No se pudo guardar el plan.";
-      aviso.classList.add("error");
-      return;
-    }
-    planAbiertoId = datos.id;   // seguir guardando pisa el mismo, no copias
+    await guardarPlan("sin_vatsim");
     aviso.textContent = "Plan guardado. Lo tienes en «Planes de vuelo».";
   } catch (e) {
-    aviso.textContent = "No se pudo guardar el plan: " + e;
+    aviso.textContent = "No se pudo guardar el plan: " + e.message;
     aviso.classList.add("error");
   }
 });
@@ -494,7 +506,10 @@ $("btn-generar").addEventListener("click", async () => {
   try {
     const r = await fetch("/api/plan/fpl", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content,
+      },
       body: JSON.stringify(cuerpoDelPlan()),
     });
     const datos = await r.json();
@@ -506,6 +521,9 @@ $("btn-generar").addEventListener("click", async () => {
     salida.textContent = datos.fpl;
     salida.style.display = "block";
     aviso.textContent = "Formato ICAO — pégalo en «Import ICAO FPL» del formulario de VATSIM.";
+    // El plan ya sirvió para generar un FPL real: que quede guardado, sin
+    // que el piloto tenga que acordarse de pulsar GUARDAR aparte.
+    guardarPlan("icao").catch((e) => console.warn("No se guardó el plan:", e));
   } catch {
     aviso.textContent = "No se pudo contactar con el servidor.";
     aviso.classList.add("error");
@@ -523,7 +541,10 @@ $("btn-vatsim").addEventListener("click", async () => {
   try {
     const r = await fetch("/api/plan/vatsim-url", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content,
+      },
       body: JSON.stringify(cuerpoDelPlan()),
     });
     const datos = await r.json();
@@ -534,6 +555,9 @@ $("btn-vatsim").addEventListener("click", async () => {
     }
     window.open(datos.url, "_blank", "noopener");
     aviso.textContent = "Si no se abrió, asegúrate de estar logado en my.vatsim.net. EvA solo abre la URL; tú envías el plan.";
+    // Igual que con GENERAR: si el piloto va directo a VATSIM sin pasar por
+    // GUARDAR, origen/destino tienen que quedar registrados igual.
+    guardarPlan("vatsim").catch((e) => console.warn("No se guardó el plan:", e));
   } catch {
     aviso.textContent = "No se pudo contactar con el servidor. Verifica tu conexión.";
     aviso.classList.add("error");
@@ -769,7 +793,10 @@ $("btn-aplicar-payload").addEventListener("click", async () => {
   try {
     const r = await fetch("/api/plan/apply-payload", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content,
+      },
       body: JSON.stringify({
         passengers: pasajeros,
         cargo_kg: cargaKg,

@@ -59,19 +59,28 @@ C172:
     motores: 1
     turbina: false
   limites_poh:
-    fuente: null
-    revisado_por: null
-    fecha: null
-    vso: null
-    vs1: null
-    vfe: null
-    vfe_por_flap: {}
+    fuente: >-
+      POH/AFM Cessna 172S (Information Manual, duplicado del oficial),
+      Section 2 Limitations, Figure 2-1/2-2, pag. 2-4/2-5.
+    revisado_por: claude
+    fecha: 2026-08-23
+    unidad: KIAS
+    vso: 40                 # arco blanco, limite inferior
+    vs1: 48                 # arco verde, limite inferior
+    vfe: 85                 # el mas restrictivo (flaps 10-30 grados)
+    vfe_por_flap:
+      10: 110
+      30: 85
     vle: no_aplica
     vlo: no_aplica
     vmca: no_aplica
-    va: null
-    vno: null
-    vne: null
+    va: 105                 # a 2550 lbs (peso maximo); baja con el peso
+    va_por_peso:
+      2550_lb: 105
+      2200_lb: 98
+      1900_lb: 90
+    vno: 129
+    vne: 163
     vmo: no_aplica
     mmo: no_aplica
     vr: null
@@ -102,20 +111,35 @@ C208:
     motores: 1
     turbina: true
   limites_poh:
-    fuente: null
-    revisado_por: null
-    fecha: null
+    fuente: >-
+      POH/AFM Cessna 208B G1000 (Information Manual, duplicado del
+      oficial), Section 2 Limitations, Figure 2-1, pag. 2-4.
+    revisado_por: claude
+    fecha: 2026-08-23
+    unidad: KIAS
+    nota: >-
+      Cessna llama a esto VMO ("Maximum Operating Speed"), no VNE, pese a
+      ser turbohelice de baja velocidad -- se respeta la terminologia del
+      POH tal cual, no se reclasifica como VNE.
     vso: null
     vs1: null
-    vfe: null
-    vfe_por_flap: {}
+    vfe: 125                 # el mas restrictivo (20 grados a FULL)
+    vfe_por_flap:
+      "0-10": 175
+      "10-20": 150
+      "20-full": 125
     vle: no_aplica
     vlo: no_aplica
     vmca: no_aplica
-    va: null
-    vno: null
-    vne: null
-    vmo: null
+    va: 148                  # a 8750 lbs (peso maximo); baja con el peso
+    va_por_peso:
+      8750_lb: 148
+      7500_lb: 137
+      6250_lb: 125
+      5000_lb: 112
+    vno: null                 # no se publica como campo separado de VMO
+    vne: no_aplica             # este POH usa VMO, no VNE (ver nota)
+    vmo: 175
     mmo: no_aplica
     vr: null
     vx: null
@@ -157,29 +181,55 @@ DA62:
     motores: 2
     turbina: false
   limites_poh:
-    fuente: null
-    revisado_por: null
-    fecha: null
+    fuente: >-
+      Diamond DA 62 AFM, Doc. No. 7.01.25-E Rev. 4 (14-Nov-2017),
+      Section 2.2 Airspeed, pag. 2-4/2-5.
+    revisado_por: claude
+    fecha: 2026-08-23
+    unidad: KIAS
     vso: null
     vs1: null
-    vfe: null
-    vfe_por_flap: {}
-    vle: null
-    vlo: null
-    vmca: null
-    vyse: null              # "blue line": mejor ascenso con un motor parado
-    va: null
-    vno: null
-    vne: null
+    vfe: 119                # el mas restrictivo (LDG); T/O es 136
+    vfe_por_flap:
+      LDG: 119
+      T/O: 136
+    vle: 205
+    vlo: no_aplica
+    vlo_por_operacion:
+      extension_vloe: 205
+      retraccion_vlor: 162
+    vmca: 70                 # despegue; 76 en configuracion "up"
+    vyse: null
+    va: null                 # el AFM usa vO (maniobra), no vA, variable con peso
+    vo_por_peso:
+      2300_kg: 141
+      2200_kg: 138
+      2100_kg: 135
+      1999_kg: 131
+      1900_kg: 128
+      1800_kg: 120
+    vno: 162
+    vne: 205
     vmo: no_aplica
     mmo: no_aplica
     vr: null
     vx: null
     vy: null
+  referencia_sim:
+    fuente: >-
+      flight_model.cfg de asobo-aircraft-da62 (MSFS 2020),
+      seccion [REFERENCE SPEEDS]. Verificado en disco local. Coincide
+      exactamente con el AFM real (vne=205, vno=162).
+    fecha_consulta: 2026-08-23
+    vne: 205                # max_indicated_speed (redline)
+    vno: 162                # normal_operating_speed
+    vfe: 119                # max_flaps_extended
   referencia_atc:
     disponible: false       # no esta en la BD de EUROCONTROL
   notas: >-
-    Sin datos de EUROCONTROL: todo tiene que salir del POH de Diamond.
+    Sin datos de EUROCONTROL: todo sale del AFM de Diamond. vNE/vNO ya
+    verificados (2026-08-23); vSO/vS1 no aparecen en el capitulo de
+    limitaciones del AFM, quedan sin verificar.
 
 
 BE58:
@@ -193,20 +243,26 @@ BE58:
     motores: 2
     turbina: false
   limites_poh:
-    fuente: null
-    revisado_por: null
-    fecha: null
+    fuente: >-
+      Seneca College School of Aviation, Flight Manual for Raytheon
+      Beechcraft B58 Baron (version B1, basado en el AFM/POH oficial,
+      uso academico), Section II Limitations, pag. 2-3/2-4.
+    revisado_por: claude
+    fecha: 2026-08-23
+    unidad: KIAS
     vso: null
     vs1: null
-    vfe: null
-    vfe_por_flap: {}
-    vle: null
-    vlo: null
-    vmca: null
+    vfe: 122                # el mas restrictivo (flaps FULL/30 grados)
+    vfe_por_flap:
+      15: 152
+      30: 122
+    vle: 152
+    vlo: 152
+    vmca: 84
     vyse: null
-    va: null
-    vno: null
-    vne: null
+    va: 156
+    vno: 195
+    vne: 223
     vmo: no_aplica
     mmo: no_aplica
     vr: null
@@ -241,35 +297,58 @@ TBM9:
     motores: 1
     turbina: true
   limites_poh:
-    fuente: null            # el POH de Daher sigue sin conseguirse
-    revisado_por: null
-    fecha: null
-    vso: null
+    fuente: >-
+      Daher TBM 900 Pilot's Operating Handbook (PIM), Section 2
+      Limitations, EASA Approved, Edition 0 (31-Oct-2013) Rev.4/6,
+      TC EASA.A.010 / FAA N.A60EU.
+    revisado_por: claude
+    fecha: 2026-08-23
+    unidad: KIAS
+    nota_variante: >-
+      "TBM900 es la denominacion comercial del TBM700N (tipo TBM700)"
+      (dice el propio POH, pag. 2.1.1) - es la variante justo anterior al
+      TBM930 de la flota (930 = mismo avion con avionica Garmin G3000
+      G3000 en vez de G1000, ver "GARMIN G1000" citado en el propio
+      documento). El fuselaje y los limites aerodinamicos deberian ser los
+      mismos; no confirmado que Daher no haya cambiado alguna V-speed
+      entre variantes. Tratar como muy probable, no como certeza absoluta.
+    vso: null              # no publicado en la seccion 2.2 (Airspeed limitations)
     vs1: null
-    vfe: null
-    vfe_por_flap: {}
-    vle: null
-    vlo: null
+    vfe: 122                # el mas restrictivo (configuracion de aterrizaje)
+    vfe_por_flap:
+      aterrizaje: 122
+      despegue: 178
+    vle: 178
+    vlo_extension: 178
+    vlo_retraccion: 150
+    vlo_extension_emergencia: 150
     vmca: no_aplica
-    va: null
-    vno: null
-    vne: null
-    vmo: null               # turbina rapida: VMO aplica, tambien en VFR
-    mmo: null
+    va: 158
+    vno: null                # no se publica como campo separado de VMO
+    vne: no_aplica            # este POH usa VMO, no VNE
+    vmo: 266
+    mmo: no_aplica             # el POH no publica MMO para este tipo
     vr: ver_referencia_sim  # depende del peso, ver bloque de abajo
     vx: null
     vy: null
+  pesos:
+    # Mismo documento, seccion 2.5. Coincide con el MTOW del checklist de
+    # comunidad (referencia_sim, 3354 kg) - dos fuentes independientes de
+    # acuerdo.
+    max_rampa_kg: 3370
+    mtow_kg: 3354
+    max_aterrizaje_kg: 3186
+    max_sin_combustible_kg: 2736
   referencia_atc:
     disponible: false
   referencia_sim:
-    # TERCERA CLASE DE FUENTE: checklist de comunidad para simulador
-    # ("Simmer Dream"), con la advertencia impresa "FOR FLIGHT SIMULATION
-    # ONLY - DO NOT USE FOR REAL-WORLD PROCEDURES".
-    # NO es el POH de Daher.  Sirve de referencia, no de limite certificado.
+    # TERCERA CLASE DE FUENTE (ver DOS FUENTES arriba): checklist de
+    # comunidad ("Simmer Dream"), con la advertencia impresa "FOR FLIGHT
+    # SIMULATION ONLY - DO NOT USE FOR REAL-WORLD PROCEDURES". Sigue
+    # sirviendo solo para VR por peso, que el POH del TBM900 no da en
+    # Section 2 (variaria por variante/peso de todas formas).
     fuente: "Checklist-TBM930.pdf (Simmer Dream), Apendice A"
     fecha_consulta: 2026-08-16
-    mtow_kg: 3354
-    mtow_lbs: 7394
     vr_por_peso:
       # Leido de un nomograma (grafico de escalas), NO de una tabla.
       # La lectura tiene precision limitada: usar solo como orden de
@@ -281,9 +360,10 @@ TBM9:
         VR varia unos 15 kt a lo largo del rango de pesos. Un valor unico
         se equivocaria hasta en +-7 kt. Confirma DAT-06.
   notas: >-
-    Sin registro en EUROCONTROL y sin POH. Lo unico disponible hoy es un
-    checklist de simulador que aporta MTOW y VR por peso. Ni VMO, ni VFE,
-    ni VLE, ni VNE, ni VREF.
+    Sin registro en EUROCONTROL. VMO/VA/VFE/VLE/VLO y pesos salen del POH
+    real del TBM900 (variante previa al 930 de la flota, ver nota_variante
+    en limites_poh) - MMO no se publica para este tipo. VR por peso sigue
+    viniendo de un checklist de comunidad (referencia_sim), no del POH.
 
 
 B350:
@@ -299,25 +379,40 @@ B350:
     motores: 2
     turbina: true
   limites_poh:
-    fuente: null
-    revisado_por: null
-    fecha: null
-    vso: null
-    vs1: null
-    vfe: null
-    vfe_por_flap: {}
-    vle: null
-    vlo: null
-    vmca: null
-    vyse: null
-    va: null
-    vno: null
-    vne: null
-    vmo: null
-    mmo: null
+    fuente: >-
+      DGAC Chile (Direccion General de Aeronautica Civil), Departamento
+      Seguridad Operacional / Subdepartamento Licencias / Seccion
+      Evaluaciones - hoja "Limitaciones de Operacion" para Beechcraft
+      Super King Air B-350, operador Aviasur.
+    revisado_por: claude
+    fecha: 2026-08-23
+    unidad: KIAS
+    nota: >-
+      El nombre de flota es "350i"; el documento dice "B-350" (misma
+      familia B300, mismo limite estructural). Vmo/Mmo coinciden en el
+      digito con el tuning del propio MSFS (referencia_sim previa),
+      cruce de fuentes independientes conforme.
+    vso: 81
+    vs1_flaps: 89           # Vs1 Max Weight, flaps abajo
+    vs1_flaps_up: 96        # Vs1 Max Weight, flaps arriba
+    vfe: 158                # el mas restrictivo (full down)
+    vfe_por_flap:
+      approach: 202
+      full_down: 158
+    vle: 184
+    vlo_extension: 184
+    vlo_retraccion: 166
+    vmca_flaps_up: 94
+    vmca_flaps_approach: 93
+    vyse: 125
+    va: 184
+    vno: null                # no se publica como campo separado de VMO
+    vne: no_aplica            # este documento usa VMO, no VNE
+    vmo: 263
+    mmo: 0.58
     vr: null
-    vx: null
-    vy: null
+    vx: 125
+    vy: 140
   referencia_atc:
     v2_kt: 120
     vat_kt: 110

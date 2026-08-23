@@ -44,8 +44,22 @@ def _resumen(datos: dict) -> dict:
     return fuera
 
 
-def guardar(license_id: str, datos: dict, *, plan_id: int | None = None) -> int:
+#: Valores válidos de `via`: con cuál de los tres botones se guardó.
+VIA_VATSIM = "vatsim"
+VIA_SIN_VATSIM = "sin_vatsim"
+VIA_ICAO = "icao"
+_VIAS_VALIDAS = {VIA_VATSIM, VIA_SIN_VATSIM, VIA_ICAO}
+
+
+def guardar(
+    license_id: str, datos: dict, *, plan_id: int | None = None, via: str = ""
+) -> int:
     """Guarda un plan nuevo, o actualiza uno del propio piloto.
+
+    `via` deja constancia de cómo se guardó (guardar directo, generar ICAO,
+    o abrir VATSIM) — así se sabe después cómo se declaró ese vuelo, no solo
+    qué contenía. Cadena vacía si no se especifica (no bloquea el guardado:
+    un valor desconocido es preferible a que falle guardar el plan).
 
     Devuelve el id. Lanza ValueError si faltan los datos mínimos o si el plan
     que se pretende actualizar no es suyo.
@@ -58,6 +72,7 @@ def guardar(license_id: str, datos: dict, *, plan_id: int | None = None) -> int:
     resumen = _resumen(datos)
     if not resumen["origen"] or not resumen["destino"]:
         raise ValueError("Un plan necesita al menos origen y destino")
+    via = via if via in _VIAS_VALIDAS else ""
 
     momento = _ahora()
     crudo = json.dumps(datos, ensure_ascii=False)
@@ -68,12 +83,13 @@ def guardar(license_id: str, datos: dict, *, plan_id: int | None = None) -> int:
             # ninguna fila y se responde igual que si no existiera.
             cambiadas = con.execute(
                 "UPDATE planes SET callsign=?, origen=?, destino=?, alterno=?, "
-                "aeronave=?, nivel=?, ruta=?, datos=?, actualizado=? "
+                "aeronave=?, nivel=?, ruta=?, via=COALESCE(NULLIF(?, ''), via), "
+                "datos=?, actualizado=? "
                 "WHERE id=? AND license_id=? COLLATE NOCASE",
                 (
                     resumen["callsign"], resumen["origen"], resumen["destino"],
                     resumen["alterno"], resumen["aeronave"], resumen["nivel"],
-                    resumen["ruta"], crudo, momento, plan_id, license_id,
+                    resumen["ruta"], via, crudo, momento, plan_id, license_id,
                 ),
             ).rowcount
             if not cambiadas:
@@ -82,12 +98,12 @@ def guardar(license_id: str, datos: dict, *, plan_id: int | None = None) -> int:
 
         cursor = con.execute(
             "INSERT INTO planes (license_id, callsign, origen, destino, "
-            "alterno, aeronave, nivel, ruta, datos, creado, actualizado) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "alterno, aeronave, nivel, ruta, via, datos, creado, actualizado) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 license_id, resumen["callsign"], resumen["origen"],
                 resumen["destino"], resumen["alterno"], resumen["aeronave"],
-                resumen["nivel"], resumen["ruta"], crudo, momento, momento,
+                resumen["nivel"], resumen["ruta"], via, crudo, momento, momento,
             ),
         )
         return int(cursor.lastrowid)
@@ -100,7 +116,7 @@ def listar(license_id: str) -> list[dict]:
     with cuentas.conexion() as con:
         filas = con.execute(
             "SELECT id, callsign, origen, destino, alterno, aeronave, nivel, "
-            "ruta, creado, actualizado FROM planes "
+            "ruta, via, creado, actualizado FROM planes "
             "WHERE license_id = ? COLLATE NOCASE ORDER BY actualizado DESC",
             (license_id,),
         ).fetchall()

@@ -29,27 +29,9 @@
     text-align: center;
     margin-bottom: 28px;
   }
-  .insignia {
-    width: 48px; height: 48px; border-radius: 14px;
-    background: var(--panel-alto);
-    display: inline-flex; align-items: center; justify-content: center;
-    box-shadow: var(--sombra);
+  .logo-eva {
+    height: 96px; width: auto;
     margin-bottom: 12px;
-  }
-  .insignia img { width: 32px; height: 32px; object-fit: contain; }
-  .logo-text { font-size: 22px; font-weight: 800; margin: 0; line-height: 1.15; }
-  .logo-text .eva {
-    color: var(--azul-oscuro);
-    animation: parpadeo-eva 2.6s ease-in-out infinite;
-  }
-  .logo-text .airliner { color: var(--marca-cyan); margin-left: 2px; }
-  @keyframes parpadeo-eva {
-    0%, 45%   { opacity: 1; }
-    55%, 90%  { opacity: .14; }
-    100%      { opacity: 1; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .logo-text .eva { animation: none; }
   }
   .logo-sub {
     font-size: 10px;
@@ -175,8 +157,7 @@
 <body>
 <div class="login-container">
   <div class="logo-area">
-    <div class="insignia"><img src="{{ url_for('static', filename='eva_logo.png') }}" alt="EvA"></div>
-    <p class="logo-text"><span class="eva">EvA</span><span class="airliner">Airliner</span></p>
+    <img class="logo-eva" src="{{ url_for('static', filename='eva_logo.png') }}" alt="EvA Airliner">
     <p class="logo-sub">Escuela Virtual Aérea</p>
   </div>
 

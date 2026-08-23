@@ -1,0 +1,178 @@
+# Mapa de navegación EvA — EDITA CON LAS RUTAS REALES
+# Generado contra web/app.py y templates/base.html (2026-08-23).
+# estado: hecho | parcial | no_existe
+
+paginas:
+  - id: login
+    ruta: /login
+    pantalla: sesion
+    estado: hecho
+    campos:
+      - id: entrar
+        etiqueta: Entrar
+        va_a: index
+        como: POST OK
+      - id: alta
+        etiqueta: Solicitar alta
+        va_a: solicitar_alta
+      - id: recuperar
+        etiqueta: Olvidé contraseña
+        va_a: recuperar
+
+  - id: logout
+    ruta: /logout
+    pantalla: sesion
+    estado: hecho
+    campos: []
+
+  - id: solicitar_alta
+    ruta: /solicitar-alta
+    pantalla: sesion
+    estado: hecho
+    campos: []
+
+  - id: recuperar
+    ruta: /recuperar
+    pantalla: sesion
+    estado: hecho
+    campos:
+      - id: enlace
+        etiqueta: Testigo
+        va_a: restablecer
+
+  - id: restablecer
+    ruta: /restablecer/<testigo>
+    pantalla: sesion
+    estado: hecho
+    campos: []
+
+  - id: index
+    ruta: /
+    pantalla: D7 cartilla
+    estado: hecho
+    campos:
+      - id: nav_aerolinea
+        etiqueta: AEROLÍNEA
+        va_a: aerolinea
+      - id: nav_plan
+        etiqueta: PLAN
+        va_a: plan
+      - id: nav_vuelos
+        etiqueta: VUELOS
+        va_a: vuelos
+      - id: nav_planes
+        etiqueta: PLANES DE VUELO
+        va_a: planes_de_vuelo
+      - id: nav_vuelta
+        etiqueta: VUELTA A ESPAÑA
+        va_a: vuelta_espana
+      - id: nav_registro
+        etiqueta: REGISTRO
+        va_a: registro
+      - id: fila
+        etiqueta: Evaluación
+        va_a: vuelo
+
+  - id: plan
+    ruta: /plan
+    pantalla: D2
+    estado: hecho
+    campos:
+      - id: guardar
+        etiqueta: Guardar
+        va_a: planes_de_vuelo
+        como: POST /api/plan/guardar
+
+  - id: planes_de_vuelo
+    ruta: /planes-de-vuelo
+    pantalla: D3
+    estado: hecho
+    campos: []
+
+  - id: vuelo
+    ruta: /vuelo/<nombre>
+    pantalla: D6+W1
+    estado: hecho
+    campos: []
+
+  - id: vuelos
+    ruta: /vuelos
+    pantalla: D7 lista
+    estado: hecho
+    campos:
+      - id: detalle_registro
+        etiqueta: Detalle crudo
+        va_a: registro_detalle
+
+  - id: registro
+    ruta: /registro
+    pantalla: subida
+    estado: hecho
+    campos:
+      - id: upload
+        etiqueta: Subir
+        va_a: vuelos
+        como: POST /api/registro/upload
+
+  - id: registro_detalle
+    ruta: /registro/<nombre>
+    pantalla: detalle
+    estado: hecho
+    campos: []
+
+  - id: aerolinea
+    ruta: /aerolinea
+    pantalla: KPIs flota
+    estado: hecho
+    campos: []
+
+  - id: descargar
+    ruta: /descargar
+    pantalla: cliente
+    estado: hecho
+    campos: []
+
+  - id: vuelta_espana
+    ruta: /vuelta-espana
+    pantalla: 21 etapas
+    estado: hecho
+    campos: []
+
+  - id: gestion_usuarios
+    ruta: /gestion/usuarios
+    pantalla: admin
+    estado: hecho
+    campos: []
+
+  - id: gestion_vuelos
+    ruta: /gestion/vuelos
+    pantalla: admin
+    estado: hecho
+    campos: []
+
+  - id: gestion_pistas
+    ruta: /gestion/pistas
+    pantalla: admin
+    estado: hecho
+    campos: []
+
+  - id: gestion_reglas
+    ruta: /gestion/reglas
+    pantalla: admin
+    estado: hecho
+    campos:
+      - id: detalle
+        etiqueta: Detalle regla
+        va_a: gestion_regla_detalle
+
+  - id: gestion_regla_detalle
+    ruta: /gestion/reglas/<regla_id>
+    pantalla: admin
+    estado: hecho
+    campos: []
+
+  - id: ficha_piloto
+    ruta: /datos
+    pantalla: W2
+    estado: no_existe
+    campos: []

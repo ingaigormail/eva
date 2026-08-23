@@ -7,15 +7,15 @@ Aplica las reglas de ../../docs/criterios_vfr.md a un `FlightLog` ya cargado
 Implementado en este sprint: alineación de pista en despegue y aterrizaje,
 tasa de descenso al touchdown, punto de toma, estabilización a 500 ft AGL,
 combustible final, pausas prolongadas, compresión de tiempo, escora
-(bank angle) excesiva/sostenida y estados de luces (aterrizaje, beacon, nav,
-rodaje, strobe).
+(bank angle) excesiva/sostenida, estados de luces (aterrizaje, beacon, nav,
+rodaje, strobe) y sobrevelocidad estructural (VNE/VMO, contra el límite real
+del avión — ver `evaluate_flight(..., aircraft=...)`).
 
 Pendiente (requiere ampliar el esquema del log, ver CONTEXT.md): desviación
 de ruta, altitud de crucero semicircular, velocidad por debajo de 10.000 ft,
 squawk asignado, pista planificada vs. pista real, excursión de pista,
-overspeed estructural, beacon durante rodaje con motores en marcha. Estas
-reglas aparecen listadas en `Verdict.not_evaluated` en lugar de fingir que
-se han comprobado.
+beacon durante rodaje con motores en marcha. Estas reglas aparecen listadas
+en `Verdict.not_evaluated` en lugar de fingir que se han comprobado.
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from .data_quality import check as check_quality
 from datetime import datetime, timedelta
 
+from avcars.config import limite_efectivo
 from avcars.schema import Event, FlightLog, TrackPoint
 
 
@@ -70,6 +71,7 @@ RULE_SCOPE: dict[str, str] = {
     "assigned_squawk": "ambas",
     "planned_runway_match": "ambas",
     "runway_excursion": "ambas",
+    "structural_overspeed": "ambas",
 }
 
 #: Ámbito de una regla que no esté en el mapa. "ambas" es el valor prudente:
@@ -266,7 +268,7 @@ def _evaluate_bank_angle(
 
 
 def _evaluate_warnings_and_config(
-    flight: FlightLog, profile: dict
+    flight: FlightLog, profile: dict, aircraft: dict | None = None
 ) -> tuple[list[VerdictItem], list[str], bool]:
     """Evalúa avisos del simulador (stall/overspeed), QNH y tren en la toma.
 
@@ -314,6 +316,49 @@ def _evaluate_warnings_and_config(
         ))
     else:
         not_evaluated.append("overspeed_warning")
+
+    # Sobrevelocidad estructural: IAS por encima del limite certificado
+    # (POH real si existe; referencia del simulador solo si no hay POH -
+    # ver `avcars.config.limite_efectivo`). Independiente de
+    # `overspeed_warning`: aquella confia en el aviso interno del propio
+    # simulador, esta compara contra el limite de verdad del avion. No
+    # comprueba MMO: el log no guarda numero de Mach, y no se inventa uno
+    # a partir de IAS/altitud.
+    if aircraft is not None:
+        limite, fuente = limite_efectivo(aircraft, "vmo")
+        if limite is None or limite == "no_aplica":
+            limite, fuente = limite_efectivo(aircraft, "vne")
+        if isinstance(limite, (int, float)):
+            ias_samples = [p for p in flight.track if p.ias_kt is not None]
+            over = [p for p in ias_samples if p.ias_kt > limite]
+            if over:
+                peor = max(over, key=lambda p: p.ias_kt)
+                failed_hard.append("structural_overspeed")
+                items.append(_at(
+                    VerdictItem(
+                        "structural_overspeed", False, 0,
+                        f"{peor.ias_kt} kt IAS > limite {limite} kt "
+                        f"(fuente: {fuente})",
+                    ),
+                    flight, peor,
+                ))
+            elif ias_samples:
+                items.append(_at(
+                    VerdictItem(
+                        "structural_overspeed", True, 0,
+                        f"maximo observado dentro del limite {limite} kt "
+                        f"(fuente: {fuente})",
+                    ),
+                    flight, None,
+                ))
+            else:
+                not_evaluated.append("structural_overspeed")
+        else:
+            # Ni POH ni simulador dan un limite usable (None o "no_aplica"
+            # en ambas fuentes): no hay con que comparar.
+            not_evaluated.append("structural_overspeed")
+    else:
+        not_evaluated.append("structural_overspeed")
 
     # QNH fuera de rango plausible.
     qnh_samples = [p for p in flight.track if p.qnh_inhg is not None]
@@ -457,8 +502,17 @@ def _evaluate_lights(flight: FlightLog, profile: dict) -> tuple[list[VerdictItem
     return items, not evaluated_any
 
 
-def evaluate_flight(flight: FlightLog, profile: dict) -> Verdict:
-    """Evalúa un vuelo y devuelve el veredicto (puntuación, aprobado/suspendido, desglose)."""
+def evaluate_flight(
+    flight: FlightLog, profile: dict, aircraft: dict | None = None
+) -> Verdict:
+    """Evalúa un vuelo y devuelve el veredicto (puntuación, aprobado/suspendido, desglose).
+
+    `aircraft` es el bloque de ESE avión en `aircraft.yaml` (ya resuelto por
+    el llamador via `flight.flight_plan.aircraft_icao_type`), no el fichero
+    entero — igual que `profile` ya llega resuelto, no el fichero de
+    perfiles completo. Opcional: sin él, `structural_overspeed` queda en
+    `not_evaluated`, como si no existiera este parámetro.
+    """
     score = 100
     items: list[VerdictItem] = []
     failed_hard: list[str] = []
@@ -469,8 +523,6 @@ def evaluate_flight(flight: FlightLog, profile: dict) -> Verdict:
         "assigned_squawk",
         "planned_runway_match",
         "runway_excursion",
-        # structural_overspeed ya no está: se evalúa con el aviso del
-        # simulador (overspeed_warning) cuando hay dato.
     ]
 
     takeoff = _find_event(flight, "takeoff")
@@ -621,7 +673,7 @@ def evaluate_flight(flight: FlightLog, profile: dict) -> Verdict:
         not_evaluated.append("lights")
 
     warn_items, warn_fails, warn_not_evaluated = _evaluate_warnings_and_config(
-        flight, profile
+        flight, profile, aircraft
     )
     items += warn_items
     failed_hard += warn_fails

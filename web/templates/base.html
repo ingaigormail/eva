@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <title>{% block titulo %}Cartilla EvA{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='eva.css') }}">
 {% block extra_head %}{% endblock %}
@@ -25,14 +26,15 @@
     {% if usuario_es_admin %}
     <a href="{{ url_for('gestion_usuarios') }}" class="{% block nav_usuarios %}{% endblock %}" title="Alta, bloqueo y roles de los pilotos"><span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.4"/><path d="M17 13.5c2.4.4 4.2 2 4.8 4.2"/></svg></span>USUARIOS</a>
     <a href="{{ url_for('gestion_vuelos') }}" class="{% block nav_gestion_vuelos %}{% endblock %}" title="Todos los vuelos de todos los pilotos"><span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/><path d="M7 13h4M7 17h7"/></svg></span>TODOS LOS VUELOS</a>
+    <a href="{{ url_for('gestion_pistas') }}" class="{% block nav_gestion_pistas %}{% endblock %}" title="Pistas de referencia para detectar la usada en cada vuelo"><span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20 20 4"/><path d="M4 4h4M4 4v4"/><path d="M16 16h4M20 16v4"/></svg></span>PISTAS</a>
+    <a href="{{ url_for('gestion_reglas') }}" class="{% block nav_gestion_reglas %}{% endblock %}" title="Qué se puntúa, con qué datos y por qué"><span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>REGLAS</a>
     {% endif %}
   </nav>
   <main>
     <header class="superior">
       <div class="marca">
-        <div class="insignia"><img src="{{ url_for('static', filename='eva_logo.png') }}" alt="EvA"></div>
+        <img class="logo-eva" src="{{ url_for('static', filename='eva_logo.png') }}" alt="EvA Airliner">
         <div class="texto">
-          <div class="nombre"><span class="eva">EvA</span><span class="airliner">Airliner</span></div>
           <div class="sub">{% block marca_sub %}Cartilla EvA{% endblock %}</div>
         </div>
       </div>
@@ -49,7 +51,7 @@
 <div id="aviso-vuelo" role="status" style="display:none;position:fixed;left:96px;bottom:18px;z-index:50;
      background:var(--panel);border:1px solid var(--borde);border-radius:10px;
      box-shadow:var(--sombra);padding:10px 14px;font-size:13px;max-width:340px"></div>
-<script>
+<script nonce="{{ csp_nonce }}">
 // El navegador no puede arrancar un programa, pero el servidor sí: mientras
 // EvA corre en el PC del piloto, esta ruta abre EVA Airliner. En un servidor
 // público el botón no aparece (ver se_puede_lanzar_en_local en app.py).
@@ -67,7 +69,10 @@ document.getElementById("lanzar-vuelo").addEventListener("click", async (e) => {
 
   decir("Abriendo EVA Airliner…");
   try {
-    const r = await fetch("/api/vuelo/lanzar", { method: "POST" });
+    const r = await fetch("/api/vuelo/lanzar", {
+      method: "POST",
+      headers: { "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content },
+    });
     const d = await r.json();
     decir(d.mensaje, !d.ok);
   } catch (err) {
@@ -76,6 +81,17 @@ document.getElementById("lanzar-vuelo").addEventListener("click", async (e) => {
 });
 </script>
 {% endif %}
+<script nonce="{{ csp_nonce }}">
+// Confirmación antes de borrar: cualquier <form data-confirmar="..."> del
+// sitio, no solo los de esta página. Aparte del bloque de arriba porque ese
+// solo aparece si el piloto puede lanzar el grabador, y esto tiene que
+// funcionar siempre.
+document.querySelectorAll("form[data-confirmar]").forEach((form) => {
+  form.addEventListener("submit", (e) => {
+    if (!confirm(form.dataset.confirmar)) e.preventDefault();
+  });
+});
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

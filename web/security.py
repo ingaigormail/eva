@@ -1,12 +1,25 @@
 """Configuración de seguridad para EvA web."""
 
-from flask import Flask, request
+import secrets
+
+from flask import Flask, g, request
 from markupsafe import escape
 import bleach
 
 
 def setup_security_headers(app: Flask):
     """Configura headers de seguridad HTTP."""
+
+    @app.before_request
+    def _generar_csp_nonce():
+        # Un nonce por petición: autoriza justo los <script> que la propia
+        # plantilla ha marcado con él, sin abrir la puerta a 'unsafe-inline'
+        # (que dejaría colar cualquier script inyectado).
+        g.csp_nonce = secrets.token_urlsafe(16)
+
+    @app.context_processor
+    def _exponer_csp_nonce():
+        return {"csp_nonce": g.get("csp_nonce", "")}
 
     @app.after_request
     def add_security_headers(response):
@@ -16,10 +29,12 @@ def setup_security_headers(app: Flask):
         # Prevenir MIME-type sniffing
         response.headers["X-Content-Type-Options"] = "nosniff"
 
-        # CSP básico: solo recursos desde el mismo origen
+        # CSP básico: solo recursos desde el mismo origen, más el nonce de
+        # esta petición para los <script> inline que lo llevan.
+        nonce = g.get("csp_nonce", "")
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self'; "
+            f"script-src 'self' 'nonce-{nonce}'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
             "font-src 'self'"

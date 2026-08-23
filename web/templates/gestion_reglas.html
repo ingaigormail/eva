@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block titulo %}Reglas — Gestión — EvA{% endblock %}
+{% block marca_sub %}Reglas de puntuación{% endblock %}
+{% block nav_gestion_reglas %}activo{% endblock %}
+
+{% block estilos %}
+  .panel-alta {
+    background: var(--panel); border: 1px solid var(--borde); border-radius: 16px;
+    padding: 22px 24px; margin-bottom: 20px; box-shadow: var(--sombra);
+  }
+  .panel-alta h2 { font-size: 17px; font-weight: 700; margin: 0 0 4px; }
+  .panel-alta p.pie { font-size: 12.5px; color: var(--tenue); margin: 0 0 14px; }
+  .resumen-estados {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;
+  }
+  .chip-estado {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 10px; font-size: 12.5px; font-weight: 700;
+    background: var(--panel-alto); border: 1px solid var(--borde);
+  }
+  .estado-punto { width: 9px; height: 9px; border-radius: 50%; }
+  .estado-evaluable .estado-punto { background: var(--verde); }
+  .estado-condicional .estado-punto { background: var(--ambar); }
+  .estado-bloqueada .estado-punto { background: var(--rojo); }
+  td .estado-punto { display: inline-block; margin-right: 6px; }
+  .campo-mono {
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    color: var(--tenue);
+  }
+  .alcance {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    color: var(--tenue); letter-spacing: .4px;
+  }
+{% endblock %}
+
+{% block contenido %}
+  <p style="font-size:12.5px;margin:0 0 16px">
+    <a href="{{ url_for('gestion_usuarios') }}" style="color:var(--azul);font-weight:600;text-decoration:none">
+      &larr; Gestión de usuarios</a>
+  </p>
+
+  <div class="panel-alta">
+    <h2>Reglas de puntuación</h2>
+    <p class="pie">
+      Qué puntúa el motor de evaluación, con qué dato exacto del log, contra
+      qué referencia, y por qué (si es el caso) todavía no se puede evaluar.
+      Se lee en vivo del propio motor — no puede desincronizarse en silencio.
+    </p>
+
+    {% set n_eval = reglas | selectattr('estado', 'equalto', 'evaluable') | list | length %}
+    {% set n_cond = reglas | selectattr('estado', 'equalto', 'condicional') | list | length %}
+    {% set n_bloq = reglas | selectattr('estado', 'equalto', 'bloqueada') | list | length %}
+    <div class="resumen-estados">
+      <div class="chip-estado estado-evaluable"><span class="estado-punto"></span>{{ n_eval + n_cond }} evaluables ({{ n_eval }} sin condición, {{ n_cond }} con condición)</div>
+      <div class="chip-estado estado-bloqueada"><span class="estado-punto"></span>{{ n_bloq }} bloqueadas</div>
+    </div>
+
+    <table class="tabla-eva">
+      <thead>
+        <tr>
+          <th>Estado</th>
+          <th>Regla</th>
+          <th>Alcance</th>
+          <th>Campo del log</th>
+          <th>Referencia</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reglas %}
+        <tr>
+          <td>
+            <span class="estado-punto estado-{{ r.estado }}"
+                  title="{{ {'evaluable': 'Evaluable', 'condicional': 'Evaluable con condición', 'bloqueada': 'No evaluable todavía'}[r.estado] }}"></span>
+          </td>
+          <td>
+            <a href="{{ url_for('gestion_regla_detalle', regla_id=r.id) }}" style="color:var(--azul);font-weight:600;text-decoration:none">
+              {{ r.nombre }}
+            </a>
+            <div class="campo-mono">{{ r.id }}</div>
+          </td>
+          <td><span class="alcance">{{ r.alcance }}</span></td>
+          <td><span class="campo-mono">{{ r.campo_log }}</span></td>
+          <td><span class="campo-mono">{{ r.referencia }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

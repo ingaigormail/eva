@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block titulo %}Vuelos — Gestión — EvA{% endblock %}
-{% block marca_sub %}Gestión de vuelos{% endblock %}
-{% block nav_gestion_vuelos %}activo{% endblock %}
+{% block titulo %}Pistas — Gestión — EvA{% endblock %}
+{% block marca_sub %}Gestión de pistas{% endblock %}
+{% block nav_gestion_pistas %}activo{% endblock %}
 
 {% block estilos %}
   .aviso {
@@ -26,13 +26,13 @@
     padding: 10px 12px; border: 1px solid var(--borde); border-radius: 10px;
     font-size: 13.5px; font-family: inherit; color: var(--texto); background: #fff;
   }
+  .campo input.corto { width: 80px; }
   .mini {
     padding: 6px 10px; border-radius: 8px; border: 1px solid var(--borde);
     background: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
-    color: var(--texto); font-family: inherit;
+    color: var(--texto); font-family: inherit; text-decoration: none; display: inline-block;
   }
   .mini.primario { background: var(--azul); color: #fff; border-color: var(--azul); }
-  .mini.peligro:hover { border-color: var(--rojo); color: var(--rojo); }
 {% endblock %}
 
 {% block contenido %}
@@ -46,57 +46,63 @@
   {% endfor %}
 
   <div class="panel-alta">
-    <h2>Subir un vuelo en nombre de un piloto</h2>
+    <h2>Añadir o completar una pista</h2>
     <p class="pie">
-      Para completar una cartilla que se quedó corta. Si el fichero declara
-      un dueño distinto del piloto elegido, se rechaza — no se le puede
-      atribuir a nadie el vuelo de otra persona.
+      El rumbo de cada cabecera se calcula solo a partir de su número (p.ej.
+      «32L» → 320°): no hace falta escribirlo. Si el ICAO no existe todavía
+      en la base de datos, se da de alta con esto mismo. Si ya había una
+      pista guardada para este ICAO, se sustituye por la nueva.
     </p>
-    <form method="POST" action="{{ url_for('gestion_subir_vuelo') }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ url_for('gestion_pistas_guardar') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="fila-campos">
         <div class="campo">
-          <label for="license_id">Piloto</label>
-          <select id="license_id" name="license_id" required>
-            <option value="">— elige —</option>
-            {% for p in pilotos %}
-            <option value="{{ p }}">{{ p }}</option>
-            {% endfor %}
-          </select>
+          <label for="icao">ICAO</label>
+          <input type="text" id="icao" name="icao" class="corto" maxlength="4"
+                 value="{{ icao_precargado }}" placeholder="LEXX" required>
         </div>
         <div class="campo">
-          <label for="file">Fichero (.avlog.json o .csv)</label>
-          <input type="file" id="file" name="file" accept=".csv,.avlog.json" required>
+          <label for="pista_le">Cabecera 1</label>
+          <input type="text" id="pista_le" name="pista_le" class="corto"
+                 maxlength="3" placeholder="10" required>
         </div>
-        <button class="mini primario" type="submit">Subir</button>
+        <div class="campo">
+          <label for="pista_he">Cabecera 2</label>
+          <input type="text" id="pista_he" name="pista_he" class="corto"
+                 maxlength="3" placeholder="28" required>
+        </div>
+        <div class="campo">
+          <label for="preferente">Preferente</label>
+          <input type="text" id="preferente" name="preferente" class="corto"
+                 maxlength="3" placeholder="10" required>
+        </div>
+        <button class="mini primario" type="submit">Guardar</button>
       </div>
     </form>
   </div>
 
   <div class="panel-alta">
-    <h2>Todos los vuelos</h2>
-    <p class="pie">Borrar es definitivo: quita el fichero, el registro de importación y su fila en las estadísticas de la aerolínea.</p>
-    {% if vuelos %}
+    <h2>Aeropuertos sin pista registrada</h2>
+    <p class="pie">
+      Tienen ICAO real pero ninguna fila en <code>pistas_es</code>: sin esto
+      no se puede evaluar el rumbo de despegue/aterrizaje en esos vuelos.
+    </p>
+    {% if faltan %}
     <table class="tabla-eva">
-      <thead><tr><th>Fichero</th><th>Piloto</th><th>Acción</th></tr></thead>
+      <thead><tr><th>ICAO</th><th>Nombre</th><th>Municipio</th><th>Acción</th></tr></thead>
       <tbody>
-        {% for v in vuelos %}
+        {% for a in faltan %}
         <tr>
-          <td>{{ v.archivo }}</td>
-          <td>{{ v.piloto }}</td>
-          <td>
-            <form method="POST" action="{{ url_for('gestion_borrar_vuelo', nombre=v.archivo) }}"
-                  data-confirmar="¿Borrar {{ v.archivo }}? No se puede deshacer.">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="mini peligro" type="submit">Borrar</button>
-            </form>
-          </td>
+          <td>{{ a.icao }}</td>
+          <td>{{ a.name or '—' }}</td>
+          <td>{{ a.municipality or '—' }}</td>
+          <td><a class="mini" href="{{ url_for('gestion_pistas', icao=a.icao) }}">Rellenar</a></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     {% else %}
-    <p style="color:var(--tenue);font-size:13px">No hay ningún vuelo todavía.</p>
+    <p style="color:var(--tenue);font-size:13px">Todos los aeropuertos con ICAO real tienen ya su pista.</p>
     {% endif %}
   </div>
 {% endblock %}

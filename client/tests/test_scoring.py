@@ -127,6 +127,94 @@ def test_overspeed_warning_is_fail():
     assert not verdict.passed
 
 
+# -- structural_overspeed: IAS contra el limite real del avion (POH primero,
+# simulador solo de respaldo) -- independiente de overspeed_warning, que
+# solo confia en el aviso interno del propio simulador.
+
+
+def test_sin_aircraft_structural_overspeed_no_se_evalua():
+    """Sin pasar `aircraft`, la regla se queda en not_evaluated -- nunca
+    finge un limite que no se le ha dado."""
+    flight = _load("sample_flight_pass.json")
+    profile = get_profile("normal", PROFILES)
+
+    verdict = evaluate_flight(flight, profile)
+
+    assert "structural_overspeed" in verdict.not_evaluated
+    assert not any(i.rule == "structural_overspeed" for i in verdict.items)
+
+
+def test_con_aircraft_pero_sin_limite_usable_sigue_sin_evaluarse():
+    """Un avion sin VNE ni VMO en ninguna fuente (ni POH ni simulador)
+    tampoco se evalua -- no hay con que comparar."""
+    flight = _load("sample_flight_pass.json")
+    profile = get_profile("normal", PROFILES)
+    avion_sin_datos = {"limites_poh": {"vne": None, "vmo": None}}
+
+    verdict = evaluate_flight(flight, profile, aircraft=avion_sin_datos)
+
+    assert "structural_overspeed" in verdict.not_evaluated
+
+
+def test_dentro_del_limite_pasa_y_cita_la_fuente():
+    flight = _load("sample_flight_pass.json")
+    profile = get_profile("normal", PROFILES)
+    avion = {"limites_poh": {"vne": 163, "vmo": "no_aplica"}}
+
+    verdict = evaluate_flight(flight, profile, aircraft=avion)
+
+    item = next(i for i in verdict.items if i.rule == "structural_overspeed")
+    assert item.passed
+    assert "163" in item.detail
+    assert "poh" in item.detail
+
+
+def test_por_encima_del_limite_es_fail_duro():
+    flight = _load("sample_flight_pass.json")
+    flight.track[0].ias_kt = 200.0
+    profile = get_profile("normal", PROFILES)
+    avion = {"limites_poh": {"vne": 163, "vmo": "no_aplica"}}
+
+    verdict = evaluate_flight(flight, profile, aircraft=avion)
+
+    assert "structural_overspeed" in verdict.failed_hard
+    assert not verdict.passed
+    item = next(i for i in verdict.items if i.rule == "structural_overspeed")
+    assert not item.passed
+    assert "200" in item.detail and "163" in item.detail
+
+
+def test_usa_referencia_de_simulador_solo_si_no_hay_poh():
+    """El POH manda si existe; el simulador solo entra cuando el POH esta
+    a None -- confirma el orden de las DOS FUENTES, no solo que exista un
+    valor cualquiera."""
+    flight = _load("sample_flight_pass.json")
+    flight.track[0].ias_kt = 170.0
+    profile = get_profile("normal", PROFILES)
+
+    # POH real dice 163 (se supera con 170) -> debe fallar pese a que el
+    # simulador (mas permisivo, 250) lo habria dejado pasar.
+    avion_con_poh = {
+        "limites_poh": {"vne": 163, "vmo": "no_aplica"},
+        "referencia_sim": {"vne": 250},
+    }
+    veredicto_con_poh = evaluate_flight(flight, profile, aircraft=avion_con_poh)
+    item_poh = next(
+        i for i in veredicto_con_poh.items if i.rule == "structural_overspeed"
+    )
+    assert not item_poh.passed
+    assert "poh" in item_poh.detail
+
+    # Sin POH, cae al simulador (250) -> con 170 kt no lo supera, pasa.
+    avion_sin_poh = {"referencia_sim": {"vne": 250}}
+    veredicto_sin_poh = evaluate_flight(flight, profile, aircraft=avion_sin_poh)
+    item_sim = next(
+        i for i in veredicto_sin_poh.items if i.rule == "structural_overspeed"
+    )
+    assert item_sim.passed
+    assert "sim" in item_sim.detail
+
+
 def test_qnh_out_of_range_is_penalized():
     flight = _load("sample_flight_pass.json")
     for point in flight.track:

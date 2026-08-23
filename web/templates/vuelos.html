@@ -54,7 +54,7 @@
               <td><a href="{{ url_for('detalle', nombre=vuelo.archivo) if vuelo.archivo.endswith('.avlog.json') else url_for('detalle_registro', nombre=vuelo.archivo) }}">Ver →</a></td>
               <td>
                 <form method="POST" action="{{ url_for('borrar_mi_vuelo', nombre=vuelo.archivo) }}"
-                      onsubmit="return confirm('¿Borrar este vuelo? No se puede deshacer.');">
+                      data-confirmar="¿Borrar este vuelo? No se puede deshacer.">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="mini peligro" type="submit">Borrar</button>
                 </form>

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "eva-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["web/app.py"],
+      "port": 5000
+    }
+  ]
+}

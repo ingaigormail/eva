@@ -32,3 +32,8 @@ venv/
 
 # Datos externos y de trabajo que no son código.
 /data/
+
+# Herramientas de solo-local para arrancar/probar en el equipo del piloto;
+# no tiene sentido en el servidor y no debe influir en el despliegue.
+/servidor_local.bat
+/servidor_local.pyw

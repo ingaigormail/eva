@@ -51,11 +51,19 @@ def cartilla_aislada(tmp_path, monkeypatch):
     la subida falla con 409, aunque la base de datos sea otra. Mismo fixture
     que en test_app.py — el registro de duplicados vive fuera de `cuentas`.
     """
+    import app as app_module
     import importacion
 
     hogar = tmp_path / "hogar"
-    (hogar / "EvA" / "grabaciones").mkdir(parents=True)
+    grabaciones = hogar / "EvA" / "grabaciones"
+    grabaciones.mkdir(parents=True)
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: hogar))
+    # SEARCH_DIRS se calcula una sola vez, al importar app.py, con el
+    # Path.home() real de ese momento — parchear Path.home aquí no lo toca
+    # retroactivamente. Sin esto, `_importar_vuelo` guarda en el hogar falso
+    # pero las rutas que buscan el fichero (`/registro/<nombre>`) siguen
+    # mirando el hogar real, y dan 404.
+    monkeypatch.setattr(app_module, "SEARCH_DIRS", [grabaciones])
     monkeypatch.setattr(importacion, "REGISTRO_PATH", tmp_path / "importados.json")
     return hogar / "EvA" / "grabaciones"
 

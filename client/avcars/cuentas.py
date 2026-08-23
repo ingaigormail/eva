@@ -127,6 +127,10 @@ CREATE TABLE IF NOT EXISTS planes (
     aeronave    TEXT NOT NULL DEFAULT '',
     nivel       TEXT NOT NULL DEFAULT '',
     ruta        TEXT NOT NULL DEFAULT '',
+    -- Con cuál de los tres botones se guardó: 'vatsim' | 'sin_vatsim' | 'icao'.
+    -- Así el piloto (y quien puntúe) sabe cómo se declaró ese vuelo, no solo
+    -- qué contenía. '' en planes de antes de que existiera esta columna.
+    via         TEXT NOT NULL DEFAULT '',
     datos       TEXT NOT NULL,
     creado      TEXT NOT NULL,
     actualizado TEXT NOT NULL
@@ -205,6 +209,7 @@ def _asegurar_inicializado() -> None:
     # conexión y volvería a pasar por aquí; sin esto sería recursión infinita.
     _inicializado = True
     _asegurar_esquema()
+    _migrar_esquema()
     _importar_json_si_hace_falta()
     _asegurar_semilla()
 
@@ -232,6 +237,20 @@ def conexion():
 def _asegurar_esquema() -> None:
     with conexion() as con:
         con.executescript(_ESQUEMA)
+
+
+def _migrar_esquema() -> None:
+    """Añade columnas nuevas a tablas que ya existían sin ellas.
+
+    `CREATE TABLE IF NOT EXISTS` no toca una tabla que ya está creada, así
+    que una base de datos real (con planes guardados de antes) se queda sin
+    la columna nueva si solo se confía en `_ESQUEMA`. Esto se ejecuta
+    siempre; `ALTER TABLE ADD COLUMN` es barato y solo actúa si falta.
+    """
+    with conexion() as con:
+        columnas = {fila["name"] for fila in con.execute("PRAGMA table_info(planes)")}
+        if "via" not in columnas:
+            con.execute("ALTER TABLE planes ADD COLUMN via TEXT NOT NULL DEFAULT ''")
 
 
 # -- Contraseñas -----------------------------------------------------------

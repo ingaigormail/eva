@@ -26,7 +26,10 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+import tempfile
 import tkinter as tk
+import traceback
+from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox
 from typing import Optional
@@ -39,6 +42,42 @@ from avcars import requisitos  # noqa: E402
 APP_NAME = "EvA"
 EXE_NAME = "eva.exe"
 RECORDINGS_DIRNAME = "grabaciones"
+
+#: A diferencia de `avcars.debuglog` (opt-in, para la app ya instalada), este
+#: log es incondicional: el instalador puede reventar en el primerísimo
+#: arranque, antes de que nadie tenga ocasión de encender nada. Va a TEMP
+#: porque siempre existe y no hace falta permiso de administrador para
+#: escribir ahí, a diferencia de la carpeta de instalación (que puede que ni
+#: se haya elegido todavía cuando el fallo ocurre).
+LOG_FALLOS = Path(tempfile.gettempdir()) / "EvA_instalador_error.log"
+
+
+def _registrar_fallo(contexto: str, error: BaseException) -> None:
+    """Deja constancia de un fallo del instalador. Nunca lanza."""
+    try:
+        traza = "".join(
+            traceback.format_exception(type(error), error, error.__traceback__)
+        )
+        with LOG_FALLOS.open("a", encoding="utf-8") as fichero:
+            fichero.write(
+                f"{datetime.now():%Y-%m-%d %H:%M:%S}  FALLO en {contexto}\n"
+                f"{traza.rstrip()}\n\n"
+            )
+    except Exception:
+        pass  # un log que no se puede escribir no puede tirar el instalador
+
+
+def _avisar_y_salir(error: BaseException) -> None:
+    """Último recurso: enseña dónde quedó el log y cierra."""
+    try:
+        messagebox.showerror(
+            APP_NAME,
+            "El instalador se ha encontrado un problema y no puede continuar."
+            f"\n\nSe ha guardado el detalle en:\n{LOG_FALLOS}"
+            "\n\nEnvía ese fichero si reportas el fallo.",
+        )
+    except Exception:
+        pass  # si hasta el propio aviso falla, al menos queda el log
 
 BG = "#1b1f24"
 PANEL = "#262b32"
@@ -382,10 +421,30 @@ class InstallerWindow:
             self.install_button.configure(state="normal", text="INSTALAR", bg=ACCENT)
 
 
+def _capturar_callbacks(root: tk.Tk) -> None:
+    """Tkinter se traga las excepciones que ocurren dentro de un callback
+    (clic de botón, etc.): las pasa a `report_callback_exception` y sigue
+    como si nada, en vez de dejarlas subir hasta el `try` de `main()`. Sin
+    esto, un fallo al pulsar INSTALAR no dejaría ni rastro.
+    """
+
+    def _on_error(exc_type, exc_value, exc_tb):
+        _registrar_fallo("callback de la interfaz", exc_value)
+        _avisar_y_salir(exc_value)
+        root.destroy()
+
+    root.report_callback_exception = _on_error
+
+
 def main() -> None:
-    root = tk.Tk()
-    InstallerWindow(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        _capturar_callbacks(root)
+        InstallerWindow(root)
+        root.mainloop()
+    except Exception as exc:  # antes de que exista ventana, o Tk ni arranca
+        _registrar_fallo("arranque del instalador", exc)
+        _avisar_y_salir(exc)
 
 
 if __name__ == "__main__":

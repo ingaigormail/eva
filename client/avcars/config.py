@@ -40,6 +40,30 @@ def load_aircraft(path: Path = DEFAULT_AIRCRAFT_PATH) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def limite_efectivo(aeronave: dict, campo: str) -> tuple[object, str | None]:
+    """El límite que manda para `campo` (p.ej. "vne", "vmo"): POH real
+    primero, referencia de simulador solo si no hay POH.
+
+    Devuelve `(valor, fuente)`. `fuente` es `"poh"`, `"sim"` o `None` si
+    ningún sitio tiene el dato — nunca se inventa un valor a medias.
+    `valor` puede ser el string `"no_aplica"` (el POH dice explícitamente
+    que ese límite no rige para este avión, p.ej. VNE en un jet que usa
+    VMO): eso sigue viniendo de fuente `"poh"`, no cae al simulador.
+
+    Ver la cabecera de `aircraft.yaml` (DOS FUENTES) para por qué el orden
+    importa: mezclarlas sería un error grave.
+    """
+    poh = aeronave.get("limites_poh") or {}
+    valor = poh.get(campo)
+    if valor is not None:
+        return valor, "poh"
+    sim = aeronave.get("referencia_sim") or {}
+    valor_sim = sim.get(campo)
+    if valor_sim is not None:
+        return valor_sim, "sim"
+    return None, None
+
+
 def load_airports(path: Path = DEFAULT_AIRPORTS_PATH) -> dict:
     """Lee `airports.json`: designador OACI -> nombre y coordenadas.
 
