@@ -57,7 +57,24 @@ día se rehace el servidor, hay que volver a cerrarla.**
 
 **Certificado HTTPS**: Let's Encrypt, se renueva solo (`certbot.timer`).
 
+**`eva.service` está versionado en `despliegue/eva.service`**, copia exacta
+de lo que hay en `/etc/systemd/system/eva.service` en el servidor. Lleva
+`NoNewPrivileges=true` y `ProtectHome=read-only`: un proceso comprometido
+dentro de gunicorn no puede usar `sudo` ni tocar `~/.ssh`, aunque el usuario
+`eva` tenga privilegios a nivel de sistema.
+
+**El `sudo` de `eva` está restringido** (`despliegue/eva-sudoers`, instalado
+como `/etc/sudoers.d/eva`): solo los comandos concretos que hacen falta
+(reiniciar/consultar el servicio, recargar nginx, reiniciar la máquina), no
+`ALL=(ALL) NOPASSWD:ALL`. Si algún día hace falta un comando nuevo bajo
+`sudo`, se añade explícitamente a ese fichero — no se vuelve a abrir todo.
+
 ## Mantenimiento
 
 Poco: los parches de seguridad se aplican solos. Una vez al mes está bien
 mirar que el disco no se llene (`df -h`) — es lo más justo de esta máquina.
+
+Auditoría de seguridad completa (con verificación en vivo): ver el historial
+de conversación del 2026-08-24 — hallazgos H-01 a H-15, todos cerrados o con
+plan salvo H-06 (MFA, pendiente de diseño) y H-07 (decisión de producto, no
+de seguridad del servidor).

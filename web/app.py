@@ -105,6 +105,8 @@ import importacion  # noqa: E402
 from despacho_pesos import datos_para_plantilla  # noqa: E402
 from security import setup_security_headers, sanitize_input  # noqa: E402
 from flask_wtf.csrf import CSRFProtect  # noqa: E402
+from flask_limiter import Limiter  # noqa: E402
+from flask_limiter.util import get_remote_address  # noqa: E402
 
 app = Flask(__name__)
 # Nunca escrita en el código: entorno o `web/data/secret_key.txt` (ver secreto.py).
@@ -115,6 +117,21 @@ csrf = CSRFProtect(app)
 
 # Security headers
 setup_security_headers(app)
+
+# Límite de tamaño de petición: defensa en profundidad. nginx ya corta en
+# 20 MB (despliegue/nginx_eva.conf), pero si algún día Flask se sirviera sin
+# nginx delante (pruebas, otro entorno), que no quede sin límite ninguno.
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+
+# Límite de intentos: sin esto, /login no tenía ningún freno (auditoría
+# 2026-08-24, confirmado en vivo que fail2ban solo cubre SSH, no la web).
+# Memoria en vez de Redis: no hay Redis en el stack, y con solo 2 workers
+# gunicorn el límite real es como mucho 2x el configurado (cada worker
+# cuenta por su cuenta) — sigue siendo muchísimo mejor que sin límite, y
+# no añade una pieza de infraestructura nueva para esto.
+limiter = Limiter(
+    get_remote_address, app=app, storage_uri="memory://", default_limits=[]
+)
 
 # La cookie de sesión, lo más cerrada que permita el sitio donde corra.
 app.config.update(
@@ -473,6 +490,13 @@ def planned_route_points(flight: FlightLog) -> list[dict]:
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit(
+    "15 per 5 minutes",
+    # En tests cada archivo hace login varias veces sobre la misma app (el
+    # límite es del proceso, no se resetea entre tests): sin esto, la propia
+    # suite se autobloquea a partir del test 15.
+    exempt_when=lambda: app.config.get("TESTING", False),
+)
 def login_page():
     """Login EvA. Solo usuarios dados de alta (fichero persistente)."""
     error = None
@@ -498,12 +522,18 @@ def login_page():
                 # piloto es cómo va la aerolínea, no su propia lista de vuelos.
                 return redirect(url_for("aerolinea"))
             if resultado == AUTH_DESCONOCIDO:
-                error = "Ese ID de piloto no está dado de alta en EvA."
+                # Mismo mensaje que una contraseña equivocada (auditoría
+                # 2026-08-24): que la web no distinga "no existe" de "existe
+                # pero has fallado la contraseña" evita que probar IDs sirva
+                # para averiguar qué cuentas hay. El enlace de alta se sigue
+                # ofreciendo (ayuda real a quien es nuevo), pero el texto de
+                # arriba ya no delata el motivo exacto.
+                error = "ID de piloto o contraseña incorrectos."
                 sugerir_alta = True
             elif resultado == AUTH_BLOQUEADA:
                 error = "Cuenta bloqueada. Contacta con un administrador."
             else:
-                error = "Contraseña incorrecta"
+                error = "ID de piloto o contraseña incorrectos."
 
     return render_template("login.html", error=error, sugerir_alta=sugerir_alta)
 

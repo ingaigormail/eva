@@ -1,0 +1,37 @@
+# Unidad systemd real del servidor de producción (verificada en vivo el
+# 2026-08-24 con `systemctl cat eva.service`). Se versiona aquí para que no
+# dependa solo de la memoria de quien montó el servidor — si algún día hay
+# que rehacer la máquina, esto es lo que hay que instalar en
+# /etc/systemd/system/eva.service.
+#
+# El endurecimiento (NoNewPrivileges, ProtectHome, ProtectSystem) es lo que
+# contiene un compromiso de la aplicación: aunque el usuario `eva` tenga
+# sudo, un proceso lanzado por ESTA unidad no puede usarlo (NoNewPrivileges
+# bloquea setuid) ni escribir en ~/.ssh (ProtectHome=read-only). Ver la
+# auditoría de seguridad de 2026-08-24, hallazgo H-02.
+
+[Unit]
+Description=EvA — cartilla de la aerolinea virtual
+After=network.target
+
+[Service]
+Type=notify
+User=eva
+Group=eva
+WorkingDirectory=/home/eva/eva/web
+EnvironmentFile=/home/eva/eva.env
+# Dos procesos, no cuatro: cada uno carga pandas y numpy, que pesan. Con el
+# volumen de EvA sobran, y así queda memoria para el resto del sistema.
+ExecStart=/home/eva/venv/bin/gunicorn -w 2 -b 127.0.0.1:8000 --timeout 120 wsgi:app
+Restart=always
+RestartSec=5
+
+# Que la aplicacion no pueda tocar mas de lo suyo
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/eva/eva /home/eva/EvA /home/eva/copias /home/eva/.gunicorn
+
+[Install]
+WantedBy=multi-user.target

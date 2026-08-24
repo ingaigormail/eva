@@ -657,8 +657,10 @@ def test_login_rechaza_usuario_no_dado_de_alta(sin_sesion):
     assert respuesta.status_code == 200
     assert respuesta.request.path == "/login"
     html = respuesta.get_data(as_text=True)
-    assert "no está dado de alta" in html
-    # Y se le dice qué hacer: pedir el alta, que aprueba el responsable.
+    # El mensaje es el mismo que una contraseña incorrecta (auditoría
+    # 2026-08-24): no debe delatar si el ID existe o no.
+    assert "ID de piloto o contraseña incorrectos" in html
+    # Pero se le sigue diciendo qué hacer: pedir el alta, que aprueba el responsable.
     assert "/solicitar-alta" in html
 
 
@@ -683,7 +685,7 @@ def test_login_rechaza_contraseña_incorrecta(sin_sesion):
     )
     assert respuesta.status_code == 200
     html = respuesta.get_data(as_text=True)
-    assert "Contraseña incorrecta" in html
+    assert "ID de piloto o contraseña incorrectos" in html
 
 
 def test_logout_limpia_sesion(cliente):

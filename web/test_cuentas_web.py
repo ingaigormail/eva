@@ -62,7 +62,7 @@ def test_el_login_de_un_desconocido_explica_como_pedir_el_alta(cliente):
     )
     texto = r.get_data(as_text=True)
 
-    assert "no está dado de alta" in texto
+    assert "ID de piloto o contraseña incorrectos" in texto
     assert "/solicitar-alta" in texto
     assert "no hay auto-registro" in texto
 

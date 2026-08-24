@@ -1,0 +1,27 @@
+# Sudo restringido para el usuario `eva` — reemplaza el `ALL=(ALL) NOPASSWD:ALL`
+# original de userdata_clouding.yaml (hallazgo H-02 de la auditoría de
+# seguridad, 2026-08-24).
+#
+# Por qué: `desplegar.sh` y la operación normal del servidor solo necesitan
+# un puñado de comandos concretos, verificados con `grep -rn sudo despliegue/*.sh`
+# antes de restringir (desplegar.sh usa exactamente `systemctl restart eva` y
+# `journalctl -u eva`). Dar sudo total sin contraseña anulaba buena parte del
+# aislamiento que ya da `eva.service` (NoNewPrivileges, ProtectHome) para el
+# resto del sistema: si algún día se necesita algo fuera de esta lista, se
+# añade aquí explícitamente, no se vuelve a abrir todo.
+#
+# Instalar en el servidor como /etc/sudoers.d/eva (permisos 0440), NUNCA
+# editando /etc/sudoers directamente:
+#   sudo visudo -cf despliegue/eva-sudoers   # valida sintaxis antes de copiar
+#   sudo cp despliegue/eva-sudoers /etc/sudoers.d/eva
+#   sudo chmod 0440 /etc/sudoers.d/eva
+
+eva ALL=(root) NOPASSWD: /usr/bin/systemctl restart eva
+eva ALL=(root) NOPASSWD: /usr/bin/systemctl status eva
+eva ALL=(root) NOPASSWD: /usr/bin/systemctl start eva
+eva ALL=(root) NOPASSWD: /usr/bin/systemctl stop eva
+eva ALL=(root) NOPASSWD: /usr/bin/journalctl -u eva *
+eva ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
+eva ALL=(root) NOPASSWD: /usr/bin/systemctl status nginx
+eva ALL=(root) NOPASSWD: /usr/sbin/nginx -t
+eva ALL=(root) NOPASSWD: /usr/bin/reboot
