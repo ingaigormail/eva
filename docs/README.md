@@ -30,6 +30,7 @@ hay secciones nuevas.
 | `especificacion_funcional.md` | [`especificacion_funcional.md`](especificacion_funcional.md) | Qué hace el producto, con marcas |
 | `motor_evaluacion_v2.md` | [`motor_evaluacion_v2.md`](motor_evaluacion_v2.md) | Motor `evaluate_flight` |
 | `criterios_vfr.md` | [`criterios_vfr.md`](criterios_vfr.md) | Criterios y umbrales |
+| *(guía piloto)* | [`guia_practica_reglas_puntuacion.md`](guia_practica_reglas_puntuacion.md) | Las 26 reglas en lenguaje cotidiano (perfil normal) |
 | `formato_log_vuelo.md` | [`formato_log_vuelo.md`](formato_log_vuelo.md) | Esquema `FlightLog` |
 | `esquema_pantallas.md` | [`esquema_pantallas.md`](esquema_pantallas.md) | Escritorio + web |
 | `mapa_navegacion.yaml` | [`mapa_navegacion.yaml`](mapa_navegacion.yaml) | Rutas Flask reales |

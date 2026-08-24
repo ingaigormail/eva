@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block titulo %}VATSIM Live — EvA{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+{% endblock %}
+{% block contenido %}
+<style nonce="{{ csp_nonce }}">
+.vatsim-wrap{display:grid;grid-template-columns:320px 1fr;gap:14px;align-items:start}
+@media(max-width:900px){.vatsim-wrap{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--borde);border-radius:12px;box-shadow:var(--sombra);padding:12px}
+#map{height:72vh;min-height:420px;border-radius:12px;border:1px solid var(--borde)}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.badge-atc{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.badge-unicom{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.barra-online{background:#111827;color:white;border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.barra-online b{font-size:18px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.dot-atc{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+.dot-unicom{background:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.25)}
+.cid-input{width:100%;min-height:78px;font-family:monospace;font-size:13px;padding:8px;border-radius:10px;border:1px solid var(--borde)}
+.btn{padding:8px 12px;border-radius:10px;border:1px solid var(--borde);background:white;cursor:pointer;font-weight:600}
+.btn-primary{background:#111827;color:white;border-color:#111827}
+.lista{max-height:46vh;overflow:auto;margin-top:10px}
+.item{padding:8px;border:1px solid var(--borde);border-radius:10px;margin-bottom:8px;background:white}
+.item small{color:#64748b}
+.muted{color:#64748b;font-size:13px}
+</style>
+
+<h2 style="margin:4px 0 8px">VATSIM Live — Seguimiento por CID</h2>
+<p class="muted">Escribe los <b>CID de VATSIM</b> (uno por línea o separados por comas). Solo se pintan los que estén <b>volando ahora</b>. Datos de <code>data.vatsim.net/v3/vatsim-data.json</code> cada 15s. ATC se infiere de <code>controllers[]</code> del mismo feed (ver nota abajo).</p>
+
+<div class="vatsim-wrap">
+  <div class="panel">
+    <label for="cids" style="font-weight:700">CIDs a seguir</label>
+    <textarea id="cids" class="cid-input" placeholder="Ej:&#10;1234567&#10;8765432, 1122334"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button id="btn-buscar" class="btn btn-primary">Buscar</button>
+      <button id="btn-limpiar" class="btn">Limpiar</button>
+      <button id="btn-compartir" class="btn" title="Copia URL con los CIDs">Copiar enlace</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="auto" checked> auto 15s</label>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span id="estado" class="muted">—</span>
+      <span id="contador" class="muted"></span>
+    </div>
+    <div id="lista" class="lista"></div>
+    <p class="muted" style="margin-top:10px">ATC = hay un <code>controller</code> cuyo <code>callsign</code> empieza por tu DEP/ARR o FIR (ej. <code>LEBB_TWR</code>, <code>LECM_CTR</code>). Sin match → <b>UNICOM 122.800</b>. Para CTR en ruta es aproximado (sin polígonos de sectores).</p>
+  </div>
+  <div>
+    <div id="barra" class="barra-online"><span class="dot" id="dot-estado" style="background:#64748b"></span> <b id="titulo-barra">Vuelos online en estos momentos: —</b> <span id="sub-barra" class="muted" style="color:#cbd5e1"></span> <span style="margin-left:auto;display:flex;gap:10px;align-items:center"><span><span class="dot dot-atc"></span> ATC</span> <span><span class="dot dot-unicom"></span> UNICOM 122.800</span></span></div>
+    <div id="map"></div>
+    <div id="tabla-vuelos" style="margin-top:10px"></div>
+    <p class="muted" style="margin-top:6px">Tiles © OpenStreetMap. Fuente: <a href="https://vatsim.dev/api/data-api/get-network-data" target="_blank" rel="noopener">VATSIM Data API</a> — sin API key.</p>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+const $cids = document.getElementById('cids');
+const $btnBuscar = document.getElementById('btn-buscar');
+const $btnLimpiar = document.getElementById('btn-limpiar');
+const $btnCompartir = document.getElementById('btn-compartir');
+const $auto = document.getElementById('auto');
+const $estado = document.getElementById('estado');
+const $contador = document.getElementById('contador');
+const $lista = document.getElementById('lista');
+const $barra = document.getElementById('barra');
+const $tituloBarra = document.getElementById('titulo-barra');
+const $subBarra = document.getElementById('sub-barra');
+const $dotEstado = document.getElementById('dot-estado');
+const $tabla = document.getElementById('tabla-vuelos');
+
+// Mapa Leaflet simple
+const map = L.map('map', {worldCopyJump:true}).setView([40.4, -3.7], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:18, attribution:'&copy; OpenStreetMap'}).addTo(map);
+const layer = L.layerGroup().addTo(map);
+let markers = new Map();
+
+function parseCids(raw){
+  return [...new Set(raw.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{6,10}$/.test(s)) )];
+}
+function cidsEnURL(){
+  const p = new URLSearchParams(location.search);
+  return p.get('cids') || p.get('cid') || '';
+}
+function setURL(cids){
+  const u = new URL(location.href);
+  if(cids.length) u.searchParams.set('cids', cids.join(','));
+  else u.searchParams.delete('cids');
+  history.replaceState(null,'',u);
+}
+function atcPara(piloto, controllers){
+  const dep = (piloto.flight_plan && piloto.flight_plan.departure || '').toUpperCase();
+  const arr = (piloto.flight_plan && piloto.flight_plan.arrival || '').toUpperCase();
+  const firDep = dep.slice(0,2), firArr = arr.slice(0,2);
+  const hits = [];
+  for(const c of controllers){
+    const cs = (c.callsign||'').toUpperCase();
+    if(dep && cs.startsWith(dep)) hits.push(c);
+    else if(arr && cs.startsWith(arr)) hits.push(c);
+    else if(firDep && cs.startsWith(firDep + 'CM')) hits.push(c); // LECM
+    else if(firArr && cs.startsWith(firArr + 'CM')) hits.push(c);
+    else if(firDep && cs.startsWith('LE') && cs.includes('_CTR')) {
+      // fallback CTR español genérico si vuela alto
+      if((piloto.altitude||0) > 10000) hits.push(c);
+      // evitamos duplicar: break after first CTR match
+      if(hits.length) break;
+    }
+  }
+  // dedup por callsign
+  const seen = new Set();
+  return hits.filter(h=>!seen.has(h.callsign) && seen.add(h.callsign));
+}
+
+async function fetchData(){
+  const r = await fetch('/api/vatsim-data', {cache:'no-store'});
+  if(!r.ok) throw new Error('VATSIM ' + r.status);
+  return r.json();
+}
+
+async function actualizar(manual=false){
+  const cids = parseCids($cids.value);
+  setURL(cids);
+  localStorage.setItem('vatsim_cids', cids.join(','));
+  if(!cids.length){
+    $estado.textContent = 'Escribe al menos un CID.';
+    $contador.textContent = '';
+    $tituloBarra.textContent = 'Vuelos online en estos momentos: —';
+    $subBarra.textContent = 'filtra por CID para ver solo tus pilotos';
+    $dotEstado.style.background='#64748b';
+    $lista.innerHTML = '<p class="muted">Ejemplo: pega tu CID y el de tus pilotos, pulsa Buscar.</p>';
+    $tabla.innerHTML = '';
+    layer.clearLayers(); markers.clear();
+    return;
+  }
+  $estado.textContent = 'Consultando VATSIM…';
+  try{
+    const data = await fetchData();
+    const pilots = data.pilots || [];
+    const controllers = data.controllers || [];
+    const wanted = new Set(cids);
+    const filtrados = pilots.filter(p => wanted.has(String(p.cid)));
+    const upd = data.general && data.general.update_timestamp ? new Date(data.general.update_timestamp) : new Date();
+    $estado.textContent = 'Actualizado ' + upd.toLocaleTimeString() + ' — ' + (data.general.connected_clients||'') + ' conectados VATSIM';
+    $contador.textContent = filtrados.length + '/' + cids.length + ' en vuelo';
+    // Barra superior sobre el mapa: vuelos online en estos momentos
+    const conATC = filtrados.filter(p=> atcPara(p, controllers).length>0).length;
+    const sinATC = filtrados.length - conATC;
+    $tituloBarra.textContent = 'Vuelos online en estos momentos: ' + filtrados.length + (cids.length ? ' / ' + cids.length + ' seguidos' : '');
+    $subBarra.textContent = filtrados.length ? ('· ' + conATC + ' CON ATC · ' + sinATC + ' UNICOM') : '';
+    $dotEstado.style.background = filtrados.length ? (conATC ? '#22c55e' : '#ef4444') : '#64748b';
+
+    // Lista lateral + tabla debajo del mapa (piloto | origen → destino | ATC verde/rojo)
+    $lista.innerHTML = '';
+    $tabla.innerHTML = '';
+    const noVuelan = cids.filter(id => !filtrados.some(p=>String(p.cid)===id));
+    // tabla compacta debajo del mapa
+    if(filtrados.length){
+      let html = '<div class="panel" style="padding:0;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8fafc;text-align:left"><th style="padding:8px">Piloto</th><th style="padding:8px">Origen → Destino</th><th style="padding:8px">ATC</th></tr></thead><tbody>';
+      for(const p of filtrados){
+        const atc = atcPara(p, controllers);
+        const withAtc = atc.length>0;
+        const fp = p.flight_plan||{};
+        html += '<tr style="border-top:1px solid var(--borde);cursor:pointer" data-cid="'+p.cid+'">'
+          + '<td style="padding:8px"><b>' + p.callsign + '</b><br><small style="color:#64748b">CID ' + p.cid + '</small></td>'
+          + '<td style="padding:8px">' + (fp.departure||'?') + ' → ' + (fp.arrival||'?') + '<br><small style="color:#64748b">' + (fp.aircraft_short||'') + ' · ' + p.altitude + ' ft</small></td>'
+          + '<td style="padding:8px">' + (withAtc ? '<span class="badge badge-atc">SÍ</span> <small>' + atc.map(c=>c.callsign).join(', ') + '</small>' : '<span class="badge badge-unicom">NO</span> <small>122.800</small>') + '</td></tr>';
+      }
+      html += '</tbody></table></div>';
+      $tabla.innerHTML = html;
+      $tabla.querySelectorAll('tr[data-cid]').forEach(tr=>{
+        tr.onclick = ()=>{ const id=tr.dataset.cid; if(markers.has(id)){ const m=markers.get(id); map.setView(m.getLatLng(), Math.max(map.getZoom(),6)); m.openPopup(); } };
+      });
+    }
+    for(const p of filtrados){
+      const atc = atcPara(p, controllers);
+      const withAtc = atc.length>0;
+      const badge = withAtc ? '<span class="badge badge-atc">SÍ · ATC</span>' : '<span class="badge badge-unicom">NO · UNICOM</span>';
+      const atcTxt = withAtc ? atc.map(c=> c.callsign + ' ' + (c.frequency||'')).join(', ') : 'UNICOM 122.800';
+      const fp = p.flight_plan || {};
+      const ruta = (fp.departure||'?') + ' → ' + (fp.arrival||'?') + ' · ' + (fp.aircraft_short|| fp.aircraft||'');
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.style.borderLeft = '4px solid ' + (withAtc ? '#22c55e' : '#ef4444');
+      div.innerHTML = '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>' + p.callsign + '</b> ' + badge + '</div>'
+        + '<div><small>CID ' + p.cid + ' · ' + ruta + '</small></div>'
+        + '<div><small><span class="dot ' + (withAtc ? 'dot-atc' : 'dot-unicom') + '"></span> ' + atcTxt + '</small></div>';
+      div.style.cursor='pointer';
+      div.onclick = ()=>{ if(markers.has(String(p.cid))) { const m=markers.get(String(p.cid)); map.setView(m.getLatLng(), Math.max(map.getZoom(),6)); m.openPopup(); } };
+      $lista.appendChild(div);
+    }
+    if(noVuelan.length){
+      const div = document.createElement('div');
+      div.className='muted';
+      div.style.marginTop='8px';
+      div.textContent = 'No volando ahora: ' + noVuelan.join(', ');
+      $lista.appendChild(div);
+    }
+
+    // Mapa: upsert marcadores
+    const visibles = new Set();
+    for(const p of filtrados){
+      const id = String(p.cid);
+      visibles.add(id);
+      const atc = atcPara(p, controllers);
+      const withAtc = atc.length>0;
+      const color = withAtc ? '#22c55e' : '#ef4444';
+      const fp = p.flight_plan||{};
+      const popup = '<b>' + p.callsign + '</b> (CID ' + p.cid + ')<br>'
+        + (fp.departure||'?') + ' → ' + (fp.arrival||'?') + ' · ' + (fp.aircraft_short||'') + '<br>'
+        + 'ALT ' + p.altitude + ' ft · GS ' + p.groundspeed + ' kt · HDG ' + p.heading + '°<br>'
+        + (withAtc ? '<span class="badge badge-atc">CON ATC</span> ' + atc.map(c=>c.callsign+' '+ (c.frequency||'')).join(', ') : '<span class="badge badge-unicom">UNICOM 122.800</span>');
+      let m = markers.get(id);
+      if(!m){
+        const icon = L.divIcon({html:'<div style="background:'+color+';width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', className:'', iconSize:[14,14]});
+        m = L.marker([p.latitude, p.longitude], {icon:icon}).addTo(layer).bindPopup(popup);
+        // flecha heading
+        m._heading = p.heading;
+        markers.set(id, m);
+      } else {
+        m.setLatLng([p.latitude, p.longitude]);
+        m.setPopupContent(popup);
+        const icon = L.divIcon({html:'<div style="background:'+color+';width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', className:'', iconSize:[14,14]});
+        m.setIcon(icon);
+      }
+    }
+    // borrar los que dejaron de volar
+    for(const [id,m] of markers){ if(!visibles.has(id)){ layer.removeLayer(m); markers.delete(id);} }
+    if(filtrados.length){
+      const g = L.featureGroup([...markers.values()]);
+      try{ map.fitBounds(g.getBounds().pad(0.35), {maxZoom:8}); }catch(e){}
+    }
+  }catch(e){
+    $estado.textContent = 'Error: ' + e.message;
+  }
+}
+
+// init: URL ?cids= o localStorage
+(function init(){
+  const fromURL = cidsEnURL();
+  const fromLS = localStorage.getItem('vatsim_cids') || '';
+  $cids.value = (fromURL || fromLS).replace(/,/g, '\n');
+  if($cids.value.trim()) actualizar();
+  else $lista.innerHTML = '<p class="muted">Pega CIDs y pulsa Buscar. Se guardan en tu navegador y en la URL para compartir.</p>';
+})();
+
+$btnBuscar.onclick = ()=> actualizar(true);
+$btnLimpiar.onclick = ()=>{ $cids.value=''; localStorage.removeItem('vatsim_cids'); setURL([]); layer.clearLayers(); markers.clear(); $lista.innerHTML=''; $estado.textContent='—'; $contador.textContent=''; };
+$btnCompartir.onclick = async ()=>{
+  const cids = parseCids($cids.value);
+  setURL(cids);
+  try{ await navigator.clipboard.writeText(location.href); $estado.textContent='Enlace copiado'; }catch(e){ $estado.textContent=location.href; }
+};
+$cids.addEventListener('keydown', e=>{ if(e.key==='Enter' && (e.ctrlKey||e.metaKey)) actualizar(true); });
+
+let timer=null;
+function armTimer(){
+  if(timer) clearInterval(timer);
+  if($auto.checked) timer=setInterval(()=>actualizar(), 15000);
+}
+$auto.onchange = armTimer; armTimer();
+</script>
+{% endblock %}

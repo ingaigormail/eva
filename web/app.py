@@ -167,6 +167,8 @@ def exigir_sesion():
         "solicitar_alta",
         "recuperar_password",
         "restablecer_password",
+        "vatsim_live",
+        "vatsim_data",
         # EvA Airliner no tiene sesión de navegador: entra una vez con sus
         # credenciales (`grabador_login`) y a partir de ahí se identifica
         # con la clave del grabador en una cabecera (`grabador_plan`).
@@ -2319,6 +2321,59 @@ def _ruta_libre(path: Path) -> Path:
         if not candidato.exists():
             return candidato
         contador += 1
+
+
+# -- VATSIM live: mapa filtrado por CID + detección ATC/UNICOM --------------
+# Data API: https://data.vatsim.net/v3/vatsim-data.json (15 s, sin auth)
+# Pilots no llevan frecuencia COM, así que ATC se infiere de controllers[].
+import time as _vatsim_time
+import urllib.request as _vatsim_req
+
+_VATSIM_URL = "https://data.vatsim.net/v3/vatsim-data.json"
+_VATSIM_CACHE: dict = {"ts": 0.0, "data": None, "error": None}
+
+
+def _fetch_vatsim_raw() -> tuple[dict | None, str | None]:
+    now = _vatsim_time.time()
+    if _VATSIM_CACHE["data"] is not None and now - _VATSIM_CACHE["ts"] < 12:
+        return _VATSIM_CACHE["data"], None
+    try:
+        req = _vatsim_req.Request(_VATSIM_URL, headers={"User-Agent": "EvA-VATSIM-Live/1.0"})
+        with _vatsim_req.urlopen(req, timeout=8) as r:
+            body = r.read()
+            data = json.loads(body.decode("utf-8"))
+            _VATSIM_CACHE["data"] = data
+            _VATSIM_CACHE["ts"] = now
+            _VATSIM_CACHE["error"] = None
+            return data, None
+    except Exception as exc:  # noqa: BLE001
+        # Si hay caché aunque sea vieja, mejor devolverla que un error
+        if _VATSIM_CACHE["data"] is not None:
+            return _VATSIM_CACHE["data"], None
+        return None, str(exc)
+
+
+@app.route("/vatsim")
+def vatsim_live():
+    """Mapa VATSIM simple filtrado por CID. Público, sin login."""
+    return render_template("vatsim_live.html")
+
+
+@app.route("/api/vatsim-data")
+def vatsim_data():
+    """Proxy ligero a data.vatsim.net con caché 12 s (el feed es 15 s)."""
+    data, err = _fetch_vatsim_raw()
+    if data is None:
+        return jsonify({"error": err or "no data", "pilots": [], "controllers": []}), 502
+    # Solo lo que necesita el mapa (pilots + controllers + general)
+    pilots = data.get("pilots") or []
+    controllers = data.get("controllers") or []
+    general = data.get("general") or {}
+    # Limitar tamaño: no mandar facilities/ratings/prefiles
+    resp = jsonify({"general": general, "pilots": pilots, "controllers": controllers})
+    resp.headers["Cache-Control"] = "public, max-age=12"
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
 
 if __name__ == "__main__":
