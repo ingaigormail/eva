@@ -68,6 +68,18 @@ como `/etc/sudoers.d/eva`): solo los comandos concretos que hacen falta
 (reiniciar/consultar el servicio, recargar nginx, reiniciar la máquina), no
 `ALL=(ALL) NOPASSWD:ALL`. Si algún día hace falta un comando nuevo bajo
 `sudo`, se añade explícitamente a ese fichero — no se vuelve a abrir todo.
+**Importante**: como `eva` no tiene contraseña, una vez instalado esto ya no
+se puede volver a ampliar por SSH — hace falta la **consola de emergencia**
+del panel de Clouding.io (con acceso root real) para tocar el sudoers a
+partir de ahora. Confirmado que esa consola funciona (2026-08-24).
+
+**Las copias de seguridad salen del servidor** hacia el PC de desarrollo
+(`D:\proyectos\eva\despliegue\sync_backups_local.ps1`, tarea programada de
+Windows a diario a las 06:00, deja los ficheros en
+`D:\eva-backups-servidor`). Antes de esto, un fallo grave del servidor se
+llevaba también sus propias copias por delante. Limitación: depende de que
+ese PC esté encendido, y **si se cambia de equipo hay que volver a montar
+la tarea allí** — instrucciones dentro del propio script.
 
 ## Mantenimiento
 

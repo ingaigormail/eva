@@ -15,6 +15,21 @@
 #   sudo visudo -cf despliegue/eva-sudoers   # valida sintaxis antes de copiar
 #   sudo cp despliegue/eva-sudoers /etc/sudoers.d/eva
 #   sudo chmod 0440 /etc/sudoers.d/eva
+#
+# ADVERTENCIA sobre este propio cambio (2026-08-24): una vez instalado esto,
+# la cuenta `eva` YA NO PUEDE volver a editar su propio sudoers por SSH — no
+# tiene contraseña (login solo por clave), y ningún comando de esta lista
+# permite escribir en /etc/sudoers.d/. Cualquier ampliación futura de esta
+# lista requiere la consola de emergencia del proveedor (fuera de SSH) para
+# aplicarla como root. Verificar que esa consola funciona ANTES de instalar
+# esto en un servidor nuevo (en Clouding.io: panel de la VM, botón
+# "Consola de emergencia").
+#
+# Nota: la regla de `reboot` de abajo se corrigió a `/usr/sbin/reboot` (el
+# binario real; `/usr/bin/reboot` no existe) DESPUÉS de instalar la primera
+# versión en el servidor de producción, así que la copia que hay ahora mismo
+# en el servidor real todavía tiene la ruta vieja rota. Si se reinstala este
+# fichero alguna vez (con acceso root completo), ya queda bien.
 
 eva ALL=(root) NOPASSWD: /usr/bin/systemctl restart eva
 eva ALL=(root) NOPASSWD: /usr/bin/systemctl status eva
@@ -24,4 +39,4 @@ eva ALL=(root) NOPASSWD: /usr/bin/journalctl -u eva *
 eva ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
 eva ALL=(root) NOPASSWD: /usr/bin/systemctl status nginx
 eva ALL=(root) NOPASSWD: /usr/sbin/nginx -t
-eva ALL=(root) NOPASSWD: /usr/bin/reboot
+eva ALL=(root) NOPASSWD: /usr/sbin/reboot
