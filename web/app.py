@@ -167,6 +167,11 @@ def exigir_sesion():
         "solicitar_alta",
         "recuperar_password",
         "restablecer_password",
+        # EvA Airliner no tiene sesión de navegador: entra una vez con sus
+        # credenciales (`grabador_login`) y a partir de ahí se identifica
+        # con la clave del grabador en una cabecera (`grabador_plan`).
+        "grabador_login",
+        "grabador_plan",
     ):
         return None
     user_id = session.get("user_id")
@@ -1470,7 +1475,30 @@ def descargar():
         "descargar.html",
         enlace_descarga=DESCARGA_URL,
         version_visible=DESCARGA_VERSION,
+        tiene_clave=cuentas.tiene_clave_grabador(session["user_id"]),
+        clave_nueva=session.pop("clave_grabador_nueva", None),
     )
+
+
+@app.route("/descargar/clave", methods=["POST"])
+@login_requerido
+def descargar_clave():
+    """Genera (o rehace) la clave del grabador del propio piloto.
+
+    La clave se enseña **una sola vez**: viaja en la sesión hasta el
+    siguiente pintado de la página y ahí se borra. Guardarla en la base para
+    poder volver a mostrarla sería guardar un secreto en claro sin
+    necesidad — si se pierde, se genera otra y listo.
+    """
+    if request.form.get("accion") == "revocar":
+        cuentas.revocar_clave_grabador(session["user_id"])
+        flash("Clave anulada. El grabador dejará de leer tu plan.", "exito")
+        return redirect(url_for("descargar"))
+
+    session["clave_grabador_nueva"] = cuentas.generar_clave_grabador(
+        session["user_id"]
+    )
+    return redirect(url_for("descargar"))
 
 
 @app.route("/registro")
@@ -1938,6 +1966,88 @@ def get_vatsim_url():
     url = vatsim_prefile_url(flight_plan, pilot, extras)
 
     return jsonify({"url": url})
+
+
+@app.route("/api/grabador/login", methods=["POST"])
+@limiter.limit("10 per 15 minutes", exempt_when=lambda: app.config.get("TESTING", False))
+@csrf.exempt
+def grabador_login():
+    """Cambia usuario y contraseña por la clave del grabador.
+
+    Así el piloto entra en EvA Airliner como entra en la web, sin copiar
+    nada a mano — pero el grabador **solo guarda la clave que devuelve
+    esto**, nunca la contraseña. Si algún día le roban el fichero de
+    preferencias, se anula la clave desde `/descargar` y su cuenta sigue
+    intacta.
+
+    Mismo mensaje para credenciales malas y cuenta bloqueada, y con el
+    mismo límite de intentos que el login de la web: esto es otra puerta a
+    la misma cerradura y no puede ser la puerta floja.
+    """
+    datos = request.get_json(silent=True) or request.form or {}
+    license_id = str(datos.get("license_id") or "").strip()
+    password = str(datos.get("password") or "")
+
+    if cuentas.autenticar_detallado(license_id, password) != cuentas.AUTH_OK:
+        return jsonify({
+            "ok": False,
+            "mensaje": "ID de piloto o contraseña incorrectos.",
+        }), 401
+
+    # Cada entrada genera una clave nueva y **anula la anterior**: de la
+    # guardada solo queda la huella, así que no hay forma de devolver la
+    # misma. En la práctica significa que si el piloto entra desde un
+    # segundo PC, el primero deja de leer su plan y tiene que volver a
+    # entrar. Es asumible (se vuela desde un sitio a la vez) y es la parte
+    # segura del intercambio: no se guarda ningún secreto recuperable.
+    canonico = cuentas.id_canonico(license_id) or license_id
+    return jsonify({
+        "ok": True,
+        "license_id": canonico,
+        "clave": cuentas.generar_clave_grabador(canonico),
+    })
+
+
+@app.route("/api/grabador/plan")
+@limiter.limit("60 per hour", exempt_when=lambda: app.config.get("TESTING", False))
+def grabador_plan():
+    """El último plan del piloto, para EvA Airliner.
+
+    Se identifica con la **clave del grabador** (cabecera `X-EvA-Clave`), no
+    con la sesión del navegador: el grabador es una aplicación de escritorio
+    y EvA no guarda la contraseña de nadie. La clave es de solo lectura y
+    solo abre esto.
+
+    Se responde igual (401) tanto si la clave no existe como si es de una
+    cuenta bloqueada: quien prueba claves no debe aprender nada del error.
+    """
+    clave = request.headers.get("X-EvA-Clave", "")
+    license_id = cuentas.piloto_por_clave_grabador(clave)
+    if not license_id:
+        return jsonify({"ok": False, "mensaje": "Clave no válida"}), 401
+
+    plan = planes_guardados.ultimo(license_id)
+    if plan is None:
+        return jsonify({"ok": True, "plan": None})
+
+    datos = plan.get("datos") or {}
+    # Solo lo que el grabador necesita para rellenar la cabecera y el
+    # `FlightPlanInfo` del vuelo grabado. El JSON entero del planificador
+    # lleva más cosas (carga, pasajeros) que aquí no pintan nada.
+    return jsonify({
+        "ok": True,
+        "plan": {
+            "origen": plan.get("origen") or "",
+            "destino": plan.get("destino") or "",
+            "alterno": plan.get("alterno") or "",
+            "aeronave": plan.get("aeronave") or "",
+            "callsign": plan.get("callsign") or "",
+            "nivel": datos.get("cruise_alt_ft"),
+            "ruta": plan.get("ruta") or "",
+            "reglas": datos.get("rules") or "",
+            "actualizado": plan.get("actualizado") or "",
+        },
+    })
 
 
 @app.route("/api/plan/apply-payload", methods=["POST"])

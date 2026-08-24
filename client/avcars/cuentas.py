@@ -27,6 +27,7 @@ import hmac
 import json
 import os
 import re
+import secrets
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -112,9 +113,21 @@ CREATE TABLE IF NOT EXISTS usuarios (
     -- VATSIM del piloto contra su cuenta de EvA. Vacío si no lo dio en la
     -- solicitud o no vuela en VATSIM.
     vatsim_cid  TEXT NOT NULL DEFAULT '',
+    -- Huella (SHA-256) de la clave con la que EvA Airliner lee el plan de
+    -- vuelo del piloto desde el servidor. No es una contraseña: es un valor
+    -- aleatorio largo que se genera aquí y se enseña UNA vez, así que no
+    -- necesita el KDF lento de `_hashear` (ese es para secretos que elige
+    -- una persona, que tienen poca entropía). Vacío = sin clave.
+    clave_grabador TEXT NOT NULL DEFAULT '',
     creado      TEXT NOT NULL,
     actualizado TEXT NOT NULL
 );
+
+-- El índice de `clave_grabador` NO va aquí: en una base que ya existe,
+-- `CREATE TABLE IF NOT EXISTS` no añade la columna, y un `CREATE INDEX`
+-- sobre una columna que aún no está revienta el arranque entero. Se crea en
+-- `_migrar_esquema`, que es quien se asegura primero de que la columna
+-- exista, tanto en bases nuevas como en las de siempre.
 
 -- El correo no se repite, pero las cuentas antiguas no tienen ninguno y
 -- deben poder convivir: por eso el índice deja fuera la cadena vacía.
@@ -298,6 +311,17 @@ def _migrar_esquema() -> None:
             con.execute(
                 "ALTER TABLE usuarios ADD COLUMN vatsim_cid TEXT NOT NULL DEFAULT ''"
             )
+        if "clave_grabador" not in columnas_usuarios:
+            con.execute(
+                "ALTER TABLE usuarios ADD COLUMN clave_grabador TEXT NOT NULL DEFAULT ''"
+            )
+        # Fuera del `if`: la columna puede existir ya (base recién creada por
+        # `_ESQUEMA`) y aun así faltar el índice. Buscar al piloto por su
+        # clave tiene que ser un `SELECT` directo, no recorrer la tabla.
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS usuarios_clave_grabador "
+            "ON usuarios (clave_grabador) WHERE clave_grabador <> ''"
+        )
 
         columnas_solicitudes = {
             fila["name"] for fila in con.execute("PRAGMA table_info(solicitudes)")
@@ -601,6 +625,68 @@ def cambiar_estado(license_id: str, estado: str) -> None:
     if estado not in ESTADOS:
         raise ValueError(f"Estado desconocido: {estado}")
     _actualizar(license_id, "estado", estado)
+
+
+# -- Clave del grabador ----------------------------------------------------
+# Con ella, EvA Airliner lee del servidor el plan de vuelo que el piloto ha
+# preparado en la web, sin tener que teclear origen y destino otra vez. Es de
+# solo lectura y solo sirve para eso: no permite entrar en la web, ni cambiar
+# nada, ni ver los planes de otro piloto.
+
+
+def _huella_clave(clave: str) -> str:
+    """Huella de una clave del grabador.
+
+    SHA-256 a secas, sin sal ni KDF lento, **a propósito**: la clave la
+    genera `generar_clave_grabador` con 32 bytes aleatorios, así que no hay
+    nada que adivinar por fuerza bruta y sí hace falta poder buscar al
+    piloto por la huella en un solo `SELECT` indexado.
+    """
+    return hashlib.sha256(clave.encode("utf-8")).hexdigest()
+
+
+def generar_clave_grabador(license_id: str) -> str:
+    """Crea una clave nueva para ese piloto y **devuelve la única copia**.
+
+    En la base solo queda la huella, así que esto es lo último que se puede
+    leer la clave entera: si el piloto la pierde, se genera otra. Generar una
+    nueva invalida la anterior — es también la forma de revocarla si se le
+    escapó a alguien.
+    """
+    if not existe_usuario(license_id):
+        raise ValueError(f"{license_id} no está dado de alta")
+    clave = secrets.token_urlsafe(32)
+    _actualizar(license_id, "clave_grabador", _huella_clave(clave))
+    return clave
+
+
+def revocar_clave_grabador(license_id: str) -> None:
+    """Deja al piloto sin clave: el grabador dejará de leer su plan."""
+    _actualizar(license_id, "clave_grabador", "")
+
+
+def tiene_clave_grabador(license_id: str) -> bool:
+    ficha = _ficha(license_id)
+    return bool(ficha and ficha["clave_grabador"])
+
+
+def piloto_por_clave_grabador(clave: str) -> str | None:
+    """De qué piloto es esa clave, o None si no es de nadie.
+
+    Una cuenta bloqueada no vale: si se le cierra la puerta de la web, se le
+    cierra también la del grabador.
+    """
+    clave = (clave or "").strip()
+    if not clave:
+        return None
+    with conexion() as con:
+        fila = con.execute(
+            "SELECT license_id, estado FROM usuarios WHERE clave_grabador = ?",
+            (_huella_clave(clave),),
+        ).fetchone()
+    if fila is None or fila["estado"] != ESTADO_ACTIVA:
+        return None
+    return str(fila["license_id"])
 
 
 def bloquear(license_id: str) -> None:

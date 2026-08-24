@@ -45,6 +45,16 @@ class Settings:
     # para cuando ese fichero no está o no se encuentra.
     cid: str = ""
 
+    # Dirección del servidor de EvA. Se puede cambiar para apuntar a una
+    # instalación local mientras se desarrolla, sin tocar el código.
+    eva_url: str = "https://7c0cdce9-a46a-4339-9df6-50a26f00f11c.clouding.host"
+
+    # Clave del grabador, la que el piloto genera en /descargar. Con ella EvA
+    # Airliner lee del servidor el plan que preparó en la web y coge solo el
+    # origen y el destino. No es la contraseña de su cuenta: es de solo
+    # lectura, solo abre ese dato y se puede anular desde la web.
+    clave_grabador: str = ""
+
     # Ruta al ejecutable de vPilot, solo si no está en ninguna de las rutas
     # habituales y el piloto la ha indicado a mano. Vacío significa "buscar
     # en las rutas por defecto".
@@ -77,6 +87,9 @@ class Settings:
         self.cid = "".join(c for c in str(self.cid or "") if c.isdigit())[:9]
         self.salida = str(self.salida or "").strip().upper()[:4]
         self.llegada = str(self.llegada or "").strip().upper()[:4]
+        # Sin la barra final, para poder pegar rutas sin dobles barras.
+        self.eva_url = str(self.eva_url or "").strip().rstrip("/")
+        self.clave_grabador = str(self.clave_grabador or "").strip()
 
         # Los tiempos de confirmación tienen que ser positivos y razonables:
         # un valor de 0 haría la detección tan nerviosa como no tenerla, y

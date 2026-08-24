@@ -123,6 +123,35 @@ def listar(license_id: str) -> list[dict]:
     return [dict(f) for f in filas]
 
 
+def ultimo(license_id: str) -> dict | None:
+    """El último plan que guardó ese piloto, con sus `datos` completos.
+
+    Es lo que pide EvA Airliner para saber de dónde a dónde vuela sin que el
+    piloto lo teclee otra vez: el plan que acaba de preparar en la web es,
+    por definición, el del vuelo que va a hacer ahora.
+    """
+    if not license_id:
+        return None
+    with cuentas.conexion() as con:
+        # El desempate por `id` no es un adorno: `actualizado` se guarda con
+        # precisión de segundos, así que dos planes guardados seguidos
+        # empatan y sin esto el "último" salía al azar.
+        fila = con.execute(
+            "SELECT * FROM planes WHERE license_id = ? COLLATE NOCASE "
+            "ORDER BY actualizado DESC, id DESC LIMIT 1",
+            (license_id,),
+        ).fetchone()
+    if fila is None:
+        return None
+
+    plan = dict(fila)
+    try:
+        plan["datos"] = json.loads(plan["datos"])
+    except (ValueError, TypeError):
+        plan["datos"] = {}
+    return plan
+
+
 def obtener(plan_id: int, license_id: str) -> dict | None:
     """El plan completo, con sus `datos`, **solo si es de ese piloto**."""
     if not license_id:

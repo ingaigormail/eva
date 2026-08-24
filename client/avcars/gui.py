@@ -22,6 +22,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import threading
 import time
 import tkinter as tk
 import webbrowser
@@ -29,7 +30,7 @@ from pathlib import Path
 from tkinter import messagebox
 from typing import Optional
 
-from . import debuglog, paths, settings as settings_module, timing
+from . import debuglog, paths, plan_web, settings as settings_module, timing
 from .connectors.base import TRANSPONDER_LABELS, SimState
 from .connectors.flight_plan import read_flight_plan
 from .connectors.sim_poller import SimPoller
@@ -184,6 +185,13 @@ class EvaApp:
         self._plan_llegada = self.settings.llegada
         self._route_blink_on = False
 
+        # Plan preparado en la web de EvA. Se pide por detrás (ver
+        # `_plan_de_la_web`); hasta que llegue la primera respuesta se sigue
+        # tirando del `.PLN` o de las preferencias, como siempre.
+        self._plan_web: Optional[plan_web.PlanWeb] = None
+        self._plan_web_pedido_en = 0.0
+        self._plan_web_pidiendo = False
+
         self.recorder: Optional[FlightRecorder] = None
         self.state_machine: Optional[FlightStateMachine] = None
         self.connector: Optional[SimConnectConnector] = None
@@ -265,6 +273,19 @@ class EvaApp:
             font=("Segoe UI Semibold", 9),
         )
         self.route_label.pack(side="left")
+
+        # Atajo para enlazar el grabador con la web. Se enseña solo mientras
+        # no haya clave: una vez enlazado no pinta nada y estorbaría.
+        self.route_link = tk.Label(
+            route_frame,
+            text="Traer el plan de la web",
+            bg=BG,
+            fg=ACCENT,
+            font=("Segoe UI", 8, "underline"),
+            cursor="hand2",
+        )
+        self.route_link.bind("<Button-1>", lambda _e: self._enlazar_con_la_web())
+        self._actualizar_enlace_web()
 
         # Panel principal
         panel = tk.Frame(outer, bg=PANEL, relief="flat", bd=1)
@@ -975,9 +996,14 @@ class EvaApp:
     def _refresh_flight_plan_display(self) -> None:
         """Actualiza el origen/destino de la cabecera.
 
-        Prioridad: el plan cargado en el simulador (fichero `.PLN`, fiable
-        y no requiere que el piloto teclee nada) y, si no hay avión cargado
-        todavía, lo que tenga puesto en preferencias.
+        Prioridad: el plan cargado en el simulador (fichero `.PLN`, es lo
+        que el avión va a volar de verdad), luego el que el piloto haya
+        preparado en la web de EvA, y por último lo que tenga escrito en
+        preferencias.
+
+        El de la web va por delante de las preferencias porque es lo que el
+        piloto acaba de declarar para *este* vuelo; las preferencias suelen
+        ser de un vuelo anterior que se quedó ahí.
         """
         try:
             detectado = read_flight_plan()
@@ -985,17 +1011,153 @@ class EvaApp:
             debuglog.fallo("lectura del plan de vuelo activo", exc)
             detectado = None
 
+        del_web = self._plan_de_la_web()
+
         self._plan_salida = (
-            (detectado.departure_icao if detectado else None) or self.settings.salida
+            (detectado.departure_icao if detectado else None)
+            or (del_web.origen if del_web else "")
+            or self.settings.salida
         )
         self._plan_llegada = (
-            (detectado.arrival_icao if detectado else None) or self.settings.llegada
+            (detectado.arrival_icao if detectado else None)
+            or (del_web.destino if del_web else "")
+            or self.settings.llegada
         )
         completa = self._ruta_completa()
         self.route_label.configure(
             text=_describir_ruta({"salida": self._plan_salida, "llegada": self._plan_llegada}),
             fg=FG_DIM if completa else RED,
         )
+
+    #: Cada cuánto se le vuelve a preguntar al servidor por el plan. La
+    #: cabecera se refresca cada 5 s, pero el plan de la web cambia cuando
+    #: el piloto lo guarda, no cada 5 s: preguntarlo tan seguido sería
+    #: castigar al servidor para nada.
+    _SEGUNDOS_ENTRE_CONSULTAS_WEB = 60.0
+
+    def _plan_de_la_web(self) -> Optional[plan_web.PlanWeb]:
+        """El plan de la web, de la caché; lo refresca por detrás si toca.
+
+        Nunca espera a la red: `_refresh_flight_plan_display` corre cada 5 s
+        y una petición ahí dejaría la ventana congelada hasta 4 s cada vez.
+        Se devuelve lo último que se supo y la respuesta nueva entra en el
+        siguiente refresco.
+        """
+        if not self.settings.clave_grabador:
+            return None
+
+        ahora = time.monotonic()
+        toca = ahora - self._plan_web_pedido_en >= self._SEGUNDOS_ENTRE_CONSULTAS_WEB
+        if toca and not self._plan_web_pidiendo:
+            self._plan_web_pedido_en = ahora
+            self._plan_web_pidiendo = True
+            threading.Thread(target=self._traer_plan_web, daemon=True).start()
+        return self._plan_web
+
+    def _traer_plan_web(self) -> None:
+        """Consulta el plan en un hilo aparte. No toca ningún widget.
+
+        Solo deja el resultado en un atributo: Tk no admite que se le pinte
+        desde otro hilo, así que la cabecera la actualiza el refresco de
+        siempre, que va por el hilo principal.
+        """
+        try:
+            self._plan_web = plan_web.ultimo_plan(
+                self.settings.eva_url, self.settings.clave_grabador
+            )
+        except Exception as exc:  # noqa: BLE001 — no puede tumbar el grabador
+            debuglog.fallo("lectura del plan de vuelo de la web", exc)
+        finally:
+            self._plan_web_pidiendo = False
+
+    def _actualizar_enlace_web(self) -> None:
+        """Enseña el atajo de enlazar solo mientras no haya clave."""
+        if self.settings.clave_grabador:
+            self.route_link.pack_forget()
+        else:
+            self.route_link.pack(side="left", padx=(10, 0))
+
+    def _enlazar_con_la_web(self) -> None:
+        """Pide las credenciales de EvA y las cambia por la clave.
+
+        La contraseña vive lo que dura esta ventana: se manda al servidor y
+        se olvida. Lo único que se guarda en `eva.config.json` es la clave
+        que devuelve, que solo sirve para leer el plan y se puede anular
+        desde la web.
+        """
+        ventana = tk.Toplevel(self.root)
+        ventana.title("Traer el plan de la web")
+        ventana.configure(bg=BG)
+        ventana.resizable(False, False)
+        ventana.attributes("-topmost", True)
+        ventana.transient(self.root)
+
+        marco = tk.Frame(ventana, bg=BG, padx=18, pady=16)
+        marco.pack(fill="both", expand=True)
+
+        tk.Label(
+            marco, text="ENTRAR EN EvA", bg=BG, fg=FG,
+            font=("Segoe UI Semibold", 11),
+        ).pack(anchor="w")
+        tk.Label(
+            marco,
+            text="Con tu usuario y contraseña de la web. El grabador\n"
+                 "cogerá solo el origen y el destino de tu plan.\n"
+                 "Tu contraseña no se guarda en este equipo.",
+            bg=BG, fg=FG_DIM, font=("Segoe UI", 8), justify="left",
+        ).pack(anchor="w", pady=(2, 12))
+
+        tk.Label(marco, text="ID de piloto", bg=BG, fg=FG_DIM,
+                 font=("Segoe UI", 8)).pack(anchor="w")
+        campo_id = tk.Entry(marco, width=30, font=("Segoe UI", 10))
+        campo_id.insert(0, self.settings.license_id or self.settings.indicativo)
+        campo_id.pack(anchor="w", pady=(0, 8))
+
+        tk.Label(marco, text="Contraseña", bg=BG, fg=FG_DIM,
+                 font=("Segoe UI", 8)).pack(anchor="w")
+        campo_clave = tk.Entry(marco, width=30, show="•", font=("Segoe UI", 10))
+        campo_clave.pack(anchor="w", pady=(0, 6))
+
+        aviso = tk.Label(marco, text="", bg=BG, fg=RED, font=("Segoe UI", 8),
+                         wraplength=260, justify="left")
+        aviso.pack(anchor="w", pady=(0, 8))
+
+        def _entrar() -> None:
+            aviso.configure(text="Conectando…", fg=FG_DIM)
+            ventana.update_idletasks()
+            clave, error = plan_web.obtener_clave(
+                self.settings.eva_url, campo_id.get().strip(), campo_clave.get()
+            )
+            if error:
+                aviso.configure(text=error, fg=RED)
+                return
+
+            self.settings.clave_grabador = clave
+            self.settings.license_id = campo_id.get().strip()
+            if not settings_module.save(self.settings, paths.settings_file()):
+                aviso.configure(
+                    text="Entraste bien, pero no se pudieron guardar las "
+                         "preferencias: habrá que repetirlo al reabrir.",
+                    fg=RED,
+                )
+                return
+
+            debuglog.apunte("grabador enlazado con la web de EvA")
+            # Que se note enseguida, sin esperar al minuto de la caché.
+            self._plan_web_pedido_en = 0.0
+            self._actualizar_enlace_web()
+            ventana.destroy()
+            self._refresh_flight_plan_display()
+
+        boton = tk.Button(
+            marco, text="ENTRAR", command=_entrar, bg=ACCENT, fg="#fff",
+            font=("Segoe UI Semibold", 9), relief="flat", padx=16, pady=5,
+            cursor="hand2", activebackground=ACCENT, activeforeground="#fff",
+        )
+        boton.pack(anchor="w")
+
+        campo_clave.bind("<Return>", lambda _e: _entrar())
+        (campo_clave if campo_id.get() else campo_id).focus_set()
 
     def _ruta_completa(self) -> bool:
         """Si hay salida y llegada: sin esto no se puede empezar a grabar."""
