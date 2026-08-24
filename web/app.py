@@ -1801,6 +1801,7 @@ def gen_fpl():
     alternate = (data.get("alternate") or "").strip().upper()
     route = (data.get("route") or "").strip()
     cruise_speed = data.get("cruise_speed")
+    cruise_alt_ft = data.get("cruise_alt_ft")
     departure_time_str = (data.get("departure_time") or "").strip()
     eet_minutes = data.get("eet_minutes")
     endurance_minutes = data.get("endurance_minutes")
@@ -1833,6 +1834,7 @@ def gen_fpl():
         arrival_icao=arrival,
         alternate_icao=alternate if alternate else None,
         route=route if route else None,
+        planned_cruise_alt_ft=cruise_alt_ft,
         aircraft_icao_type=aircraft,
         network="VATSIM",
         atc_controlled=False,
@@ -1878,6 +1880,7 @@ def get_vatsim_url():
     alternate = (data.get("alternate") or "").strip().upper()
     route = (data.get("route") or "").strip()
     cruise_speed = data.get("cruise_speed")
+    cruise_alt_ft = data.get("cruise_alt_ft")
     departure_time_str = (data.get("departure_time") or "").strip()
     eet_minutes = data.get("eet_minutes")
     endurance_minutes = data.get("endurance_minutes")
@@ -1910,6 +1913,7 @@ def get_vatsim_url():
         arrival_icao=arrival,
         alternate_icao=alternate if alternate else None,
         route=route if route else None,
+        planned_cruise_alt_ft=cruise_alt_ft,
         aircraft_icao_type=aircraft,
         network="VATSIM",
         atc_controlled=False,

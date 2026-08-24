@@ -10,6 +10,7 @@ siéndolo) y que no se pueda pedir un fichero de fuera de las carpetas.
 """
 import re
 import sys
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -363,6 +364,27 @@ def test_abrir_en_vatsim_devuelve_una_url_con_el_plan_relleno(cliente):
     url = respuesta.get_json()["url"]
     assert url.startswith("https://my.vatsim.net/pilots/flightplan?")
     assert "raw=" in url
+
+
+def test_generar_fpl_y_abrir_en_vatsim_incluyen_el_nivel_de_crucero(cliente):
+    """`cruise_alt_ft` se perdía al construir el plan: en IFR la casilla 15
+    salía con «VFR» en vez del nivel, aunque el piloto lo hubiera puesto
+    bien en el formulario. https://github.com/... (bug reportado 2026-08-24)."""
+    cuerpo = {
+        "callsign": "EVA01",
+        "rules": "IFR",
+        "departure": "LEMD",
+        "arrival": "LEIB",
+        "aircraft": "C172",
+        "cruise_speed": 93,
+        "cruise_alt_ft": 4500,
+    }
+    fpl = cliente.post("/api/plan/fpl", json=cuerpo).get_json()["fpl"]
+    assert "N0093F045" in fpl
+    assert "VFR" not in fpl
+
+    url = cliente.post("/api/plan/vatsim-url", json=cuerpo).get_json()["url"]
+    assert "N0093F045" in urllib.parse.unquote(url)
 
 
 def test_abrir_en_vatsim_exige_indicativo_igual_que_generar_fpl(cliente):
