@@ -45,14 +45,13 @@ CLIENT_DIR = RAIZ_REPO / "client"
 sys.path.insert(0, str(CLIENT_DIR))
 
 from avcars.config import (  # noqa: E402
-    get_profile,
     load_aircraft,
     load_airports,
     load_profiles,
 )
 from avcars.evaluation.data_quality import Quality  # noqa: E402
 from avcars.evaluation.scoring import Verdict, evaluate_flight  # noqa: E402
-from avcars.evaluation import reglas_info  # noqa: E402
+from avcars.evaluation import reglas_config, reglas_info  # noqa: E402
 from avcars.prefile import PrefileExtras, icao_fpl, vatsim_prefile_url  # noqa: E402
 from avcars.schema import FlightLog, FlightPlanInfo, PilotInfo  # noqa: E402
 from avcars import (  # noqa: E402
@@ -178,6 +177,21 @@ PROFILES = load_profiles()
 DEFAULT_PROFILE = "normal"
 AIRCRAFT = load_aircraft()
 AIRPORTS = load_airports()
+
+
+def _perfil_y_reglas_activas(nombre_perfil: str) -> tuple[dict, dict]:
+    """El perfil que de verdad usa `evaluate_flight` + qué reglas están
+    activas, con los cambios guardados desde `/gestion/reglas` ya aplicados.
+
+    Se lee en vivo (sin caché) en cada llamada: es la misma fuente que lee
+    `reglas_info.listar()` para pintar el panel, así que panel y motor no
+    pueden desincronizarse — cambiar algo aquí lo cambia también allí, y
+    viceversa.
+    """
+    overrides = reglas_config.cargar_overrides()
+    perfil = reglas_config.perfil_efectivo(PROFILES[nombre_perfil], overrides)
+    activas = reglas_config.reglas_activas_dict(overrides)
+    return perfil, activas
 
 #: Carpetas donde se buscan vuelos, en orden. La primera es la del propio
 #: repositorio (útil en desarrollo); la segunda, donde el cliente instalado
@@ -1061,7 +1075,7 @@ def gestion_pistas_guardar():
     return redirect(url_for("gestion_pistas"))
 
 
-# -- Gestión de reglas de puntuación (solo admin, de solo lectura) --------
+# -- Gestión de reglas de puntuación (solo admin) -------------------------
 
 
 @app.route("/gestion/reglas")
@@ -1069,9 +1083,10 @@ def gestion_pistas_guardar():
 def gestion_reglas():
     """Las 26 reglas del motor de evaluación, con su trazabilidad exacta.
 
-    Fuente única: `avcars.evaluation.reglas_info`. El alcance y qué reglas
-    están bloqueadas se derivan en vivo del motor; solo las explicaciones
-    en español están escritas a mano, y en un solo sitio.
+    Fuente única: `avcars.evaluation.reglas_info`, que a su vez lee en vivo
+    `scoring.py` (alcance, qué está bloqueado), `config/profiles.yaml`
+    (umbrales) y `reglas_config.py` (activo/inactivo y los umbrales que un
+    admin haya pisado). Nada de esto se copia a mano aquí.
     """
     return render_template("gestion_reglas.html", reglas=reglas_info.listar())
 
@@ -1083,6 +1098,94 @@ def gestion_regla_detalle(regla_id: str):
     if regla is None:
         abort(404)
     return render_template("gestion_regla_detalle.html", r=regla)
+
+
+@app.route("/gestion/reglas/<regla_id>/activo", methods=["POST"])
+@permiso_requerido(PERM_GESTIONAR_USUARIOS)
+def gestion_regla_activo(regla_id: str):
+    """Activa o desactiva una regla. Escribe en `reglas_config.json`, que es
+    justo lo que lee `evaluate_flight(reglas_activas=...)`: no hay copia
+    aparte que pueda quedarse desincronizada de lo que puntúa el motor."""
+    if reglas_info.obtener(regla_id) is None:
+        abort(404)
+    activo = request.form.get("activo") == "on"
+    reglas_config.guardar_activo(regla_id, activo)
+    flash(
+        f"{regla_id}: regla {'activada' if activo else 'desactivada'}.",
+        "exito",
+    )
+    return redirect(url_for("gestion_regla_detalle", regla_id=regla_id))
+
+
+@app.route("/gestion/reglas/<regla_id>/umbral", methods=["POST"])
+@permiso_requerido(PERM_GESTIONAR_USUARIOS)
+def gestion_regla_umbral(regla_id: str):
+    """Guarda uno o varios umbrales de la regla.
+
+    Solo se aceptan las rutas que la propia regla declara en
+    `ReglaInfo.config_paths` — un campo de formulario con una ruta
+    cualquiera no puede tocar una parte del perfil que no le corresponde a
+    esta regla. El tipo del valor nuevo tiene que coincidir con el del
+    valor actual (si hoy es un número, no se puede pisar por texto): así no
+    se cuela un umbral con el que el motor no sepa comparar.
+    """
+    regla = reglas_info.obtener(regla_id)
+    if regla is None:
+        abort(404)
+
+    rutas_validas = {v["ruta"]: v["valor_original"] for v in regla["valores"]}
+    guardados = []
+    for ruta, valor_original in rutas_validas.items():
+        campo = request.form.get(f"valor__{ruta}")
+        if campo is None:
+            continue
+        campo = campo.strip()
+        try:
+            if isinstance(valor_original, bool):
+                nuevo = campo.lower() in ("true", "1", "on", "si", "sí")
+            elif isinstance(valor_original, int):
+                nuevo = int(campo)
+            elif isinstance(valor_original, float):
+                nuevo = float(campo)
+            else:
+                nuevo = campo
+        except ValueError:
+            flash(
+                f"«{campo}» no es un valor válido para {ruta} "
+                f"(se esperaba {type(valor_original).__name__}).",
+                "error",
+            )
+            continue
+        if nuevo == valor_original:
+            # Igual que el estándar: no hace falta un override — si ya
+            # había uno (se volvió al valor de siempre a mano), se quita,
+            # para que el campo no aparezca marcado como "modificado" sin
+            # de verdad diferir del estándar.
+            reglas_config.quitar_override_umbral(ruta)
+        else:
+            reglas_config.guardar_umbral(ruta, nuevo)
+        guardados.append(ruta)
+
+    if guardados:
+        flash(f"{regla_id}: actualizado {', '.join(guardados)}.", "exito")
+    if request.form.get("next") == "lista":
+        return redirect(url_for("gestion_reglas"))
+    return redirect(url_for("gestion_regla_detalle", regla_id=regla_id))
+
+
+@app.route("/gestion/reglas/<regla_id>/umbral/restaurar", methods=["POST"])
+@permiso_requerido(PERM_GESTIONAR_USUARIOS)
+def gestion_regla_umbral_restaurar(regla_id: str):
+    """Quita el override de una ruta: vuelve al valor de `profiles.yaml`."""
+    regla = reglas_info.obtener(regla_id)
+    if regla is None:
+        abort(404)
+    ruta = request.form.get("ruta", "")
+    rutas_validas = {v["ruta"] for v in regla["valores"]}
+    if ruta in rutas_validas:
+        reglas_config.quitar_override_umbral(ruta)
+        flash(f"{regla_id}: {ruta} vuelve al valor por defecto.", "exito")
+    return redirect(url_for("gestion_regla_detalle", regla_id=regla_id))
 
 
 def verdict_summary(verdict: Verdict) -> dict:
@@ -1152,7 +1255,10 @@ def detalle(nombre: str):
         perfil = DEFAULT_PROFILE
 
     aeronave = AIRCRAFT.get(flight.flight_plan.aircraft_icao_type)
-    verdict = evaluate_flight(flight, PROFILES[perfil], aircraft=aeronave)
+    perfil_efectivo, reglas_activas = _perfil_y_reglas_activas(perfil)
+    verdict = evaluate_flight(
+        flight, perfil_efectivo, aircraft=aeronave, reglas_activas=reglas_activas
+    )
     datos_veredicto = verdict_summary(verdict)
     datos_telemetria = telemetry(flight)
     datos_grafica = chart_points(flight)
@@ -1173,6 +1279,7 @@ def detalle(nombre: str):
         umbral=PROFILES[perfil]["pass_score"],
         fallos_automaticos=verdict.failed_hard,
         no_evaluados=verdict.not_evaluated,
+        no_activas=verdict.not_active,
     )
 
 
@@ -1992,9 +2099,11 @@ def _resumir_para_estadisticas(huella: str, filepath: Path, piloto: str) -> None
             flight = load_flight(filepath)
             if flight is None:
                 return
-            perfil = get_profile(DEFAULT_PROFILE, PROFILES)
             aeronave = AIRCRAFT.get(flight.flight_plan.aircraft_icao_type)
-            verdict = evaluate_flight(flight, perfil, aircraft=aeronave)
+            perfil_efectivo, reglas_activas = _perfil_y_reglas_activas(DEFAULT_PROFILE)
+            verdict = evaluate_flight(
+                flight, perfil_efectivo, aircraft=aeronave, reglas_activas=reglas_activas
+            )
             fecha = (
                 flight.timing.block_off_utc.isoformat()
                 if flight.timing and flight.timing.block_off_utc

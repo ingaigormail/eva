@@ -21,6 +21,7 @@
   .badge-estado.evaluable { background: var(--verde-fondo); color: var(--verde-texto); }
   .badge-estado.condicional { background: var(--ambar-fondo); color: var(--ambar-texto); }
   .badge-estado.bloqueada { background: var(--rojo-fondo); color: var(--rojo); }
+  .badge-estado.inactiva { background: var(--rojo-fondo); color: var(--rojo); }
   .aviso-bloqueo, .aviso-condicion {
     padding: 14px 16px; border-radius: 10px; font-size: 13px; line-height: 1.6;
     border-left: 4px solid;
@@ -28,6 +29,38 @@
   .aviso-bloqueo { background: var(--rojo-fondo); border-color: var(--rojo); }
   .aviso-condicion { background: var(--ambar-fondo); border-color: var(--ambar); }
   .aviso-bloqueo h3, .aviso-condicion h3 { margin: 0 0 6px; font-size: 13px; }
+  .led-grande { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; }
+  .led-grande .punto { width: 12px; height: 12px; border-radius: 50%; }
+  .led-grande.verde .punto { background: var(--verde); }
+  .led-grande.verde { color: var(--verde-texto); }
+  .led-grande.rojo .punto { background: var(--rojo); }
+  .led-grande.rojo { color: var(--rojo); }
+  .form-toggle { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .fila-umbral {
+    display: flex; align-items: center; gap: 12px; padding: 8px 0;
+    border-bottom: 1px solid var(--borde); font-size: 13.5px;
+  }
+  .fila-umbral:last-child { border-bottom: none; }
+  .fila-umbral .ruta { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--tenue); flex: 1; }
+  .fila-umbral input[type="text"] {
+    width: 120px; padding: 6px 8px; border: 1px solid var(--borde); border-radius: 6px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 13px;
+  }
+  .por-defecto { font-size: 11.5px; color: var(--tenue); }
+  .chip-estandar {
+    font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+    background: var(--panel-alto); border: 1px solid var(--borde);
+    border-radius: 6px; padding: 3px 8px; color: var(--tenue);
+  }
+  .val-tocado { font-family: ui-monospace, Consolas, monospace; color: var(--azul); font-weight: 700; }
+  .boton-guardar {
+    background: var(--azul); color: white; border: none; border-radius: 8px;
+    padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .boton-restaurar {
+    background: none; border: none; color: var(--tenue); font-size: 11.5px;
+    text-decoration: underline; cursor: pointer; padding: 0;
+  }
 {% endblock %}
 
 {% block contenido %}
@@ -43,11 +76,34 @@
         <span class="badge-estado evaluable">🟢 Evaluable</span>
       {% elif r.estado == 'condicional' %}
         <span class="badge-estado condicional">🟡 Evaluable con condición</span>
+      {% elif r.estado == 'inactiva' %}
+        <span class="badge-estado inactiva">🔴 Desactivada</span>
       {% else %}
         <span class="badge-estado bloqueada">🔴 No evaluable todavía</span>
       {% endif %}
     </div>
-    <p style="font-size:13.5px;color:var(--tenue);margin:0">{{ r.descripcion }}</p>
+    <p style="font-size:13.5px;color:var(--tenue);margin:0 0 4px">{{ r.descripcion }}</p>
+    <span class="led-grande {{ r.led }}">
+      <span class="punto"></span>
+      {{ 'Puntúa ahora mismo' if r.led == 'verde' else 'No está puntuando ahora mismo' }}
+    </span>
+  </div>
+
+  <div class="panel-alta">
+    <h2>Activación</h2>
+    <p style="font-size:13px;color:var(--tenue);margin:0">
+      Si se desactiva, el motor deja de puntuarla en el siguiente vuelo que
+      se evalúe — no hace falta reiniciar nada. Va al mismo sitio que lee
+      <code>evaluate_flight()</code>, no es una marca aparte de la interfaz.
+    </p>
+    <form method="post" action="{{ url_for('gestion_regla_activo', regla_id=r.id) }}" class="form-toggle">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600">
+        <input type="checkbox" name="activo" {{ 'checked' if r.activa }}>
+        Regla activa
+      </label>
+      <button type="submit" class="boton-guardar">Guardar</button>
+    </form>
   </div>
 
   {% if r.estado == 'bloqueada' %}
@@ -78,7 +134,64 @@
   <div class="panel-alta">
     <h2>Datos observados</h2>
     <div class="fila-dato"><div class="etq">Campo del log</div><div class="val">{{ r.campo_log }}</div></div>
-    <div class="fila-dato"><div class="etq">Referencia / umbral</div><div class="val">{{ r.referencia }}</div></div>
+    <div class="fila-dato"><div class="etq">Referencia</div><div class="val">{{ r.referencia }}</div></div>
     <div class="fila-dato"><div class="etq">Lógica</div><div class="val prosa">{{ r.logica }}</div></div>
   </div>
+
+  {% if r.valores %}
+  <div class="panel-alta">
+    <h2>Valor estándar vs. valor de evaluación</h2>
+    <p style="font-size:13px;color:var(--tenue);margin:0 0 10px">
+      El <strong>estándar</strong> es el que trae <code>config/profiles.yaml</code>
+      versionado — la definición de referencia de la regla, no cambia por
+      experimentar. El de <strong>evaluación</strong> es el que usa el motor
+      ahora mismo para decidir si se cumple o no: por defecto es el mismo
+      que el estándar, y cambiarlo aquí lo pisa sin tocar el fichero
+      versionado — el motor lo usa desde el próximo vuelo que se evalúe.
+    </p>
+
+    <table class="tabla-eva" style="margin-bottom:14px">
+      <thead>
+        <tr><th>Ruta</th><th>Valor estándar</th><th>Valor de evaluación</th></tr>
+      </thead>
+      <tbody>
+        {% for v in r.valores %}
+        <tr>
+          <td><span class="campo-mono">{{ v.ruta }}</span></td>
+          <td><span class="chip-estandar">{{ v.valor_original }}{{ v.unidad }}</span></td>
+          <td>
+            <span class="{{ 'val-tocado' if v.modificado }}">{{ v.valor }}{{ v.unidad }}</span>
+            {% if v.modificado %}<span class="por-defecto">(distinto del estándar)</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p style="font-size:13px;margin:0 0 12px">
+      <strong>Criterio:</strong> el motor evalúa actualmente utilizando
+      {% for v in r.valores %}{{ v.ruta }}={{ v.valor }}{{ v.unidad }}{{ ", " if not loop.last }}{% endfor %}.
+    </p>
+
+    <h3 style="font-size:13px;margin:0 0 8px">Cambiar el valor de evaluación</h3>
+    <form method="post" action="{{ url_for('gestion_regla_umbral', regla_id=r.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% for v in r.valores %}
+      <div class="fila-umbral">
+        <span class="ruta">{{ v.ruta }}</span>
+        <input type="text" name="valor__{{ v.ruta }}" value="{{ v.valor }}">
+        <span class="por-defecto">estándar: {{ v.valor_original }}{{ v.unidad }}</span>
+      </div>
+      {% endfor %}
+      <div style="margin-top:12px"><button type="submit" class="boton-guardar">Guardar valores de evaluación</button></div>
+    </form>
+    {% for v in r.valores if v.modificado %}
+    <form method="post" action="{{ url_for('gestion_regla_umbral_restaurar', regla_id=r.id) }}" style="margin-top:8px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="ruta" value="{{ v.ruta }}">
+      <button type="submit" class="boton-restaurar">Volver al estándar en {{ v.ruta }} ({{ v.valor_original }}{{ v.unidad }})</button>
+    </form>
+    {% endfor %}
+  </div>
+  {% endif %}
 {% endblock %}

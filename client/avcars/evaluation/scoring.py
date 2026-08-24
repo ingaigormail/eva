@@ -119,6 +119,11 @@ class Verdict:
     # haría creer que falta información cuando en realidad la regla no venía
     # al caso.
     not_applicable: list[str] = field(default_factory=list)
+    # Reglas apagadas a mano (ver `evaluation/reglas_config.py`), distinto de
+    # `not_evaluated` (aplica pero falta el dato) y de `not_applicable` (no
+    # viene al caso para VFR/IFR): aquí sí había datos y sí venía al caso,
+    # pero un administrador decidió que no puntuara.
+    not_active: list[str] = field(default_factory=list)
 
     @property
     def evaluable(self) -> bool:
@@ -502,8 +507,26 @@ def _evaluate_lights(flight: FlightLog, profile: dict) -> tuple[list[VerdictItem
     return items, not evaluated_any
 
 
+#: `failed_hard` usa sus propios nombres de motivo, no el id de la regla
+#: (p.ej. "landing_vs_very_hard" en vez de "landing_vs"): hace falta este
+#: mapa para poder filtrar por regla desactivada. Si se añade un fallo duro
+#: nuevo, hay que añadirlo aquí también — si no, una regla desactivada
+#: podría seguir tirando el vuelo por un fallo duro que no debería contar.
+_MOTIVO_FALLO_DURO_A_REGLA: dict[str, str] = {
+    "stall_warning_triggered": "stall_warning",
+    "overspeed_warning_triggered": "overspeed_warning",
+    "structural_overspeed": "structural_overspeed",
+    "landing_vs_very_hard": "landing_vs",
+    "time_compression_used": "time_compression",
+    "excessive_bank_angle": "bank_angle",
+}
+
+
 def evaluate_flight(
-    flight: FlightLog, profile: dict, aircraft: dict | None = None
+    flight: FlightLog,
+    profile: dict,
+    aircraft: dict | None = None,
+    reglas_activas: dict[str, bool] | None = None,
 ) -> Verdict:
     """Evalúa un vuelo y devuelve el veredicto (puntuación, aprobado/suspendido, desglose).
 
@@ -512,6 +535,12 @@ def evaluate_flight(
     entero — igual que `profile` ya llega resuelto, no el fichero de
     perfiles completo. Opcional: sin él, `structural_overspeed` queda en
     `not_evaluated`, como si no existiera este parámetro.
+
+    `reglas_activas` es el `{regla_id: bool}` de
+    `evaluation/reglas_config.py` — qué reglas ha apagado un administrador.
+    Una regla ausente del dict se trata como activa: por defecto todo
+    puntúa, hasta que alguien decida apagarlo explícitamente. Opcional: sin
+    él, se comporta exactamente igual que antes de que existiera esto.
     """
     score = 100
     items: list[VerdictItem] = []
@@ -696,6 +725,29 @@ def evaluate_flight(
         not_applicable += [i.rule for i in discarded]
         items = [i for i in items if rule_applies(i.rule, flight_rules)]
 
+    # Reglas apagadas a mano. Mismo patrón que el filtro de arriba: se
+    # aparta lo que sobra y se devuelven los puntos, para que una regla
+    # desactivada no pueda afectar a la nota ni al aprobado/suspendido.
+    reglas_activas = reglas_activas or {}
+
+    def _activa(regla_id: str) -> bool:
+        return reglas_activas.get(regla_id, True)
+
+    not_active = [r for r in not_evaluated if not _activa(r)]
+    not_evaluated = [r for r in not_evaluated if r not in not_active]
+
+    discarded_inactive = [i for i in items if not _activa(i.rule)]
+    if discarded_inactive:
+        for item in discarded_inactive:
+            score += item.points
+        not_active += [i.rule for i in discarded_inactive]
+        items = [i for i in items if _activa(i.rule)]
+
+    failed_hard = [
+        motivo for motivo in failed_hard
+        if _activa(_MOTIVO_FALLO_DURO_A_REGLA.get(motivo, motivo))
+    ]
+
     score = max(0, score)
 
     # Un vuelo cuyos datos no dan la talla no aprueba: sacaría buena nota
@@ -714,4 +766,5 @@ def evaluate_flight(
         not_evaluated=not_evaluated,
         quality=quality,
         not_applicable=not_applicable,
+        not_active=not_active,
     )

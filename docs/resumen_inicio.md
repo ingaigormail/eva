@@ -4,6 +4,10 @@ Documento para dirección o para quien entra al proyecto: **qué es**, **cómo
 funciona** y **dónde se entra**. Los detalles técnicos siguen en el resto de
 `docs/`. Afirmaciones de producto contrastadas con el código (`[CONF]`).
 
+El **intercambio entre IAs** (qué hizo cada agente y las decisiones) está en
+`D:\proyectos\airhispania\ARQUITECTURA.md`. Si ese archivo y este repo
+discrepan, **manda el código de `D:\proyectos\eva`**.
+
 ---
 
 ## Qué hacemos
@@ -54,9 +58,11 @@ piloto:
      marcan la carrera de despegue, no el inicio de la grabación. `[CONF]`
      `flight_state_machine.py`
    - Al terminar: **FINALIZAR VUELO**. `[CONF]` `gui.py`
-5. El fichero queda en la carpeta **Grabaciones** de la instalación
-   (`.avlog.json`).
-6. Subirlo en **REGISTRO** (`/registro`).
+5. En **Grabaciones** queda el **`.avlog.json`** (lo que evalúa el motor).
+   Puede haber también un **`.csv`** de telemetría ampliada (fstelemetry);
+   ese CSV **no** pasa por `evaluate_flight`. `[CONF]` intercambio §5 + `importacion.py`
+6. Subir el log en **REGISTRO** (`/registro`). Listar vuelos es **VUELOS**
+   (`/vuelos`); no es la misma pantalla. `[CONF]` Claude 2026-08-18, `base.html`
 
 **GUARDAR PLAN SIN VATSIM** solo archiva el plan en «Planes de vuelo»; **no**
 sustituye a **GENERAR PLAN ICAO** ni a **ABRIR EN VATSIM**. `[CONF]` `plan.html`
@@ -117,12 +123,37 @@ aprueba. `[CONF]` `/solicitar-alta`, `/gestion/usuarios`
 |---|---|---|
 | AEROLÍNEA | `/aerolinea` | Estadísticas de flota |
 | PLAN | `/plan` | Despacho y prefile VATSIM |
-| VUELO | local: abre Airliner; servidor: `/descargar` | Grabar |
-| VUELOS | `/vuelos` | Lista de grabaciones |
-| PLANES DE VUELO | `/planes-de-vuelo` | Planes guardados |
+| VUELO | En **este PC** (Flask local): `POST /api/vuelo/lanzar` abre Airliner. En el **VPS**: enlace a `/descargar` (el servidor no lanza un `.exe` ajeno). `[CONF]` `base.html` |
+| VUELOS | `/vuelos` | Lista de grabaciones (borrar propio con confirmación) |
+| PLANES DE VUELO | `/planes-de-vuelo` | Planes guardados (D3: tabla `planes`, por piloto) |
 | VUELTA A ESPAÑA | `/vuelta-espana` | 21 etapas |
-| REGISTRO | `/registro` | Subir `.avlog.json` |
+| REGISTRO | `/registro` | **Solo subir** el fichero |
 | USUARIOS / TODOS LOS VUELOS / PISTAS / REGLAS | `/gestion/…` | Solo admin |
+
+---
+
+## Qué cambió Claude (plataforma, 2026-08-18)
+
+Fuente: registro de sesiones de `airhispania/ARQUITECTURA.md`. Sigue vigente
+en este repo salvo que el código diga otra cosa.
+
+- **Cuentas en SQLite** (`web/data/eva.db`): usuario, correo, estado, rol.
+  Permisos **por rol**, no por nombre. Alta **por solicitud** (no
+  auto-registro). Recuperar contraseña con testigo de un uso.
+- **Login en la web** (`/login`). El escritorio (D1) espera
+  `sesion_activa.json`; no pide la contraseña VATSIM.
+- **`/registro` partido:** REGISTRO = subir; VUELOS = listar. Antes una sola
+  pantalla hacía las dos cosas.
+- **Planes guardados (D3):** botón de guardar en PLAN + `/planes-de-vuelo`.
+- **Home `/aerolinea`:** KPIs reales en `vuelos_resumen` (calidad del motor
+  en el momento de la subida). UI de look: Cursor (UI-04).
+- **Admin:** `/gestion/vuelos` (subir en nombre de otro) y pestaña **TODOS
+  LOS VUELOS**. El piloto borra **solo los suyos** (`POST /vuelos/<nombre>/borrar`).
+- **Bug:** `cuentas.py` no debe abrir la base real al importarse (inicialización
+  perezosa).
+
+Pendiente en el intercambio (no darlo por hecho): **DISP-01** (Dispatcher de
+cinco iconos y ventana única `new=0` en todas las aperturas).
 
 ---
 

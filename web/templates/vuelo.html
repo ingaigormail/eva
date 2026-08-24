@@ -302,6 +302,18 @@
 </div>
 {% endif %}
 
+{% if no_activas %}
+<div class="panel">
+  <h2>Reglas desactivadas ({{ no_activas|length }})</h2>
+  <p style="color:var(--tenue);font-size:12px;margin-top:0">
+    Un administrador las apagó en <a href="{{ url_for('gestion_reglas') }}">Reglas de puntuación</a>. No cuentan ni a favor ni en contra.
+  </p>
+  <ul class="pendientes">
+    {% for r in no_activas %}<li>{{ r }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <div class="panel">
   <h2>Fichero</h2>
   <p style="margin:0"><code>{{ nombre }}</code></p>

@@ -31,6 +31,52 @@
     font-size: 10.5px; font-weight: 700; text-transform: uppercase;
     color: var(--tenue); letter-spacing: .4px;
   }
+  /* LED de activo/inactivo: el color real que usa el motor ahora mismo. */
+  .led {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-weight: 700;
+  }
+  .led-punto {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    box-shadow: 0 0 0 2px var(--panel-alto);
+  }
+  .led-verde .led-punto { background: var(--verde); }
+  .led-verde { color: var(--verde-texto, var(--verde)); }
+  .led-rojo .led-punto { background: var(--rojo); }
+  .led-rojo { color: var(--rojo); }
+  .valores-fila { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* Valor estándar: de solo lectura, el que trae profiles.yaml — nunca
+     cambia por experimentar con el de evaluación. */
+  .chip-estandar {
+    font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+    background: var(--panel-alto); border: 1px solid var(--borde);
+    border-radius: 6px; padding: 2px 7px; color: var(--tenue);
+  }
+  .editor-valor {
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .input-valor {
+    width: 58px; padding: 3px 6px; border: 1px solid var(--borde); border-radius: 6px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    background: var(--panel-alto);
+  }
+  .editor-valor.tocado .input-valor { border-color: var(--azul); color: var(--azul); font-weight: 700; }
+  .unidad-valor { font-size: 11px; color: var(--tenue); }
+  .boton-guardar-mini {
+    background: var(--panel-alto); border: 1px solid var(--borde); border-radius: 6px;
+    padding: 3px 9px; font-size: 11.5px; font-weight: 700; cursor: pointer;
+    color: var(--azul);
+  }
+  .boton-guardar-mini:hover { background: var(--azul); color: white; border-color: var(--azul); }
+  .filtro-activas {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px;
+    font-weight: 600; cursor: pointer; margin-left: auto;
+  }
+  tr.fila-oculta { display: none; }
+  /* La tabla ya no cabe siempre en el ancho del panel (Valor estándar +
+     Valor de evaluación la ensancharon) — que se salga con scroll propio,
+     nunca por fuera del recuadro blanco. */
+  .tabla-scroll { overflow-x: auto; border-radius: 12px; }
 {% endblock %}
 
 {% block contenido %}
@@ -50,12 +96,22 @@
     {% set n_eval = reglas | selectattr('estado', 'equalto', 'evaluable') | list | length %}
     {% set n_cond = reglas | selectattr('estado', 'equalto', 'condicional') | list | length %}
     {% set n_bloq = reglas | selectattr('estado', 'equalto', 'bloqueada') | list | length %}
-    <div class="resumen-estados">
+    {% set n_inact = reglas | selectattr('estado', 'equalto', 'inactiva') | list | length %}
+    {% set n_verdes = reglas | selectattr('led', 'equalto', 'verde') | list | length %}
+    <div class="resumen-estados" style="align-items:center">
       <div class="chip-estado estado-evaluable"><span class="estado-punto"></span>{{ n_eval + n_cond }} evaluables ({{ n_eval }} sin condición, {{ n_cond }} con condición)</div>
       <div class="chip-estado estado-bloqueada"><span class="estado-punto"></span>{{ n_bloq }} bloqueadas</div>
+      {% if n_inact %}
+      <div class="chip-estado estado-bloqueada"><span class="estado-punto"></span>{{ n_inact }} desactivadas a mano</div>
+      {% endif %}
+      <label class="filtro-activas">
+        <input type="checkbox" id="solo-activas">
+        Mostrar solo las {{ n_verdes }} que puntúan ahora (🟢)
+      </label>
     </div>
 
-    <table class="tabla-eva">
+    <div class="tabla-scroll">
+    <table class="tabla-eva" id="tabla-reglas">
       <thead>
         <tr>
           <th>Estado</th>
@@ -63,14 +119,17 @@
           <th>Alcance</th>
           <th>Campo del log</th>
           <th>Referencia</th>
+          <th>Valor estándar</th>
+          <th>Valor de evaluación</th>
         </tr>
       </thead>
       <tbody>
         {% for r in reglas %}
-        <tr>
+        <tr data-led="{{ r.led }}">
           <td>
-            <span class="estado-punto estado-{{ r.estado }}"
-                  title="{{ {'evaluable': 'Evaluable', 'condicional': 'Evaluable con condición', 'bloqueada': 'No evaluable todavía'}[r.estado] }}"></span>
+            <span class="led led-{{ r.led }}">
+              <span class="led-punto"></span>{{ 'Activa' if r.activa else 'Inactiva' }}
+            </span>
           </td>
           <td>
             <a href="{{ url_for('gestion_regla_detalle', regla_id=r.id) }}" style="color:var(--azul);font-weight:600;text-decoration:none">
@@ -81,9 +140,47 @@
           <td><span class="alcance">{{ r.alcance }}</span></td>
           <td><span class="campo-mono">{{ r.campo_log }}</span></td>
           <td><span class="campo-mono">{{ r.referencia }}</span></td>
+          <td>
+            {% if r.valores %}
+            <div class="valores-fila">
+              {% for v in r.valores %}
+              <span class="chip-estandar" title="{{ v.ruta }} — el valor de config/profiles.yaml, no cambia por experimentar">{{ v.valor_original }}{{ v.unidad }}</span>
+              {% endfor %}
+            </div>
+            {% else %}
+            <span class="campo-mono">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.valores %}
+            <form method="post" action="{{ url_for('gestion_regla_umbral', regla_id=r.id) }}" class="valores-fila">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="lista">
+              {% for v in r.valores %}
+              <span class="editor-valor {{ 'tocado' if v.modificado }}" title="{{ v.ruta }}{{ ' (estándar: ' + v.valor_original|string + ')' if v.modificado }}">
+                <input type="text" name="valor__{{ v.ruta }}" value="{{ v.valor }}" class="input-valor">
+                <span class="unidad-valor">{{ v.unidad }}</span>
+              </span>
+              {% endfor %}
+              <button type="submit" class="boton-guardar-mini" title="Guardar el valor de evaluación">Guardar</button>
+            </form>
+            {% else %}
+            <span class="campo-mono">—</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    </div>
   </div>
+
+  <script nonce="{{ csp_nonce }}">
+    document.getElementById('solo-activas').addEventListener('change', function () {
+      var soloActivas = this.checked;
+      document.querySelectorAll('#tabla-reglas tbody tr').forEach(function (fila) {
+        fila.classList.toggle('fila-oculta', soloActivas && fila.dataset.led !== 'verde');
+      });
+    });
+  </script>
 {% endblock %}

@@ -313,6 +313,38 @@ class EvaApp:
         )
         self.transponder_label.pack(pady=(8, 0))
 
+        # LUCES SOP: un badge por luz, verde encendida / rojo apagada / gris
+        # si el simulador no da ese dato. Mismo patrón visual que el XPDR de
+        # al lado: de un vistazo se ve qué falta antes de rodar.
+        estado_frame = tk.Frame(inner, bg=PANEL)
+        estado_frame.pack(pady=(6, 0))
+
+        self.xpdr_badge = tk.Label(
+            estado_frame, text="XPDR ---", bg=GREY, fg="white",
+            font=("Segoe UI Semibold", 8), padx=6, pady=2,
+        )
+        self.xpdr_badge.pack(side="left", padx=(0, 8))
+
+        tk.Label(
+            estado_frame, text="LUCES SOP", bg=PANEL, fg=FG_DIM,
+            font=("Segoe UI", 7, "bold"),
+        ).pack(side="left", padx=(0, 4))
+
+        # Orden y letra tal como se comprueban en el rodaje: Beacon, Nav,
+        # Taxi, Landing, Strobe — coincide con las reglas taxi_light/
+        # strobe_taxi/beacon_airborne/nav_light_airborne del motor.
+        self._luces_badges: dict[str, tk.Label] = {}
+        for letra, campo in (
+            ("B", "beacon_light"), ("N", "nav_light"), ("T", "taxi_light"),
+            ("L", "landing_light"), ("S", "strobe_light"),
+        ):
+            badge = tk.Label(
+                estado_frame, text=letra, bg=GREY, fg="white",
+                font=("Segoe UI Semibold", 8), width=2, padx=1, pady=2,
+            )
+            badge.pack(side="left", padx=1)
+            self._luces_badges[campo] = badge
+
         # Selector de modo: dos botones, no radios. El modo elegido se ve
         # relleno; el otro, sin relleno.
         mode_frame = tk.Frame(inner, bg=PANEL)
@@ -1031,8 +1063,31 @@ class EvaApp:
                     f"GS: {int(state.gs_kt):03d}kt | {transponder}"
                 )
             )
+            self._update_estado_badges(state)
 
         self.root.after(500, self._update_sim_display)
+
+    def _update_estado_badges(self, state: SimState) -> None:
+        """Colorea el XPDR y las luces SOP con el estado real del simulador.
+
+        Verde = encendida/en ALT, rojo = apagada, gris = el simulador no
+        expone ese dato (no se inventa un color para "no sé").
+        """
+        if state.transponder_state is None:
+            self.xpdr_badge.configure(text="XPDR ---", bg=GREY)
+        else:
+            texto = f"XPDR {TRANSPONDER_LABELS.get(state.transponder_state, '---')}"
+            color = GREEN if state.mode_charlie else (
+                RED if state.transponder_state == 0 else GREY
+            )
+            self.xpdr_badge.configure(text=texto, bg=color)
+
+        for campo, badge in self._luces_badges.items():
+            valor = getattr(state, campo)
+            if valor is None:
+                badge.configure(bg=GREY)
+            else:
+                badge.configure(bg=GREEN if valor else RED)
 
     def _tiempo_grabado(self) -> str:
         """Duración de la grabación en curso, como hh:mm:ss."""

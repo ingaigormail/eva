@@ -6,6 +6,7 @@ web/data/sesion_activa.json
 web/data/trusted_log.json
 web/data/importados.json
 web/data/usuarios.json*
+web/data/reglas_config.json
 web/logs/
 .env
 .env.*

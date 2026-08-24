@@ -1,6 +1,6 @@
 ---
 fecha: 2026-08-23
-ultima_sesion: Resumen de inicio CIO + alineación de docs (PLAN ICAO/VATSIM, umbrales grabación)
+ultima_sesion: Leído ARQUITECTURA.md (intercambio); resumen_inicio alineado con cambios Claude 18-ago
 estado: completado
 ---
 

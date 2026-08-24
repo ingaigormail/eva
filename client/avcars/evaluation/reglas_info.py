@@ -12,6 +12,12 @@ aquí, para que no pueda desincronizarse):
 - El alcance (VFR/IFR/ambas) sale de `scoring.RULE_SCOPE`.
 - Qué reglas están hoy bloqueadas sale de la lista `not_evaluated` inicial
   de `scoring.evaluate_flight()`.
+- El umbral con el que se puntúa cada regla (`valores`) sale en vivo del
+  perfil `normal` (`config/profiles.yaml`, el único que de verdad afecta a
+  la nota — ver `web/app.py:DEFAULT_PROFILE`) con los overrides de
+  `reglas_config.py` ya aplicados encima. Nunca se copia el número aquí a
+  mano: `config_paths` solo dice DÓNDE mirar, no cuánto vale.
+- Si la regla está activa o no (`activa`) sale de `reglas_config.py`.
 
 Lo que si es prosa a mano, porque no se puede derivar del código (describe
 una intención o una carencia, no un estado presente):
@@ -21,9 +27,42 @@ una intención o una carencia, no un estado presente):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
-from . import scoring
+from .. import config as avcars_config
+from . import reglas_config, scoring
+
+#: Perfil que de verdad afecta a la nota y a las estadísticas — ver
+#: `DEFAULT_PROFILE` en `web/app.py`. "easy"/"hard" son solo una vista
+#: alternativa para releer un vuelo ya subido, no cambian lo que se guarda.
+_PERFIL_QUE_PUNTUA = "normal"
+
+#: Unidad para mostrar cada valor de configuración. Solo cosmético — el tipo
+#: y el valor de verdad los da el propio perfil, nunca se inventan aquí.
+_UNIDADES: dict[str, str] = {
+    "runway_alignment_deg_max": "°",
+    "touchdown_zone_m_max": " m",
+    "fuel_reserve_kg_min": " kg",
+    "pause_duration_s_max": " s",
+    "bank_angle.warn_deg": "°",
+    "bank_angle.fail_deg": "°",
+    "bank_angle.sustained_samples": " muestras",
+    "qnh.min_inhg": " inHg",
+    "qnh.max_inhg": " inHg",
+    "lights.check_tolerance_s": " s",
+    "stabilization.alt_agl_ft": " ft",
+    "stabilization.alt_agl_tolerance_ft": " ft",
+    "stabilization.vs_fpm_min": " fpm",
+    "stabilization.vs_fpm_max": " fpm",
+    "landing_vs_bands.butter.max_fpm": " fpm",
+    "landing_vs_bands.smooth.max_fpm": " fpm",
+    "landing_vs_bands.normal.max_fpm": " fpm",
+    "landing_vs_bands.hard.max_fpm": " fpm",
+}
+
+
+def _formatear_valor(ruta: str, valor: Any) -> str:
+    return f"{valor}{_UNIDADES.get(ruta, '')}"
 
 
 @dataclass(frozen=True)
@@ -44,6 +83,12 @@ class ReglaInfo:
     # Solo para las bloqueadas (🔴):
     motivo_bloqueo: str = ""
     que_falta: str = ""
+    # Rutas punteadas dentro del perfil de dificultad (p.ej.
+    # "bank_angle.fail_deg") de donde sale el "valor de evaluación" en vivo
+    # de esta regla. Vacío si la regla no tiene un umbral en `profiles.yaml`
+    # (p.ej. es un aviso booleano del simulador, o su límite sale de
+    # `aircraft.yaml` en vez de del perfil — como `structural_overspeed`).
+    config_paths: list[str] = field(default_factory=list)
 
 
 _REGLAS: list[ReglaInfo] = [
@@ -51,57 +96,74 @@ _REGLAS: list[ReglaInfo] = [
         "runway_alignment_takeoff", "Alineación de pista al despegar",
         "El rumbo del avión al iniciar la carrera de despegue debe quedar "
         "razonablemente alineado con la pista.",
-        "events[takeoff].runway_alignment_deg", "runway_alignment_deg_max (10°)",
+        "events[takeoff].runway_alignment_deg", "runway_alignment_deg_max",
         "abs(desviación) <= máximo -> OK; si no, penalización fija.",
         "scoring.py:476",
+        config_paths=["runway_alignment_deg_max"],
     ),
     ReglaInfo(
         "runway_alignment_landing", "Alineación de pista al aterrizar",
         "Igual que en despegue, pero en el momento del touchdown.",
-        "events[touchdown].runway_alignment_deg", "runway_alignment_deg_max (10°)",
+        "events[touchdown].runway_alignment_deg", "runway_alignment_deg_max",
         "abs(desviación) <= máximo -> OK; si no, penalización fija.",
         "scoring.py:493",
+        config_paths=["runway_alignment_deg_max"],
     ),
     ReglaInfo(
         "touchdown_zone", "Punto de toma",
         "La distancia desde el umbral de pista hasta donde se produce el "
         "touchdown no debe pasar de un máximo.",
-        "events[touchdown].distance_from_threshold_m", "touchdown_zone_m_max (600 m)",
+        "events[touchdown].distance_from_threshold_m", "touchdown_zone_m_max",
         "distancia <= máximo -> OK; si no, penalización fija.",
         "scoring.py:507",
+        config_paths=["touchdown_zone_m_max"],
     ),
     ReglaInfo(
         "landing_vs", "Velocidad de descenso al aterrizar",
         "Clasifica la toma en bandas (butter/smooth/normal/hard/very_hard) "
         "según la velocidad vertical; la peor banda es fallo directo.",
         "events[touchdown].vs_fpm",
-        "landing_vs_bands: butter 60, smooth 180, normal 300, hard 600 fpm",
+        "landing_vs_bands: máximo de cada banda (butter/smooth/normal/hard)",
         "banda según |vs_fpm|; very_hard -> FAIL, el resto resta puntos según su banda.",
         "scoring.py:520",
+        config_paths=[
+            "landing_vs_bands.butter.max_fpm",
+            "landing_vs_bands.smooth.max_fpm",
+            "landing_vs_bands.normal.max_fpm",
+            "landing_vs_bands.hard.max_fpm",
+        ],
     ),
     ReglaInfo(
         "stabilized_500ft", "Aproximación estabilizada a 500 ft",
         "En el punto más cercano a 500 ft AGL, la velocidad vertical debe "
         "estar dentro de un rango razonable (ni en picado ni subiendo).",
         "track[].alt_agl_ft + vs_fpm",
-        "stabilization: alt 500 ft ±100, vs entre -1000 y 0 fpm",
+        "stabilization: altura objetivo ±tolerancia, rango de vs admitido",
         "se busca el punto del track más cercano a 500 ft AGL y se comprueba su vs_fpm.",
         "scoring.py:545",
+        config_paths=[
+            "stabilization.alt_agl_ft",
+            "stabilization.alt_agl_tolerance_ft",
+            "stabilization.vs_fpm_min",
+            "stabilization.vs_fpm_max",
+        ],
     ),
     ReglaInfo(
         "fuel_reserve", "Reserva de combustible al final",
         "El combustible restante al terminar el vuelo no debe bajar de un "
         "mínimo de reserva.",
-        "summary.fuel_remaining_kg (o track[-1])", "fuel_reserve_kg_min (20 kg)",
+        "summary.fuel_remaining_kg (o track[-1])", "fuel_reserve_kg_min",
         "combustible final >= mínimo -> OK; si no, penalización fija.",
         "scoring.py:566",
+        config_paths=["fuel_reserve_kg_min"],
     ),
     ReglaInfo(
         "pause_duration", "Duración de las pausas",
         "Ninguna pausa del simulador debe superar un máximo razonable.",
-        "events[pause].duration_s", "pause_duration_s_max (120 s)",
+        "events[pause].duration_s", "pause_duration_s_max",
         "cada pausa se compara con el máximo; las que se pasan penalizan.",
         "scoring.py:583",
+        config_paths=["pause_duration_s_max"],
     ),
     ReglaInfo(
         "time_compression", "Compresión de tiempo",
@@ -115,26 +177,31 @@ _REGLAS: list[ReglaInfo] = [
         "bank_angle", "Ángulo de alabeo (bank)",
         "El alabeo no debe superar un máximo duro, ni mantenerse por "
         "encima de un aviso durante varias muestras seguidas.",
-        "track[].bank_deg", "bank_angle: aviso 30°, fallo 60°, 3 muestras sostenidas",
+        "track[].bank_deg", "bank_angle: aviso, fallo, muestras sostenidas",
         "máximo absoluto -> FAIL; sostenido por encima del aviso -> penalización.",
         "scoring.py:226",
+        config_paths=[
+            "bank_angle.warn_deg", "bank_angle.fail_deg", "bank_angle.sustained_samples",
+        ],
     ),
     ReglaInfo(
         "landing_light_takeoff", "Luces de aterrizaje encendidas al despegar",
         "En el momento del despegue, las luces de aterrizaje deben estar "
         "encendidas.",
         "events[takeoff].utc + track.landing_light más cercano",
-        "lights.check_tolerance_s (30 s)",
+        "lights.check_tolerance_s",
         "se busca el punto del track a ±tolerancia del despegue y se mira si estaba encendida.",
         "scoring.py:380",
+        config_paths=["lights.check_tolerance_s"],
     ),
     ReglaInfo(
         "landing_light_landing", "Luces de aterrizaje encendidas al aterrizar",
         "Igual que la anterior, pero en el touchdown.",
         "events[touchdown].utc + track.landing_light más cercano",
-        "lights.check_tolerance_s (30 s)",
+        "lights.check_tolerance_s",
         "mismo mecanismo que landing_light_takeoff, con el evento de touchdown.",
         "scoring.py:380",
+        config_paths=["lights.check_tolerance_s"],
     ),
     ReglaInfo(
         "beacon_airborne", "Luz anticolisión (beacon) encendida en vuelo",
@@ -187,9 +254,10 @@ _REGLAS: list[ReglaInfo] = [
         "qnh", "QNH ajustado dentro de rango",
         "El QNH configurado en el altímetro debe quedar dentro de un rango "
         "físicamente razonable.",
-        "track[].qnh_inhg", "qnh: 28.5–31.2 inHg",
+        "track[].qnh_inhg", "qnh: mínimo y máximo admitidos",
         "cada punto se compara contra el rango; fuera de rango penaliza.",
         "scoring.py:318",
+        config_paths=["qnh.min_inhg", "qnh.max_inhg"],
     ),
     ReglaInfo(
         "gear_on_touchdown", "Tren de aterrizaje extendido al tomar contacto",
@@ -303,17 +371,28 @@ _REGLAS: list[ReglaInfo] = [
 _POR_ID: dict[str, ReglaInfo] = {r.id: r for r in _REGLAS}
 
 
+def _perfil_y_overrides() -> tuple[dict, dict]:
+    """El perfil que de verdad puntúa + los overrides guardados. Siempre en
+    vivo, sin caché: un cambio guardado se ve en la siguiente petición."""
+    perfiles = avcars_config.load_profiles()
+    base = avcars_config.get_profile(_PERFIL_QUE_PUNTUA, perfiles)
+    overrides = reglas_config.cargar_overrides()
+    return base, overrides
+
+
 def listar() -> list[dict]:
-    """Las 26 reglas, con alcance derivado en vivo del motor."""
+    """Las 26 reglas, con alcance, activación y umbrales derivados en vivo del motor."""
     _avisar_si_hay_desajuste()
-    return [_a_dict(r) for r in _REGLAS]
+    perfil_base, overrides = _perfil_y_overrides()
+    return [_a_dict(r, perfil_base, overrides) for r in _REGLAS]
 
 
 def obtener(regla_id: str) -> Optional[dict]:
     r = _POR_ID.get(regla_id)
     if r is None:
         return None
-    return _a_dict(r)
+    perfil_base, overrides = _perfil_y_overrides()
+    return _a_dict(r, perfil_base, overrides)
 
 
 def _reglas_no_evaluadas_por_defecto() -> list[str]:
@@ -358,14 +437,38 @@ def _avisar_si_hay_desajuste() -> None:
         )
 
 
-def _a_dict(r: ReglaInfo) -> dict:
+def _a_dict(r: ReglaInfo, perfil_base: dict, overrides: dict) -> dict:
     alcance = scoring.RULE_SCOPE.get(r.id, "ambas")
-    if r.motivo_bloqueo:
+    activa = reglas_config.regla_activa(r.id, overrides)
+
+    if not activa:
+        estado = "inactiva"
+    elif r.motivo_bloqueo:
         estado = "bloqueada"
     elif r.condicion_estructural:
         estado = "condicional"
     else:
         estado = "evaluable"
+
+    # Verde solo si de verdad está puntuando ahora mismo: activa Y con
+    # código que la evalúe. Una regla bloqueada (sin implementar) no se
+    # pone verde aunque nadie la haya desactivado a mano — no hay nada que
+    # activar todavía.
+    led = "verde" if activa and estado in ("evaluable", "condicional") else "rojo"
+
+    valores = []
+    for ruta in r.config_paths:
+        valor_original = reglas_config.valor_efectivo(perfil_base, ruta, {})
+        valor_actual = reglas_config.valor_efectivo(perfil_base, ruta, overrides)
+        valores.append({
+            "ruta": ruta,
+            "valor": valor_actual,
+            "unidad": _UNIDADES.get(ruta, ""),
+            "formateado": _formatear_valor(ruta, valor_actual),
+            "valor_original": valor_original,
+            "modificado": ruta in overrides.get("umbral", {}),
+        })
+
     return {
         "id": r.id,
         "nombre": r.nombre,
@@ -379,4 +482,8 @@ def _a_dict(r: ReglaInfo) -> dict:
         "estado": estado,
         "motivo_bloqueo": r.motivo_bloqueo,
         "que_falta": r.que_falta,
+        "activa": activa,
+        "led": led,
+        "valores": valores,
+        "editable": bool(r.config_paths),
     }

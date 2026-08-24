@@ -46,6 +46,66 @@ def test_good_flight_passes():
     assert not verdict.failed_hard
 
 
+class TestReglasActivas:
+    """Una regla desactivada de verdad deja de puntuar (`reglas_config.py`)."""
+
+    def test_regla_desactivada_pasa_a_not_active_y_no_puntua(self):
+        flight = _load("sample_flight_fail.json")
+        profile = get_profile("normal", PROFILES)
+
+        con_todo_activo = evaluate_flight(flight, profile)
+        assert "bank_angle" in [i.rule for i in con_todo_activo.items]
+
+        sin_bank_angle = evaluate_flight(
+            flight, profile, reglas_activas={"bank_angle": False}
+        )
+        assert "bank_angle" not in [i.rule for i in sin_bank_angle.items]
+        assert "bank_angle" in sin_bank_angle.not_active
+        # Sin bank_angle, la nota no puede ser menor que con ella activa:
+        # como mucho se recuperan los puntos que quitaba.
+        assert sin_bank_angle.score >= con_todo_activo.score
+
+    def test_desactivar_un_fallo_duro_deja_de_tirar_el_vuelo(self):
+        """`excessive_bank_angle` es failed_hard, no un item con puntos: hace
+        falta el mapa motivo->regla de `scoring.py` para poder filtrarlo."""
+        flight = _load("sample_flight_fail.json")
+        profile = get_profile("normal", PROFILES)
+
+        con_todo_activo = evaluate_flight(flight, profile)
+        assert "landing_vs_very_hard" in con_todo_activo.failed_hard
+
+        sin_landing_vs = evaluate_flight(
+            flight, profile, reglas_activas={"landing_vs": False}
+        )
+        assert "landing_vs_very_hard" not in sin_landing_vs.failed_hard
+
+    def test_regla_sin_dato_desactivada_pasa_de_not_evaluated_a_not_active(self):
+        """Una regla bloqueada (sin código) que se desactiva a mano dice por
+        qué de verdad no cuenta: apagada, no "falta el dato"."""
+        flight = _load("sample_flight_pass.json")
+        profile = get_profile("normal", PROFILES)
+
+        normal = evaluate_flight(flight, profile)
+        assert "route_deviation" in normal.not_evaluated
+
+        desactivada = evaluate_flight(
+            flight, profile, reglas_activas={"route_deviation": False}
+        )
+        assert "route_deviation" not in desactivada.not_evaluated
+        assert "route_deviation" in desactivada.not_active
+
+    def test_sin_reglas_activas_se_comporta_como_antes(self):
+        """Parámetro opcional: sin él, ninguna regla se apaga (compatibilidad)."""
+        flight = _load("sample_flight_pass.json")
+        profile = get_profile("normal", PROFILES)
+
+        con_parametro = evaluate_flight(flight, profile, reglas_activas=None)
+        sin_parametro = evaluate_flight(flight, profile)
+
+        assert con_parametro.score == sin_parametro.score
+        assert con_parametro.not_active == sin_parametro.not_active == []
+
+
 def test_hard_landing_and_time_compression_fail_automatically():
     flight = _load("sample_flight_fail.json")
     profile = get_profile("normal", PROFILES)
