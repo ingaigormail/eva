@@ -126,6 +126,13 @@
             <span>Doble clic en el fichero descargado y elige dónde instalarlo. Se creará también la carpeta donde se guardarán tus vuelos.</span>
           </li>
           <li>
+            <strong>Enlázalo con tu cuenta (solo la primera vez)</strong>
+            <span>
+              <p>Ábrelo y pulsa <strong>«Traer el plan de la web»</strong>, arriba junto a la ruta. Entra con el mismo ID de piloto y contraseña que usas aquí.</p>
+              <p>A partir de ese momento EvA Airliner coge solo el origen y el destino del plan que prepares en la web, sin que tengas que teclearlos. <strong>Tu contraseña no se guarda en tu ordenador</strong>: se cambia por una clave que solo sirve para leer tu plan, y que puedes anular más abajo cuando quieras.</p>
+            </span>
+          </li>
+          <li>
             <strong>Crea tu plan de vuelo y prepáralo en VATSIM</strong>
             <span>
               <p>En la pestaña <a href="{{ url_for('plan') }}">PLAN</a>, crea tu plan de vuelo.</p>
@@ -135,6 +142,7 @@
                 <li><strong>ABRIR EN VATSIM</strong> para abrir la ventana de VATSIM con todos los datos del plan ya preparados. EvA no envía el plan: tú lo revisas y lo envías.</li>
               </ul>
               <p class="importante"><strong>Importante:</strong> hay que usar una de estas dos opciones para que la grabación del vuelo sea correcta. Si no lo haces, <strong>el vuelo no será evaluado</strong>.</p>
+              <p>No hace falta que pulses <strong>GUARDAR PLAN SIN VATSIM</strong> aparte: <strong>los tres botones guardan el plan</strong>, y es el último que guardes el que cogerá EvA Airliner.</p>
             </span>
           </li>
           <li>
@@ -144,7 +152,7 @@
           <li>
             <strong>Abre EvA Airliner y comienza la grabación</strong>
             <span>
-              <p>Verás que detecta el simulador y empieza a leer los datos del avión.</p>
+              <p>Verás que detecta el simulador y empieza a leer los datos del avión, y que arriba ya aparece la ruta de tu plan (por ejemplo <strong>LEVC → LECH</strong>) con su luz en verde. Si sigue en rojo, es que le falta el origen o el destino y no dejará grabar.</p>
               <p>Puedes iniciar la grabación de <strong>dos formas</strong>:</p>
               <ul>
                 <li><strong>Manual:</strong> pulsa el botón <strong>GRABAR</strong> cuando quieras comenzar a registrar el vuelo.</li>
@@ -193,10 +201,14 @@
           <h3>Clave del grabador</h3>
         </div>
         <p style="margin:0 0 12px;font-size:13.5px;color:var(--tenue)">
-          Pégala una vez en las preferencias de EvA Airliner y el grabador
-          cogerá solo el origen y el destino del plan que prepares aquí, sin
-          que tengas que teclearlos otra vez. Es de <strong>solo lectura</strong>:
-          no sirve para entrar en la web ni para ver los planes de nadie más.
+          Es la clave con la que EvA Airliner lee tu plan de vuelo. Lo normal
+          es que <strong>no necesites tocar nada aquí</strong>: se crea sola
+          cuando entras desde el grabador con «Traer el plan de la web».
+          Esto es para <strong>anularla</strong> si crees que alguien más ha
+          tenido acceso a tu ordenador, o para ponerla a mano en las
+          preferencias si prefieres.
+          Es de <strong>solo lectura</strong>: no sirve para entrar en la web
+          ni para ver los planes de nadie más.
         </p>
 
         {% if clave_nueva %}
