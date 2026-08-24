@@ -217,11 +217,12 @@ def icao_fpl(
         -RMK/...)
         -E/0400 P/2
 
-    En VFR el nivel de crucero **no es un número**: la casilla 15 lleva
-    literalmente `VFR` en su lugar.
+    La casilla 15 lleva el nivel de crucero en números (p.ej. `F045`)
+    siempre que se conoce, también en VFR: el convenio ICAO real permite
+    ahí un `VFR` literal, pero el formulario beta de VATSIM no lo admite
+    (ver más abajo). Sin altitud, cae a `VFR` como antes.
     """
     extras = extras or PrefileExtras()
-    es_vfr = flight_plan.rules.upper() == "VFR"
 
     # Casilla 7: indicativo, reglas de vuelo y tipo de vuelo.
     reglas = VATSIM_RULES.get(flight_plan.rules.upper(), "V")
@@ -246,10 +247,16 @@ def icao_fpl(
     lineas.append(f"-{flight_plan.departure_icao}{hora}")
 
     # Casilla 15: velocidad de crucero, nivel y ruta.
+    # El convenio ICAO real permite «VFR» literal en el nivel cuando no hay
+    # uno fijado, y así lo hacía este código — pero el formulario beta de
+    # VATSIM (my.vatsim.net/pilots/flightplan/beta) no lo acepta: da
+    # "Error parsing line 4" y marca velocidad/altitud/ruta como
+    # obligatorias sin rellenar. Confirmado en vivo por el usuario
+    # 2026-08-24. La regla de vuelo (V/I) ya va en la casilla 7, así que
+    # llevar aquí un nivel numérico siempre que se conozca no es
+    # ambiguo — solo cae a «VFR» si de verdad no hay altitud.
     velocidad = f"N{extras.cruise_speed:04d}" if extras.cruise_speed else "N0000"
-    if es_vfr:
-        nivel = "VFR"
-    elif flight_plan.planned_cruise_alt_ft:
+    if flight_plan.planned_cruise_alt_ft:
         nivel = f"F{flight_plan.planned_cruise_alt_ft // 100:03d}"
     else:
         nivel = "VFR"

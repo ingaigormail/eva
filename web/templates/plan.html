@@ -182,7 +182,7 @@
           </div>
           <div class="campo estrecho">
             <label>Off-block (UTC)</label>
-            <input id="off-block" type="time" value="10:00">
+            <input id="off-block" type="time">
           </div>
           <div class="campo estrecho">
             <label>TAS (kt)</label>
@@ -333,6 +333,15 @@
 <script nonce="{{ csp_nonce }}">
 const $ = (id) => document.getElementById(id);
 $("fecha").value = new Date().toISOString().slice(0, 10);
+// Hora UTC actual para el off-block: Date ya calcula el UTC real del
+// sistema, así que el cambio de hora de verano/invierno en España lo
+// resuelve solo — no hay que restar 1h o 2h a mano en ningún sitio.
+{
+  const ahoraUTC = new Date();
+  const hh = String(ahoraUTC.getUTCHours()).padStart(2, "0");
+  const mm = String(ahoraUTC.getUTCMinutes()).padStart(2, "0");
+  $("off-block").value = `${hh}:${mm}`;
+}
 
 // -- estela: se rellena sola cuando se conoce de verdad (datos reales de
 // aircraft.yaml, hoy solo 2 de los 8 aviones). Si no se conoce, el campo se

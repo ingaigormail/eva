@@ -173,13 +173,23 @@ def test_el_plan_icao_tiene_la_estructura_de_casillas():
     assert lineas[-1] == "-E/0400 P/2"        # casilla 19
 
 
-def test_en_vfr_la_casilla_15_lleva_vfr_y_no_un_nivel():
+def test_en_vfr_con_altitud_conocida_la_casilla_15_lleva_el_nivel():
+    """El convenio ICAO real admite «VFR» literal aquí, pero el formulario
+    beta de VATSIM lo rechaza (Error parsing line 4) y exige un nivel
+    numérico aunque el vuelo sea VFR — la regla V/I ya va en la casilla 7."""
     texto = icao_fpl(
         _plan(rules="VFR", planned_cruise_alt_ft=4500), PILOTO,
         PrefileExtras(cruise_speed=110),
     )
+    assert "N0110F045" in texto
+
+
+def test_en_vfr_sin_altitud_la_casilla_15_lleva_vfr():
+    texto = icao_fpl(
+        _plan(rules="VFR", planned_cruise_alt_ft=None), PILOTO,
+        PrefileExtras(cruise_speed=110),
+    )
     assert "N0110VFR" in texto
-    assert "F045" not in texto
 
 
 def test_en_ifr_la_casilla_15_lleva_el_nivel_de_vuelo():
