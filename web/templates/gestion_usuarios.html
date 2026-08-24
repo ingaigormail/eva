@@ -57,7 +57,42 @@
     padding: 6px 8px; border: 1px solid var(--borde); border-radius: 8px;
     font-size: 12px; font-family: inherit; width: 165px;
   }
+
+  /* Categoría / insignia: ver evaluation/reglas_info.py para el mismo
+     principio de "un solo sitio que decide" — aquí el único sitio es
+     cuentas.CATEGORIA_INFO (nombre/siglas); el dibujo de cada insignia
+     vive solo aquí porque es presentación, no un dato del piloto. */
+  .celda-categoria { display: flex; align-items: center; gap: 8px; }
+  .celda-categoria svg { width: 26px; height: 26px; flex-shrink: 0; }
+  .celda-categoria .txt-cat { line-height: 1.25; }
+  .celda-categoria .txt-cat b { font-size: 12px; display: block; }
+  .celda-categoria .txt-cat span { font-size: 10.5px; color: var(--tenue); }
+  .celda-actividad .ruta { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .celda-actividad .fecha { font-size: 11px; color: var(--tenue); margin-top: 1px; }
+  .celda-actividad .nunca { color: var(--tenue); font-style: italic; font-size: 12px; }
+  .contador-30d {
+    display: inline-block; margin-top: 3px; font-size: 10.5px; font-weight: 700;
+    padding: 1px 7px; border-radius: 999px;
+  }
+  .contador-30d.con-vuelos { background: var(--verde-fondo); color: var(--verde-texto); }
+  .contador-30d.sin-vuelos { background: var(--panel-alto); color: var(--tenue); }
 {% endblock %}
+
+{% macro insignia(codigo) %}
+{% if codigo == 'P0' %}
+  <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="#94a3b8" stroke-width="3" stroke-dasharray="4 4"/><circle cx="32" cy="32" r="6" fill="#cbd5e1"/></svg>
+{% elif codigo == 'P1' %}
+  <svg viewBox="0 0 64 64"><path d="M32 20 C22 18 8 22 4 30 C10 30 18 29 24 26 C20 32 12 35 6 36 C14 40 24 38 30 32 L32 44 L34 32 C40 38 50 40 58 36 C52 35 44 32 40 26 C46 29 54 30 60 30 C56 22 42 18 32 20 Z" fill="#b3703f"/><circle cx="32" cy="26" r="7" fill="#fff" stroke="#8a5a2e" stroke-width="1.5"/><path d="M32 21 L34 25 L38 25.5 L35 28.5 L36 33 L32 30.8 L28 33 L29 28.5 L26 25.5 L30 25 Z" fill="#c9834a"/></svg>
+{% elif codigo == 'P2' %}
+  <svg viewBox="0 0 64 64"><path d="M32 19 C20 16 6 21 2 30 C9 30 19 28 26 24 C22 31 12 34 5 35 C14 40 25 38 31 31 L32 45 L33 31 C39 38 50 40 59 35 C52 34 42 31 38 24 C45 28 55 30 62 30 C58 21 44 16 32 19 Z" fill="#a8b6c8"/><circle cx="32" cy="27" r="8" fill="#1e3a8a"/><path d="M32 22 L32 32 M27 27 L37 27" stroke="#e2e8f0" stroke-width="1.4"/><circle cx="32" cy="27" r="1.6" fill="#e2e8f0"/></svg>
+{% elif codigo == 'P3' %}
+  <svg viewBox="0 0 64 64"><path d="M32 18 C18 14 4 20 1 30 C9 30 20 27 27 22 C22 30 11 33 3 34 C13 40 26 38 32 30 L32 46 L32 30 C38 38 51 40 61 34 C53 33 42 30 37 22 C44 27 55 30 63 30 C60 20 46 14 32 18 Z" fill="#d99a3d"/><circle cx="32" cy="26" r="8" fill="#b45309"/><path d="M32 20 L34.5 24.5 L39.5 25.2 L35.7 28.8 L36.7 33.7 L32 31.2 L27.3 33.7 L28.3 28.8 L24.5 25.2 L29.5 24.5 Z" fill="#fde68a"/></svg>
+{% elif codigo == 'P4' %}
+  <svg viewBox="0 0 64 64"><path d="M32 16 C16 11 2 18 -1 29 C8 29 20 26 28 20 C22 29 9 32 0 33 C11 40 26 38 32 29 L32 47 L32 29 C38 38 53 40 64 33 C55 32 42 29 36 20 C44 26 56 29 65 29 C62 18 48 11 32 16 Z" fill="#e8c477"/><path d="M16 36 C20 41 27 44 32 44 C37 44 44 41 48 36" fill="none" stroke="#b45309" stroke-width="1.8" opacity=".8"/><circle cx="32" cy="25" r="9" fill="#7c3f0a"/><path d="M32 18 L34.8 23 L40.2 23.8 L36.1 27.7 L37.2 33.2 L32 30.4 L26.8 33.2 L27.9 27.7 L23.8 23.8 L29.2 23 Z" fill="#fde68a"/></svg>
+{% else %}
+  <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="#cbd5e1" stroke-width="2"/></svg>
+{% endif %}
+{% endmacro %}
 
 {% block contenido %}
   <p style="font-size:12.5px;margin:0 0 16px">
@@ -92,7 +127,7 @@
         <tr>
           <th>Callsign / ID</th>
           <th>Nombre</th>
-          <th>Discord</th>
+          <th>VATSIM CID</th>
           <th>Correo</th>
           <th>Solicitada</th>
           <th>Acciones</th>
@@ -103,7 +138,7 @@
         <tr>
           <td><strong>{{ s.license_id }}</strong></td>
           <td>{{ s.nombre }}</td>
-          <td>{{ s.discord or '—' }}</td>
+          <td>{{ s.vatsim_cid or '—' }}</td>
           <td>{{ s.correo }}</td>
           <td class="tenue">{{ s.creado|replace('T', ' ')|replace('+00:00', ' UTC') }}</td>
           <td>
@@ -164,6 +199,8 @@
     <thead>
       <tr>
         <th>Piloto</th>
+        <th>Categoría</th>
+        <th>Actividad</th>
         <th>Correo</th>
         <th>Estado</th>
         <th>Rol</th>
@@ -176,6 +213,45 @@
         <td>
           <strong>{{ u.license_id }}</strong>
           {% if u.license_id == usuario_actual %}<div class="yo">ERES TÚ</div>{% endif %}
+        </td>
+        <td class="celda-categoria">
+          {{ insignia(u.categoria) }}
+          <div class="txt-cat">
+            <b>{{ categoria_info.get(u.categoria, {}).get('siglas', u.categoria) }}</b>
+            <span>{{ categoria_info.get(u.categoria, {}).get('nombre', '') }}</span>
+          </div>
+          <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="accion" value="categoria">
+            <select name="categoria" class="mini-input" style="width: auto;">
+              {% for c in categorias %}
+              <option value="{{ c }}" {% if u.categoria == c %}selected{% endif %}>{{ c }} — {{ categoria_info[c].siglas }}</option>
+              {% endfor %}
+            </select>
+            <button class="mini" type="submit">Cambiar</button>
+          </form>
+        </td>
+        <td class="celda-actividad">
+          {% if u.ultima_fecha %}
+          <div class="ruta">{{ u.ultimo_origen }} &rarr; {{ u.ultimo_destino }}</div>
+          <div class="fecha">{{ u.ultima_fecha[:10] }}</div>
+          {% else %}
+          <div class="nunca">Sin vuelos todavía</div>
+          {% endif %}
+          <span class="contador-30d {{ 'con-vuelos' if u.vuelos_recientes else 'sin-vuelos' }}">
+            {{ u.vuelos_recientes }} vuelo{{ 's' if u.vuelos_recientes != 1 else '' }} EvA / 30d
+          </span>
+          <div class="fecha">
+            {% if u.vatsim_cid %}
+              {% if u.horas_pv is not none %}{{ '%.0f'|format(u.horas_pv) }} h PV
+              {% else %}VATSIM: — {% endif %}
+              &middot;
+              {% if u.vuelos_vatsim_30d is not none %}{{ u.vuelos_vatsim_30d }} plan{{ 'es' if u.vuelos_vatsim_30d != 1 else '' }} VATSIM / 30d
+              {% else %}—{% endif %}
+            {% else %}
+              Sin CID de VATSIM
+            {% endif %}
+          </div>
         </td>
         <td>
           <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">

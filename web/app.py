@@ -63,6 +63,7 @@ from avcars import (  # noqa: E402
     secreto,
     sesion_web,
     solicitudes,
+    vatsim_api,
 )
 
 try:
@@ -552,7 +553,7 @@ def logout():
 @app.route("/solicitar-alta", methods=["GET", "POST"])
 def solicitar_alta():
     """Manda al responsable la petición de alta. **No crea ninguna cuenta.**"""
-    datos = {"license_id": "", "nombre": "", "discord": "", "correo": ""}
+    datos = {"license_id": "", "nombre": "", "vatsim_cid": "", "correo": ""}
     error = None
     enviado = False
     aviso_correo = None
@@ -583,7 +584,7 @@ def solicitar_alta():
                     datos["license_id"],
                     datos["nombre"],
                     datos["correo"],
-                    discord=datos["discord"],
+                    vatsim_cid=datos["vatsim_cid"],
                 )
             except ValueError as exc:
                 error = str(exc)
@@ -595,7 +596,7 @@ def solicitar_alta():
                 "========================\n\n"
                 f"Callsign / ID de EVA : {datos['license_id']}\n"
                 f"Nombre y apellidos   : {datos['nombre']}\n"
-                f"Nombre en Discord    : {datos['discord'] or '(no indicado)'}\n"
+                f"ID de VATSIM (CID)  : {datos['vatsim_cid'] or '(no indicado)'}\n"
                 f"Correo de contacto   : {datos['correo']}\n"
                 f"Fecha y hora         : {momento.strftime('%Y-%m-%d %H:%M:%S %Z')}\n\n"
                 "La cuenta NO se ha creado: queda pendiente en la gestión de "
@@ -761,12 +762,34 @@ def _enviar_enlace_de_contraseña(license_id: str, *, alta: bool) -> str:
 @app.route("/gestion/usuarios")
 @permiso_requerido(PERM_GESTIONAR_USUARIOS)
 def gestion_usuarios():
+    """Cada piloto con su categoría, su último vuelo y su actividad
+    reciente (últimos 30 días) — para poder identificar de un vistazo
+    quién está activo y en qué nivel está, sin abrir su ficha."""
+    usuarios = cuentas.listar_usuarios()
+    actividad = estadisticas.actividad_reciente_por_piloto()
+    sin_actividad = {
+        "ultima_fecha": None, "ultimo_origen": None,
+        "ultimo_destino": None, "vuelos_recientes": 0,
+    }
+    # VATSIM en paralelo, con timeout corto (vatsim_api.py): si VATSIM va
+    # lento o el piloto no ha puesto su CID, el resto de la página no debe
+    # esperar por eso.
+    actividad_vatsim = vatsim_api.actividad_de_varios(
+        [u["vatsim_cid"] for u in usuarios]
+    )
+    sin_vatsim = {"horas_pv": None, "vuelos_vatsim_30d": None}
+    for u in usuarios:
+        u.update(actividad.get(u["license_id"], sin_actividad))
+        u.update(actividad_vatsim.get(u["vatsim_cid"], sin_vatsim))
+
     return render_template(
         "gestion_usuarios.html",
-        usuarios=cuentas.listar_usuarios(),
+        usuarios=usuarios,
         solicitudes=solicitudes.pendientes(),
         correo_listo=correo_eva.configurado(),
         correo_gestion=correo_eva.correo_de_gestion(),
+        categorias=cuentas.CATEGORIAS,
+        categoria_info=cuentas.CATEGORIA_INFO,
     )
 
 
@@ -801,6 +824,7 @@ def gestion_solicitud(solicitud_id: int):
             secrets.token_urlsafe(24),
             peticion["correo"],
             rol=request.form.get("rol", cuentas.ROL_PILOTO),
+            vatsim_cid=peticion["vatsim_cid"],
         )
     except ValueError as exc:
         # La solicitud sigue pendiente: el administrador arregla y reintenta.
@@ -897,6 +921,12 @@ def gestion_accion(license_id: str):
             else:
                 cuentas.cambiar_rol(license_id, nuevo)
                 flash(f"{license_id} pasa a ser {nuevo}.", "exito")
+
+        elif accion == "categoria":
+            nueva = request.form.get("categoria", "")
+            cuentas.cambiar_categoria(license_id, nueva)
+            info = cuentas.CATEGORIA_INFO.get(nueva, {})
+            flash(f"{license_id} pasa a {nueva} ({info.get('siglas', nueva)}).", "exito")
 
         elif accion == "correo":
             cuentas.cambiar_correo(license_id, request.form.get("correo", ""))

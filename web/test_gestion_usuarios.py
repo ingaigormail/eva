@@ -219,7 +219,7 @@ def test_una_accion_sobre_alguien_que_no_existe_no_revienta(admin):
 @pytest.fixture
 def solicitud():
     return solicitudes.crear(
-        "EVA777", "Ana Pérez López", "ana@ejemplo.com", discord="ana#1234"
+        "EVA777", "Ana Pérez López", "ana@ejemplo.com", vatsim_cid="1234567"
     )
 
 
@@ -227,7 +227,7 @@ def test_las_solicitudes_pendientes_salen_en_la_pantalla(admin, solicitud):
     html = admin.get("/gestion/usuarios").get_data(as_text=True)
     assert "EVA777" in html
     assert "Ana Pérez López" in html
-    assert "ana#1234" in html
+    assert "1234567" in html
     assert "ana@ejemplo.com" in html
 
 

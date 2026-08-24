@@ -213,6 +213,48 @@ def top_pilotos_calidad(
     ]
 
 
+def actividad_reciente_por_piloto(dias: int = 30) -> dict[str, dict]:
+    """Por piloto: su último vuelo (fecha, origen, destino) y cuántos ha
+    hecho en los últimos `dias` días.
+
+    Para `/gestion/usuarios`: es una ficha por piloto, no un ranking — se
+    calcula todo en una sola pasada sobre `vuelos_resumen` (barato, el
+    volumen de EvA no lo justifica) en vez de una consulta por piloto, que
+    con muchos usuarios sería N+1.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    limite_iso = (datetime.now(timezone.utc) - timedelta(days=dias)).isoformat()
+
+    with cuentas.conexion() as con:
+        filas = con.execute(
+            "SELECT license_id, origen, destino, fecha FROM vuelos_resumen "
+            "ORDER BY fecha DESC"
+        ).fetchall()
+
+    resultado: dict[str, dict] = {}
+    for f in filas:
+        piloto = f["license_id"]
+        ficha = resultado.setdefault(
+            piloto,
+            {
+                "ultima_fecha": None,
+                "ultimo_origen": None,
+                "ultimo_destino": None,
+                "vuelos_recientes": 0,
+            },
+        )
+        if ficha["ultima_fecha"] is None:
+            # Primera fila que se ve de este piloto: como viene ORDER BY
+            # fecha DESC, es su vuelo más reciente.
+            ficha["ultima_fecha"] = f["fecha"]
+            ficha["ultimo_origen"] = f["origen"]
+            ficha["ultimo_destino"] = f["destino"]
+        if f["fecha"] >= limite_iso:
+            ficha["vuelos_recientes"] += 1
+    return resultado
+
+
 def top_rutas(limite: int = 10) -> list[dict]:
     with cuentas.conexion() as con:
         filas = con.execute(

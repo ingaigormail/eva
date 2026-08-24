@@ -13,14 +13,14 @@ def almacen_tmp(tmp_path):
 
 
 def test_una_solicitud_queda_guardada_con_todos_sus_datos(almacen_tmp):
-    solicitudes.crear("EVA777", "Ana Pérez", "ana@ejemplo.com", discord="ana#1234")
+    solicitudes.crear("EVA777", "Ana Pérez", "ana@ejemplo.com", vatsim_cid="1234567")
 
     pendientes = solicitudes.pendientes()
     assert len(pendientes) == 1
     fila = pendientes[0]
     assert fila["license_id"] == "EVA777"
     assert fila["nombre"] == "Ana Pérez"
-    assert fila["discord"] == "ana#1234"
+    assert fila["vatsim_cid"] == "1234567"
     assert fila["correo"] == "ana@ejemplo.com"
     assert fila["creado"]
     assert fila["estado"] == solicitudes.PENDIENTE

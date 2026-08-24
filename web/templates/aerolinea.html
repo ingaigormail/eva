@@ -4,9 +4,6 @@
 {% block nav_aerolinea %}activo{% endblock %}
 {% block contenido_clase %}ancho{% endblock %}
 
-{% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}"/>
-{% endblock %}
 
 {% block contenido %}
   <section class="tarjeta">
@@ -170,12 +167,11 @@
         <p>Aeropuertos y rutas del ranking, con grosor según vuelos. Solo ICAO conocidos.</p>
       </div>
     </div>
-    <div id="mapa-flota" class="mapa-flota"></div>
+    <svg id="mapa-flota" class="mapa-flota" viewBox="0 0 640 420" role="img" aria-label="Aeropuertos y rutas en el mapa de España"></svg>
   </section>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
 <script nonce="{{ csp_nonce }}">
 (function () {
   const mensual = {{ mensual|tojson }};
@@ -203,36 +199,54 @@
     svg.innerHTML = html;
   }
 
+  // Mapa sin teselas: nada de Leaflet ni peticiones a un servidor externo.
+  // Solo una proyección plana (equirrectangular, corregida por latitud) de
+  // los puntos que ya tenemos en `geo` sobre el propio SVG — un piloto no
+  // necesita arrastrar ni hacer zoom para ver cuatro rutas y aeropuertos.
   const geo = {{ mapa_flota|tojson }};
-  const el = document.getElementById("mapa-flota");
-  if (!el || typeof L === "undefined") return;
-  const map = L.map("mapa-flota", { attributionControl: false });
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 12,
-    attribution: "© OpenStreetMap"
-  }).addTo(map);
-  const espana = L.latLngBounds([[35.9, -18.2], [43.9, 4.4]]);
-  map.fitBounds(espana);
+  const svgMapa = document.getElementById("mapa-flota");
+  if (!svgMapa) return;
 
-  (geo.rutas || []).forEach(r => {
-    const w = Math.min(8, 1.5 + Number(r.vuelos) * 0.8);
-    L.polyline(
-      [[r.origen_lat, r.origen_lon], [r.destino_lat, r.destino_lon]],
-      { color: "#2563eb", weight: w, opacity: 0.55 }
-    ).bindPopup(r.origen + " → " + r.destino + "<br>" + r.vuelos + " vuelos").addTo(map);
-  });
+  const puntos = geo.puntos || [];
+  const rutas = geo.rutas || [];
+  if (!puntos.length && !rutas.length) return;
 
-  const bounds = [];
-  (geo.puntos || []).forEach(p => {
-    const rad = Math.min(14, 5 + Math.sqrt(Number(p.operaciones) || 0) * 1.6);
-    L.circleMarker([p.lat, p.lon], {
-      radius: rad, color: "#1e3a8a", weight: 2, fillColor: "#2563eb", fillOpacity: 0.75
-    }).bindPopup("<b>" + p.icao + "</b><br>" + p.operaciones + " operaciones").addTo(map);
-    bounds.push([p.lat, p.lon]);
+  const W = 640, H = 420, pad = 36;
+  const lats = [], lons = [];
+  puntos.forEach(p => { lats.push(p.lat); lons.push(p.lon); });
+  rutas.forEach(r => { lats.push(r.origen_lat, r.destino_lat); lons.push(r.origen_lon, r.destino_lon); });
+  const latMin = Math.min(...lats), latMax = Math.max(...lats);
+  const lonMin = Math.min(...lons), lonMax = Math.max(...lons);
+  const latMid = (latMin + latMax) / 2;
+  const corr = Math.max(0.4, Math.cos(latMid * Math.PI / 180));
+  const spanLat = Math.max(0.5, latMax - latMin);
+  const spanLon = Math.max(0.5, (lonMax - lonMin) * corr);
+  const escala = Math.min((W - 2 * pad) / spanLon, (H - 2 * pad) / spanLat);
+  const cx = W / 2, cy = H / 2;
+  const lonMid = (lonMin + lonMax) / 2;
+  const proyectar = (lat, lon) => [
+    cx + (lon - lonMid) * corr * escala,
+    cy - (lat - latMid) * escala,
+  ];
+
+  let html = "";
+  rutas.forEach(r => {
+    const [x1, y1] = proyectar(r.origen_lat, r.origen_lon);
+    const [x2, y2] = proyectar(r.destino_lat, r.destino_lon);
+    const grosor = Math.min(6, 1.2 + Number(r.vuelos || 0) * 0.6);
+    html += '<line class="ruta-mapa" x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) +
+      '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke-width="' + grosor.toFixed(1) + '">' +
+      '<title>' + r.origen + ' → ' + r.destino + ': ' + r.vuelos + ' vuelos</title></line>';
   });
-  if (bounds.length) {
-    map.fitBounds(bounds, { padding: [28, 28], maxZoom: 7 });
-  }
+  puntos.forEach(p => {
+    const [x, y] = proyectar(p.lat, p.lon);
+    const radio = Math.min(12, 4 + Math.sqrt(Number(p.operaciones) || 0) * 1.4);
+    html += '<circle class="punto-mapa" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + radio.toFixed(1) + '">' +
+      '<title>' + p.icao + ': ' + p.operaciones + ' operaciones</title></circle>';
+    html += '<text class="etiqueta-mapa" x="' + x.toFixed(1) + '" y="' + (y - radio - 4).toFixed(1) +
+      '" text-anchor="middle">' + p.icao + '</text>';
+  });
+  svgMapa.innerHTML = html;
 })();
 </script>
 {% endblock %}

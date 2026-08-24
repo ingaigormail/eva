@@ -73,7 +73,7 @@ def test_la_solicitud_de_alta_llega_a_gestion_y_no_crea_la_cuenta(cliente):
         data={
             "license_id": "EVA777",
             "nombre": "Ana Pérez López",
-            "discord": "ana#1234",
+            "vatsim_cid": "1234567",
             "correo": "ana@ejemplo.com",
         },
     )
@@ -92,7 +92,7 @@ def test_la_solicitud_de_alta_llega_a_gestion_y_no_crea_la_cuenta(cliente):
     assert mensaje["para"] == "gestion@eva.test"
     assert "Solicitud de alta" in mensaje["asunto"]
     assert "EVA777" in mensaje["asunto"]
-    for dato in ("EVA777", "Ana Pérez López", "ana#1234", "ana@ejemplo.com"):
+    for dato in ("EVA777", "Ana Pérez López", "1234567", "ana@ejemplo.com"):
         assert dato in mensaje["cuerpo"]
     # La fecha la pone el sistema.
     assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", mensaje["cuerpo"])
@@ -104,7 +104,7 @@ def test_la_solicitud_queda_guardada_en_la_tabla(cliente):
         data={
             "license_id": "EVA777",
             "nombre": "Ana Pérez López",
-            "discord": "ana#1234",
+            "vatsim_cid": "1234567",
             "correo": "ana@ejemplo.com",
         },
     )
@@ -113,7 +113,7 @@ def test_la_solicitud_queda_guardada_en_la_tabla(cliente):
     assert len(pendientes) == 1
     assert pendientes[0]["license_id"] == "EVA777"
     assert pendientes[0]["nombre"] == "Ana Pérez López"
-    assert pendientes[0]["discord"] == "ana#1234"
+    assert pendientes[0]["vatsim_cid"] == "1234567"
 
 
 def test_si_el_correo_falla_la_solicitud_no_se_pierde(cliente, monkeypatch):

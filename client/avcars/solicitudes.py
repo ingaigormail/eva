@@ -25,7 +25,7 @@ def _ahora() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def crear(license_id: str, nombre: str, correo: str, *, discord: str = "") -> int:
+def crear(license_id: str, nombre: str, correo: str, *, vatsim_cid: str = "") -> int:
     """Guarda (o refresca) la solicitud y devuelve su id."""
     license_id = (license_id or "").strip()
     nombre = (nombre or "").strip()
@@ -46,16 +46,16 @@ def crear(license_id: str, nombre: str, correo: str, *, discord: str = "") -> in
         ).fetchone()
         if fila:
             con.execute(
-                "UPDATE solicitudes SET nombre = ?, discord = ?, correo = ?, "
+                "UPDATE solicitudes SET nombre = ?, vatsim_cid = ?, correo = ?, "
                 "creado = ? WHERE id = ?",
-                (nombre, (discord or "").strip(), correo, momento, fila["id"]),
+                (nombre, (vatsim_cid or "").strip(), correo, momento, fila["id"]),
             )
             return int(fila["id"])
 
         cursor = con.execute(
-            "INSERT INTO solicitudes (license_id, nombre, discord, correo, "
+            "INSERT INTO solicitudes (license_id, nombre, vatsim_cid, correo, "
             "creado, estado) VALUES (?, ?, ?, ?, ?, ?)",
-            (license_id, nombre, (discord or "").strip(), correo, momento, PENDIENTE),
+            (license_id, nombre, (vatsim_cid or "").strip(), correo, momento, PENDIENTE),
         )
         return int(cursor.lastrowid)
 

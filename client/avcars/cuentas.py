@@ -61,6 +61,30 @@ PERMISOS_POR_ROL: dict[str, frozenset[str]] = {
     ROL_PILOTO: frozenset({PERM_VOLAR}),
 }
 
+# -- Categoría de piloto (progresión P0-P4) --------------------------------
+#
+# No hay examen ni conteo de horas automático que la mueva: el admin la
+# asigna a mano en /gestion/usuarios, igual que ya hace con el rol. Guardada
+# como texto validado contra esta lista, no como columna aparte por nivel —
+# añadir un P5 el día de mañana es una entrada nueva aquí, no una migración.
+CATEGORIA_P0 = "P0"
+CATEGORIA_P1 = "P1"
+CATEGORIA_P2 = "P2"
+CATEGORIA_P3 = "P3"
+CATEGORIA_P4 = "P4"
+CATEGORIAS = (CATEGORIA_P0, CATEGORIA_P1, CATEGORIA_P2, CATEGORIA_P3, CATEGORIA_P4)
+
+#: Nombre y siglas para pintar la insignia, en el mismo orden que CATEGORIAS.
+#: No lleva color aquí: el color/SVG de cada insignia vive en la plantilla
+#: (es presentación, no un dato del piloto).
+CATEGORIA_INFO: dict[str, dict[str, str]] = {
+    CATEGORIA_P0: {"nombre": "New Member", "siglas": "Miembro nuevo"},
+    CATEGORIA_P1: {"nombre": "Private Pilot", "siglas": "PPL"},
+    CATEGORIA_P2: {"nombre": "Instrument Rating", "siglas": "IR"},
+    CATEGORIA_P3: {"nombre": "Commercial Multi-Engine", "siglas": "CMEL"},
+    CATEGORIA_P4: {"nombre": "Airline Transport Pilot", "siglas": "ATPL"},
+}
+
 # -- Resultados de autenticación ------------------------------------------
 AUTH_OK = "ok"
 AUTH_DESCONOCIDO = "desconocido"
@@ -81,6 +105,13 @@ CREATE TABLE IF NOT EXISTS usuarios (
     correo      TEXT NOT NULL DEFAULT '',
     estado      TEXT NOT NULL DEFAULT 'activa',
     rol         TEXT NOT NULL DEFAULT 'piloto',
+    -- Progresión P0-P4 (ver CATEGORIAS). Todo piloto nuevo entra en P0; el
+    -- admin lo va subiendo a mano desde /gestion/usuarios.
+    categoria   TEXT NOT NULL DEFAULT 'P0',
+    -- CID de VATSIM (numérico, como texto): para cruzar la actividad de
+    -- VATSIM del piloto contra su cuenta de EvA. Vacío si no lo dio en la
+    -- solicitud o no vuela en VATSIM.
+    vatsim_cid  TEXT NOT NULL DEFAULT '',
     creado      TEXT NOT NULL,
     actualizado TEXT NOT NULL
 );
@@ -104,7 +135,11 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     license_id   TEXT NOT NULL,
     nombre       TEXT NOT NULL,
+    -- `discord` se deja de pedir en el formulario (sustituido por
+    -- vatsim_cid); la columna se conserva sin usar para no perder el dato
+    -- de solicitudes antiguas que ya lo traían.
     discord      TEXT NOT NULL DEFAULT '',
+    vatsim_cid   TEXT NOT NULL DEFAULT '',
     correo       TEXT NOT NULL,
     creado       TEXT NOT NULL,
     estado       TEXT NOT NULL DEFAULT 'pendiente',
@@ -252,6 +287,26 @@ def _migrar_esquema() -> None:
         if "via" not in columnas:
             con.execute("ALTER TABLE planes ADD COLUMN via TEXT NOT NULL DEFAULT ''")
 
+        columnas_usuarios = {
+            fila["name"] for fila in con.execute("PRAGMA table_info(usuarios)")
+        }
+        if "categoria" not in columnas_usuarios:
+            con.execute(
+                "ALTER TABLE usuarios ADD COLUMN categoria TEXT NOT NULL DEFAULT 'P0'"
+            )
+        if "vatsim_cid" not in columnas_usuarios:
+            con.execute(
+                "ALTER TABLE usuarios ADD COLUMN vatsim_cid TEXT NOT NULL DEFAULT ''"
+            )
+
+        columnas_solicitudes = {
+            fila["name"] for fila in con.execute("PRAGMA table_info(solicitudes)")
+        }
+        if "vatsim_cid" not in columnas_solicitudes:
+            con.execute(
+                "ALTER TABLE solicitudes ADD COLUMN vatsim_cid TEXT NOT NULL DEFAULT ''"
+            )
+
 
 # -- Contraseñas -----------------------------------------------------------
 
@@ -387,8 +442,8 @@ def listar_usuarios() -> list[dict]:
     """Fichas para la página de gestión. Nunca sale el hash."""
     with conexion() as con:
         filas = con.execute(
-            "SELECT license_id, correo, estado, rol, creado, actualizado "
-            "FROM usuarios ORDER BY license_id"
+            "SELECT license_id, correo, estado, rol, categoria, vatsim_cid, "
+            "creado, actualizado FROM usuarios ORDER BY license_id"
         ).fetchall()
     return [dict(f) for f in filas]
 
@@ -418,6 +473,7 @@ def crear_cuenta(
     *,
     rol: str = ROL_PILOTO,
     estado: str = ESTADO_ACTIVA,
+    vatsim_cid: str = "",
 ) -> None:
     """Alta con correo obligatorio y válido. Lanza ValueError si algo falla."""
     license_id = (license_id or "").strip()
@@ -441,13 +497,14 @@ def crear_cuenta(
         with conexion() as con:
             con.execute(
                 "INSERT INTO usuarios (license_id, password, correo, estado, "
-                "rol, creado, actualizado) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "rol, vatsim_cid, creado, actualizado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     license_id,
                     _hashear(password),
                     normalizar_correo(correo),
                     estado,
                     rol,
+                    (vatsim_cid or "").strip(),
                     momento,
                     momento,
                 ),
@@ -532,6 +589,12 @@ def cambiar_rol(license_id: str, rol: str) -> None:
     if rol not in ROLES:
         raise ValueError(f"Rol desconocido: {rol}")
     _actualizar(license_id, "rol", rol)
+
+
+def cambiar_categoria(license_id: str, categoria: str) -> None:
+    if categoria not in CATEGORIAS:
+        raise ValueError(f"Categoría desconocida: {categoria}")
+    _actualizar(license_id, "categoria", categoria)
 
 
 def cambiar_estado(license_id: str, estado: str) -> None:

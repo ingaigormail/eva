@@ -290,7 +290,10 @@ tbody tr:hover { background: #f8fafc; }
 .grafico-mensual .area { fill: var(--azul-claro); opacity: .85; }
 .grafico-mensual .punto { fill: #fff; stroke: var(--azul); stroke-width: 2; }
 .grafico-mensual .mes { fill: var(--tenue); font-size: 10px; font-family: inherit; }
-.mapa-flota { width: 100%; height: 420px; border-radius: 12px; border: 1px solid var(--borde); }
+.mapa-flota { width: 100%; height: 420px; border-radius: 12px; border: 1px solid var(--borde); background: var(--panel-alto); display: block; }
+.mapa-flota .ruta-mapa { stroke: var(--azul); opacity: .55; stroke-linecap: round; }
+.mapa-flota .punto-mapa { fill: var(--azul); stroke: #1e3a8a; stroke-width: 2; opacity: .85; }
+.mapa-flota .etiqueta-mapa { fill: var(--tenue); font-size: 10px; font-family: inherit; }
 .tarjeta .kpis { margin-top: 4px; }
 
 a.vuelo { color: var(--azul); text-decoration: none; font-weight: 600; }
