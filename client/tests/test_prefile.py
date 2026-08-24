@@ -166,7 +166,7 @@ def test_el_plan_icao_tiene_la_estructura_de_casillas():
     lineas = texto.splitlines()
 
     assert lineas[0] == "(FPL-EVA101-VG"      # casilla 7
-    assert lineas[1] == "-1/C172/L-S/C"       # casillas 9 y 10
+    assert lineas[1] == "-C172/L-S/C"         # casillas 9 y 10
     assert lineas[2] == "-LEVC1030"           # casilla 13
     assert lineas[3] == "-N0110VFR DCT XERTA DCT"   # casilla 15
     assert lineas[4] == "-LEAL0055 LERI"      # casilla 16
@@ -243,7 +243,7 @@ def test_dof_com_y_remarks_conviven_en_la_misma_casilla():
 
 def test_la_estela_sale_del_perfil_de_aeronave_si_se_pasa():
     texto = icao_fpl(_plan(), PILOTO, PrefileExtras(wake_turbulence="M"))
-    assert "/C172/M-" in texto
+    assert "-C172/M-" in texto
 
 
 # --- Selección de red ---------------------------------------------------

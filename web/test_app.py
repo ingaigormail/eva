@@ -362,7 +362,7 @@ def test_abrir_en_vatsim_devuelve_una_url_con_el_plan_relleno(cliente):
     )
     assert respuesta.status_code == 200
     url = respuesta.get_json()["url"]
-    assert url.startswith("https://my.vatsim.net/pilots/flightplan?")
+    assert url.startswith("https://my.vatsim.net/pilots/flightplan/beta?")
     assert "raw=" in url
 
 

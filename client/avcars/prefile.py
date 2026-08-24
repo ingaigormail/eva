@@ -46,13 +46,20 @@ from .schema import FlightPlanInfo, PilotInfo
 
 IVAO_PREFILE_URL = "https://fpl.ivao.aero/flight-plans/create"
 
-#: Formulario de plan de vuelo de VATSIM. Requiere haber iniciado sesión.
-#: Confirmado por el usuario el 2026-08-16.
-VATSIM_PREFILE_URL = "https://my.vatsim.net/pilots/flightplan"
+#: Formulario clásico de plan de vuelo de VATSIM. Requiere haber iniciado
+#: sesión. No valida el `raw=`: lo acepta tal cual, sin avisar de errores de
+#: formato — por eso costó detectar la casilla 9 mal formada.
+VATSIM_PREFILE_URL_CLASICO = "https://my.vatsim.net/pilots/flightplan"
 
-#: Versión nueva del mismo formulario, en pruebas. Se anota para tenerla
-#: localizada: si la antigua desaparece, el cambio es de una constante.
+#: Formulario nuevo (beta). Sí valida el `raw=` línea a línea y avisa de
+#: errores de formato («Error parsing line N»); confirmado en vivo por el
+#: usuario 2026-08-24 que rellena bien los campos donde el clásico no lo
+#: hacía. Es el que se usa por defecto ahora.
 VATSIM_PREFILE_URL_BETA = "https://my.vatsim.net/pilots/flightplan/beta"
+
+#: Alias usado por `vatsim_prefile_url()`. Cambiar aquí si VATSIM retira
+#: alguna de las dos versiones.
+VATSIM_PREFILE_URL = VATSIM_PREFILE_URL_BETA
 
 #: Reglas de vuelo tal como las nombra cada red.
 IVAO_RULES = {"VFR": "V", "IFR": "I", "Y": "Y", "Z": "Z"}
@@ -220,7 +227,11 @@ def icao_fpl(
     reglas = VATSIM_RULES.get(flight_plan.rules.upper(), "V")
     lineas = [f"(FPL-{pilot.callsign}-{reglas}{extras.flight_type}"]
 
-    # Casilla 9: número de aeronaves, tipo y categoría de estela.
+    # Casilla 9: número de aeronaves (solo si hay más de una — EvA siempre
+    # presenta un único avión, así que se omite; incluir «1/» aquí es lo que
+    # hacía que el formulario beta de VATSIM rechazara la línea con
+    # "Error parsing line 2", verificado en vivo 2026-08-24), tipo y
+    # categoría de estela.
     # Casilla 10: equipo de radio/navegación y de vigilancia. El formato los
     # exige, pero no son un dato medido del avión: son declaraciones del
     # piloto, que las revisa en el formulario antes de enviar. Por eso van
@@ -228,7 +239,7 @@ def icao_fpl(
     # cambiar desde `PrefileExtras`.
     tipo = flight_plan.aircraft_icao_type or "ZZZZ"
     estela = extras.wake_turbulence or "L"
-    lineas.append(f"-1/{tipo}/{estela}-{extras.equipment}/{extras.transponder}")
+    lineas.append(f"-{tipo}/{estela}-{extras.equipment}/{extras.transponder}")
 
     # Casilla 13: aeródromo de salida y hora prevista (HHMM).
     hora = extras.departure_utc.strftime("%H%M") if extras.departure_utc else "0000"
