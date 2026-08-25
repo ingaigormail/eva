@@ -223,3 +223,27 @@ def test_qnh_ausente_o_invalido_no_rompe():
 
     assert state.qnh_inhg is None
     assert state.stall_warning is None
+
+
+class TestTextoDelSimulador:
+    """MSFS devuelve el modelo envuelto en una clave de traducción."""
+
+    def test_saca_el_tipo_icao_de_la_clave_de_traduccion(self):
+        from avcars.connectors.simconnect_client import _coerce_texto
+
+        assert _coerce_texto(b"TT:ATCCOM.AC_MODEL_C172.0.text") == "C172"
+        assert _coerce_texto(b"TT:ATCCOM.ATC_NAME_C25C.0.text") == "C25C"
+
+    def test_un_texto_normal_se_deja_como_esta(self):
+        from avcars.connectors.simconnect_client import _coerce_texto
+
+        assert _coerce_texto(b"C172") == "C172"
+        assert _coerce_texto(b"Cessna 172 Skyhawk") == "Cessna 172 Skyhawk"
+
+    def test_vacio_es_none_y_no_cadena_vacia(self):
+        """Un dato ausente tiene que distinguirse de uno vacío."""
+        from avcars.connectors.simconnect_client import _coerce_texto
+
+        assert _coerce_texto(b"") is None
+        assert _coerce_texto(None) is None
+        assert _coerce_texto(b"  \x00 ") is None

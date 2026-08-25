@@ -209,6 +209,7 @@ class EvaApp:
         self._eventos_text: Optional[tk.Text] = None
         self._ultimo_motivo = ""
         self._ultimo_estado_mostrado = ""
+        self._ultimo_avion = ""
 
         self.recorder: Optional[FlightRecorder] = None
         self.state_machine: Optional[FlightStateMachine] = None
@@ -316,6 +317,15 @@ class EvaApp:
             deteccion_frame, text="VPILOT", bg=BG, fg=FG_DIM,
             font=("Segoe UI Semibold", 8),
         ).pack(side="left")
+
+        # El avión que se está volando. Se graba en el fichero y decide qué
+        # límites del POH se aplican, así que conviene poder comprobarlo de
+        # un vistazo antes de despegar.
+        self.avion_label = tk.Label(
+            outer, text="Avión: —", bg=BG, fg=FG_DIM,
+            font=("Segoe UI Semibold", 9),
+        )
+        self.avion_label.pack(fill="x", pady=(0, 10))
 
         # Panel principal
         panel = tk.Frame(outer, bg=PANEL, relief="flat", bd=1)
@@ -609,10 +619,13 @@ class EvaApp:
         preferencias y se dejan vacíos si el piloto no los ha puesto: inventar
         un ICAO metería un dato falso en el log, que es peor que no tenerlo.
         """
-        # Obtener tipo de avión del simulador si está disponible
-        aircraft_type = None
-        if self.poller and self.poller.reading:
-            aircraft_type = getattr(self.poller.reading.state, 'aircraft_type', None)
+        # El avión, del simulador. Esto era un `getattr` sobre un atributo
+        # que `SimState` no tenía, así que devolvía None siempre y el avión
+        # no se grababa nunca — y sin él, las reglas que dependen del POH
+        # (`structural_overspeed`) no podían aplicarse jamás.
+        estado = self.poller.latest if self.poller is not None else None
+        aircraft_type = estado.aircraft_type if estado else None
+        matricula = estado.aircraft_registration if estado else None
 
         return FlightPlanInfo(
             rules="VFR",
@@ -621,6 +634,7 @@ class EvaApp:
             alternate_icao=None,
             route=None,
             aircraft_icao_type=aircraft_type,
+            aircraft_registration=matricula,
             # Que vPilot esté arrancado es lo único que se puede afirmar sin
             # preguntarle a la red. Si no lo está, el vuelo es offline.
             network="VATSIM" if is_vpilot_running() else "OFFLINE",
@@ -1318,6 +1332,7 @@ class EvaApp:
                 )
             )
             self._update_estado_badges(state)
+            self._mostrar_avion(state)
             self._avisar_datos_que_faltan()
 
         self.root.after(500, self._update_sim_display)
@@ -1397,6 +1412,20 @@ class EvaApp:
         ventana.protocol("WM_DELETE_WINDOW", _al_cerrar)
         self._eventos_window = ventana
         self._eventos_text = texto
+
+    def _mostrar_avion(self, state: SimState) -> None:
+        """Pinta el avión detectado, y lo apunta la primera vez que cambia."""
+        avion = state.aircraft_type or "—"
+        if state.aircraft_registration:
+            avion = f"{avion} · {state.aircraft_registration}"
+        self.avion_label.configure(
+            text=f"Avión: {avion}",
+            fg=FG_DIM if state.aircraft_type else RED,
+        )
+        if avion != self._ultimo_avion:
+            self._ultimo_avion = avion
+            if state.aircraft_type:
+                self._apuntar_evento(f"avión detectado: {avion}")
 
     def _avisar_datos_que_faltan(self) -> None:
         """Deja constancia de los datos que el simulador no da.

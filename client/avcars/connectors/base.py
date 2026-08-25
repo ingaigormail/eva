@@ -110,6 +110,13 @@ class SimState:
     taxi_light: Optional[bool] = None
     strobe_light: Optional[bool] = None
 
+    # Qué avión se está volando, tal como lo da el simulador. No es solo
+    # para enseñarlo: sin esto, las reglas que dependen del POH del avión
+    # (`structural_overspeed` y sus límites VMO/VNE) no pueden aplicarse
+    # nunca, porque no hay forma de saber contra qué límite comparar.
+    aircraft_type: Optional[str] = None
+    aircraft_registration: Optional[str] = None
+
     # Freno de aparcamiento y motores. Juntos, con el avión parado, son la
     # señal de "aquí se acabó" cuando el vuelo no llegó a despegar: el freno
     # solo no vale, porque hay quien lo usa para mantenerse quieto en el

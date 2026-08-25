@@ -93,6 +93,11 @@ VARIABLE_CANDIDATES: dict[str, tuple[str, ...]] = {
     # `BRAKE_PARKING_INDICATOR` es booleano; `..._POSITION` es una posición
     # (0..1 o 0..32767 según el avión), así que va detrás y solo como
     # respaldo — `_coerce_bool` la da por puesta con cualquier valor > 0.
+    # Qué avión es. `ATC_TYPE` suele traer el tipo ICAO (C172); `ATC_MODEL`
+    # y `TITLE` son más descriptivos y a veces vienen como clave de
+    # traducción ("TT:ATCCOM.AC_MODEL_C172.0.text"), de ahí `_coerce_texto`.
+    "aircraft_type": ("ATC_TYPE", "ATC_MODEL", "TITLE"),
+    "aircraft_registration": ("ATC_ID",),
     "parking_brake": ("BRAKE_PARKING_INDICATOR", "BRAKE_PARKING_POSITION"),
     # `GENERAL ENG COMBUSTION:index` es la variable de verdad de SimConnect.
     # `ENG_COMBUSTION` (sin índice) NO existe como tal: la librería la lista,
@@ -204,6 +209,34 @@ def _coerce_vs_fpm(value: Any) -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return None if math.isnan(v) else v
+
+
+def _coerce_texto(value: Any) -> Optional[str]:
+    """Texto del simulador, en limpio.
+
+    Llega como `bytes` y, en MSFS, a veces envuelto en una clave de
+    traducción del estilo `TT:ATCCOM.AC_MODEL_C172.0.text`. De ahí se saca
+    la parte útil (`C172`) porque es lo que las reglas comparan contra
+    `aircraft.yaml`; si no encaja con ese formato se devuelve tal cual, sin
+    inventar nada.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="ignore")
+    texto = str(value).strip().strip("\x00").strip()
+    if not texto:
+        return None
+
+    if texto.upper().startswith("TT:"):
+        partes = texto.split(".")
+        for parte in partes:
+            if "_" in parte:
+                candidato = parte.rsplit("_", 1)[-1]
+                if candidato and candidato.upper() != "TEXT":
+                    return candidato
+        return texto
+    return texto
 
 
 def _coerce_bool(value: Any) -> Optional[bool]:
@@ -453,6 +486,8 @@ class SimConnectConnector(SimConnector):
             overspeed_warning=_coerce_bool(raw["overspeed_warning"]),
             autopilot_engaged=_coerce_bool(raw["autopilot_engaged"]),
             landing_light=_coerce_bool(raw["landing_light"]),
+            aircraft_type=_coerce_texto(raw["aircraft_type"]),
+            aircraft_registration=_coerce_texto(raw["aircraft_registration"]),
             parking_brake=_coerce_bool(raw["parking_brake"]),
             engine_running=_coerce_bool(raw["engine_running"]),
             beacon_light=_coerce_bool(raw["beacon_light"]),
