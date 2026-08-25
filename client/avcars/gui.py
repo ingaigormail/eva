@@ -248,20 +248,15 @@ class EvaApp:
         outer = tk.Frame(self.root, bg=BG)
         outer.pack(padx=16, pady=16)
 
-        # Cabecera: LED MSFS + pilot ID
+        # Cabecera: cuatro avisos con el mismo criterio y el mismo tamaño —
+        # verde es "lo tengo", gris o rojo es "me falta". Antes el LED del
+        # piloto era en realidad el del simulador (confuso) y era el doble de
+        # grande que el de la ruta.
         header = tk.Frame(outer, bg=BG)
         header.pack(fill="x", pady=(0, 12))
 
-        # LED MSFS (verde/rojo)
-        self.led_msfs = tk.Label(
-            header,
-            text="●",
-            bg=BG,
-            fg=GREY,
-            font=("Segoe UI", 16)
-        )
-        self.led_msfs.pack(side="left", padx=(0, 8))
-
+        self.led_piloto = self._crear_led(header)
+        self.led_piloto.pack(side="left", padx=(0, 6))
         tk.Label(
             header,
             text=pilot_id,
@@ -278,9 +273,7 @@ class EvaApp:
         route_frame = tk.Frame(outer, bg=BG)
         route_frame.pack(fill="x", pady=(0, 10))
 
-        self.route_led = tk.Label(
-            route_frame, text="●", bg=BG, fg=RED, font=("Segoe UI", 10)
-        )
+        self.route_led = self._crear_led(route_frame, fg=RED)
         self.route_led.pack(side="left", padx=(0, 6))
 
         self.route_label = tk.Label(
@@ -304,6 +297,25 @@ class EvaApp:
         )
         self.route_link.bind("<Button-1>", lambda _e: self._enlazar_con_la_web())
         self._actualizar_enlace_web()
+
+        # Simulador y vPilot, con el mismo criterio que los de arriba: verde
+        # es detectado, gris es que no está. Los cuatro caben en esta zona.
+        deteccion_frame = tk.Frame(outer, bg=BG)
+        deteccion_frame.pack(fill="x", pady=(0, 10))
+
+        self.led_msfs = self._crear_led(deteccion_frame)
+        self.led_msfs.pack(side="left", padx=(0, 5))
+        tk.Label(
+            deteccion_frame, text="SIMULADOR", bg=BG, fg=FG_DIM,
+            font=("Segoe UI Semibold", 8),
+        ).pack(side="left", padx=(0, 14))
+
+        self.led_vpilot = self._crear_led(deteccion_frame)
+        self.led_vpilot.pack(side="left", padx=(0, 5))
+        tk.Label(
+            deteccion_frame, text="VPILOT", bg=BG, fg=FG_DIM,
+            font=("Segoe UI Semibold", 8),
+        ).pack(side="left")
 
         # Panel principal
         panel = tk.Frame(outer, bg=PANEL, relief="flat", bd=1)
@@ -1026,6 +1038,12 @@ class EvaApp:
             self._refresh_mini()
         else:
             self.led_msfs.configure(fg=GREEN if self._msfs_connected else GREY)
+            # vPilot es lo que conecta a VATSIM: sin él, el vuelo se graba
+            # igual pero no queda constancia en la red.
+            self.led_vpilot.configure(fg=GREEN if is_vpilot_running() else GREY)
+            self.led_piloto.configure(
+                fg=GREEN if self.settings.license_id else GREY
+            )
             self._set_button_idle()
 
         self._refresh_flight_plan_display()
@@ -1109,6 +1127,15 @@ class EvaApp:
             debuglog.fallo("lectura del plan de vuelo de la web", exc)
         finally:
             self._plan_web_pidiendo = False
+
+    #: Tamaño único de todos los avisos de la cabecera. Estaban a 16 y a 10
+    #: y no había motivo: los cuatro dicen lo mismo (lo tengo / me falta).
+    _TAMANO_LED = 11
+
+    def _crear_led(self, padre: tk.Widget, fg: str = GREY) -> tk.Label:
+        return tk.Label(
+            padre, text="●", bg=BG, fg=fg, font=("Segoe UI", self._TAMANO_LED)
+        )
 
     def _actualizar_enlace_web(self) -> None:
         """Enseña el atajo de enlazar solo mientras no haya clave."""

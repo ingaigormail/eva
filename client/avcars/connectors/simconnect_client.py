@@ -94,8 +94,52 @@ VARIABLE_CANDIDATES: dict[str, tuple[str, ...]] = {
     # (0..1 o 0..32767 según el avión), así que va detrás y solo como
     # respaldo — `_coerce_bool` la da por puesta con cualquier valor > 0.
     "parking_brake": ("BRAKE_PARKING_INDICATOR", "BRAKE_PARKING_POSITION"),
-    "engine_running": ("ENG_COMBUSTION", "GENERAL_ENG_COMBUSTION:1"),
+    # `GENERAL ENG COMBUSTION:index` es la variable de verdad de SimConnect.
+    # `ENG_COMBUSTION` (sin índice) NO existe como tal: la librería la lista,
+    # pero el simulador devuelve 0, que se tomaba como "motor apagado" y
+    # cortaba la grabación de un avión con el motor en marcha (visto el
+    # 2026-08-25, parado antes de entrar en pista con el freno puesto).
+    # Se deja al final solo por si algún simulador la sirviera.
+    "engine_running": (
+        "GENERAL_ENG_COMBUSTION:1", "GENERAL_ENG_COMBUSTION:2", "ENG_COMBUSTION",
+    ),
 }
+
+
+#: Variables que el simulador sí tiene pero que la tabla de
+#: python-SimConnect no lista, así que su `find()` nunca las encuentra.
+#: Formato de la tabla: nombre -> [descripción, variable, unidades, settable].
+_VARIABLES_EXTRA = {
+    # Modo del transpondedor: 0 apagado, 1 standby, 2 test, 3 on, 4 alt
+    # (modo C). Es una variable normal de SimConnect, pero la librería solo
+    # trae `TRANSPONDER CODE` y `TRANSPONDER AVAILABLE`, de modo que el modo
+    # no llegaba nunca y el indicador se quedaba en "---".
+    "TRANSPONDER_STATE:index": [
+        "Transponder state", b"TRANSPONDER STATE:index", b"Enum", "Y",
+    ],
+}
+
+
+def _registrar_variables_que_faltan(requests: Any) -> None:
+    """Mete `_VARIABLES_EXTRA` en la tabla de la librería.
+
+    `RequestHelper.__getattr__` resuelve los nombres contra un diccionario de
+    su clase, así que basta con añadirlos ahí para que `find()` los
+    encuentre. Se elige la clase que ya tiene el código de transpondedor,
+    para dejarlas donde les corresponde.
+
+    Nunca lanza: si la librería cambia por dentro y esto deja de encajar, se
+    pierde el dato extra —que es justo lo que pasaba antes— pero el conector
+    sigue funcionando igual.
+    """
+    try:
+        for clase in requests.list:
+            tabla = getattr(clase, "list", None)
+            if isinstance(tabla, dict) and "TRANSPONDER_CODE:index" in tabla:
+                tabla.update(_VARIABLES_EXTRA)
+                return
+    except Exception:  # noqa: BLE001 — un extra nunca puede tumbar el conector
+        pass
 
 
 class SimConnectNotAvailable(RuntimeError):
@@ -249,6 +293,7 @@ class SimConnectConnector(SimConnector):
         # más frescos que eso solo consigue que cada lectura espere a que el
         # simulador responda, multiplicado por las veintitantas variables.
         self._requests = AircraftRequests(self._sm, _time=900)
+        _registrar_variables_que_faltan(self._requests)
         self._resolved = {}
 
     def disconnect(self) -> None:

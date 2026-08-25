@@ -80,6 +80,12 @@ MIN_ALTITUDE_AFTER_LIFTOFF_FT = timing.CONFIRM_LIFTOFF_AGL_FT
 # cualquier velocidad de vuelo, y muy por encima del ruido de un avión
 # parado: solo sirve para descartar el 0 kt, no para decidir nada más.
 MIN_GROUNDSPEED_EN_VUELO_KT = 30.0
+
+# Cuánto tiene que durar "parado + freno puesto + motores apagados" para dar
+# el vuelo por abandonado. Generoso a propósito: nadie apaga los motores un
+# minuto entero en mitad de un rodaje, y cortar la grabación de un vuelo
+# bueno es mucho peor que grabar unos minutos de más.
+SEGUNDOS_PARA_DAR_POR_ABANDONADO = 60.0
 DEFAULT_CONFIRMATION_LIFTOFF_S = timing.CONFIRM_LIFTOFF_S
 DEFAULT_CONFIRMATION_LANDING_S = timing.CONFIRM_LANDING_S
 DEFAULT_CONFIRMATION_STOPPED_S = timing.CONFIRM_STOPPED_S
@@ -124,6 +130,8 @@ class FlightStateMachine:
     # Acumuladores de tiempo para confirmaciones
     _time_without_contact_s: float = 0.0
     _time_with_contact_s: float = 0.0
+    #: Cuánto lleva parado, frenado y sin motores (ver `_vuelo_abandonado`).
+    _tiempo_abandonado_s: float = 0.0
     _time_below_threshold_s: float = 0.0
 
     # Para generar descripciones
@@ -167,22 +175,36 @@ class FlightStateMachine:
             return f"error al guardar: {self._last_reason}"
         return "estado desconocido"
 
-    @staticmethod
-    def _vuelo_abandonado(state: SimState) -> bool:
+    def _vuelo_abandonado(self, state: SimState, elapsed_s: float) -> bool:
         """Rodaje que termina sin vuelo: parado, frenado y sin motores.
 
         Se exige que el simulador dé **las dos** variables (freno y motores).
         Si falta cualquiera se devuelve False, porque no hay dato: es mejor
         seguir grabando de más que cortarle el vuelo a alguien por una
         suposición.
+
+        Y se exige que la situación **se mantenga**, no que se dé un
+        instante. Cortar la grabación de un vuelo bueno es mucho peor que
+        grabar de más, y ya pasó una vez: una variable de motores que
+        devolvía siempre 0 cortó la grabación de un avión que estaba parado
+        con el freno puesto esperando para entrar en pista, con el motor en
+        marcha. Aquello se arregló, pero el margen se queda.
         """
         if state.parking_brake is None or state.engine_running is None:
+            self._tiempo_abandonado_s = 0.0
             return False
-        return (
+
+        cumple = (
             state.gs_kt < TAXI_MOVEMENT_THRESHOLD_KT
             and state.parking_brake
             and not state.engine_running
         )
+        if not cumple:
+            self._tiempo_abandonado_s = 0.0
+            return False
+
+        self._tiempo_abandonado_s += elapsed_s
+        return self._tiempo_abandonado_s >= SEGUNDOS_PARA_DAR_POR_ABANDONADO
 
     def update(self, state: SimState, elapsed_s: float) -> tuple[str, str]:
         """Procesa el estado del simulador y devuelve (acción, motivo).
@@ -261,7 +283,7 @@ class FlightStateMachine:
                 self.state = FlightState.CARRERA_DESPEGUE
                 self._last_reason = "carrera de despegue iniciada"
                 self._time_without_contact_s = 0.0
-            elif self._vuelo_abandonado(state):
+            elif self._vuelo_abandonado(state, elapsed_s):
                 # Parado, con el freno de aparcamiento puesto y los motores
                 # apagados: el piloto ha desistido sin llegar a volar. Sin
                 # esto la grabación no paraba nunca (solo se salía de aquí

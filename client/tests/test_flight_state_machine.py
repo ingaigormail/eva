@@ -414,14 +414,45 @@ class TestRodajeQueNuncaDespega:
 
     def test_para_con_freno_puesto_y_motores_apagados(self):
         machine = self._rodando()
-
-        accion, _ = machine.update(
-            _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=False),
-            1.0,
+        parado = _state(
+            gs_kt=0, on_ground=True, parking_brake=True, engine_running=False
         )
+
+        # No basta un instante: la condición tiene que mantenerse.
+        accion, _ = machine.update(parado, 1.0)
+        assert accion == "nada"
+        assert machine.recording
+
+        accion, _ = machine.update(parado, 60.0)
 
         assert accion == "parar_grabacion"
         assert not machine.recording
+
+    def test_un_dato_raro_de_un_instante_no_corta_el_vuelo(self):
+        """Cortar un vuelo bueno es peor que grabar de más.
+
+        Pasó de verdad: una variable de motores que devolvía siempre 0 cortó
+        la grabación de un avión parado con el freno puesto esperando para
+        entrar en pista, con el motor en marcha.
+        """
+        machine = self._rodando()
+
+        machine.update(
+            _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=False),
+            5.0,
+        )
+        # Vuelve el dato bueno antes de cumplirse el minuto.
+        machine.update(
+            _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=True),
+            5.0,
+        )
+        accion, _ = machine.update(
+            _state(gs_kt=12, on_ground=True, parking_brake=False, engine_running=True),
+            5.0,
+        )
+
+        assert accion == "nada"
+        assert machine.recording
 
     def test_el_freno_con_el_motor_en_marcha_no_para_nada(self):
         """El caso del piloto sin pedales que frena en el punto de espera."""
@@ -429,7 +460,7 @@ class TestRodajeQueNuncaDespega:
 
         accion, _ = machine.update(
             _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=True),
-            1.0,
+            120.0,
         )
 
         assert accion == "nada"
@@ -439,7 +470,7 @@ class TestRodajeQueNuncaDespega:
         """Si el simulador no da freno ni motores, se sigue grabando."""
         machine = self._rodando()
 
-        accion, _ = machine.update(_state(gs_kt=0, on_ground=True), 1.0)
+        accion, _ = machine.update(_state(gs_kt=0, on_ground=True), 120.0)
 
         assert accion == "nada"
         assert machine.recording
