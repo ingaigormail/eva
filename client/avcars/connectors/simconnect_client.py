@@ -93,10 +93,12 @@ VARIABLE_CANDIDATES: dict[str, tuple[str, ...]] = {
     # `BRAKE_PARKING_INDICATOR` es booleano; `..._POSITION` es una posición
     # (0..1 o 0..32767 según el avión), así que va detrás y solo como
     # respaldo — `_coerce_bool` la da por puesta con cualquier valor > 0.
-    # Qué avión es. `ATC_TYPE` suele traer el tipo ICAO (C172); `ATC_MODEL`
-    # y `TITLE` son más descriptivos y a veces vienen como clave de
-    # traducción ("TT:ATCCOM.AC_MODEL_C172.0.text"), de ahí `_coerce_texto`.
-    "aircraft_type": ("ATC_TYPE", "ATC_MODEL", "TITLE"),
+    # Qué avión es. `ATC_MODEL` va primero porque es el **modelo** (C172),
+    # que es contra lo que se comparan los límites del POH en
+    # `aircraft.yaml`; `ATC_TYPE` da el fabricante y en el vuelo de pruebas
+    # del 2026-08-25 devolvió "CESSNA", que no sirve para nada. `TITLE` es
+    # el último recurso: el nombre largo del avión.
+    "aircraft_type": ("ATC_MODEL", "ATC_TYPE", "TITLE"),
     "aircraft_registration": ("ATC_ID",),
     "parking_brake": ("BRAKE_PARKING_INDICATOR", "BRAKE_PARKING_POSITION"),
     # `GENERAL ENG COMBUSTION:index` es la variable de verdad de SimConnect.
@@ -228,13 +230,20 @@ def _coerce_texto(value: Any) -> Optional[str]:
     if not texto:
         return None
 
-    if texto.upper().startswith("TT:"):
-        partes = texto.split(".")
-        for parte in partes:
-            if "_" in parte:
-                candidato = parte.rsplit("_", 1)[-1]
-                if candidato and candidato.upper() != "TEXT":
-                    return candidato
+    # MSFS envuelve estos textos de varias formas, no siempre con el
+    # prefijo `TT:`. Vistas hasta ahora:
+    #   TT:ATCCOM.AC_MODEL_C172.0.text   → C172
+    #   ATCCOM.ATC_NAME CESSNA.0.text    → CESSNA   (separador espacio)
+    # Se busca el trozo que lleva uno de los marcadores conocidos y se coge
+    # lo que va detrás, sea cual sea el separador.
+    if "ATCCOM." in texto.upper():
+        for parte in texto.split("."):
+            arriba = parte.upper()
+            for marcador in ("AC_MODEL", "ATC_MODEL", "ATC_NAME", "AC_TYPE"):
+                if arriba.startswith(marcador):
+                    candidato = parte[len(marcador):].lstrip("_ ").strip()
+                    if candidato:
+                        return candidato
         return texto
     return texto
 

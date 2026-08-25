@@ -374,16 +374,23 @@ class FlightStateMachine:
                     action = "parar_grabacion"
                     self._last_reason = "avión parado, guardando"
                     return action, self.describe_state()
-            elif state.gs_kt >= SPEED_THRESHOLD_KT:
-                # Vuelve a coger velocidad de despegue: no era el final del
-                # vuelo. Rodar hacia el aparcamiento no cuenta como "se
-                # movió de nuevo"; antes cualquier movimiento devolvía a
-                # EN_TIERRA y el rodaje de llegada se quedaba fuera.
-                self.state = FlightState.EN_TIERRA
-                self._last_reason = "se movió de nuevo"
+            elif not state.on_ground:
+                # Volvió a despegar: no era el final del vuelo.
+                #
+                # De aquí **solo** se sale por el aire, nunca por velocidad.
+                # Con un umbral de velocidad, la carrera de deceleración tras
+                # aterrizar —que pasa varios segundos por encima de 50 kt—
+                # se confundía con un despegue nuevo: EN_TIERRA veía la
+                # velocidad alta, saltaba a CARRERA_DESPEGUE, y al seguir
+                # frenando lo daba por despegue abortado y cortaba la
+                # grabación en plena pista (visto el 2026-08-25 a las
+                # 14:45:24, cinco transiciones en dos segundos).
+                self.state = FlightState.EN_VUELO
+                self._time_without_contact_s = 0.0
+                self._last_reason = "volvió a despegar"
             else:
-                # Rodando hacia el aparcamiento: se sigue grabando y el
-                # contador de parada espera a que se pare de verdad.
+                # Frenando en pista o rodando al aparcamiento: se sigue
+                # grabando y el contador espera a que pare de verdad.
                 self._time_below_threshold_s = 0.0
 
             return action, self.describe_state()

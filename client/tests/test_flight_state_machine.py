@@ -274,14 +274,21 @@ class TestDetenido:
                 assert machine.state == FlightState.GUARDANDO
                 assert action == "parar_grabacion"
 
-    def test_se_mueve_de_nuevo_vuelve_a_tierra(self):
-        """Si se mueve mientras está detenido, vuelve a EN_TIERRA."""
+    def test_moverse_por_el_suelo_no_saca_de_detenido(self):
+        """Este test decía justo lo contrario, y ahí estaba el fallo.
+
+        Daba por bueno que moverse a 60 kt en DETENIDO devolviera a
+        EN_TIERRA. Pero después de aterrizar se pasan varios segundos
+        frenando por encima de esa velocidad, así que en un vuelo real
+        (2026-08-25) eso encadenaba EN_TIERRA → CARRERA_DESPEGUE →
+        "frenó en carrera" y cortaba la grabación en plena pista.
+        """
         machine = FlightStateMachine()
         machine.state = FlightState.DETENIDO
 
         machine.update(_state(gs_kt=60, on_ground=True), 1.0)
 
-        assert machine.state == FlightState.EN_TIERRA
+        assert machine.state == FlightState.DETENIDO
 
 
 class TestDescripciones:
@@ -567,3 +574,56 @@ class TestSalidaDePistaDespuesDeAterrizar:
         for gs in (30, 20, 15, 8, 12, 5, 20, 10):
             machine.update(_state(gs_kt=gs, on_ground=True), 5.0)
             assert machine.recording
+
+
+class TestCarreraDeDeceleracionTrasAterrizar:
+    """Del registro del 2026-08-25, cinco transiciones en dos segundos:
+
+        EN_PISTA  → DETENIDO           (GS 57.6 kt)
+        DETENIDO  → EN_TIERRA          "se movió de nuevo"
+        EN_TIERRA → CARRERA_DESPEGUE   (GS 52.8 kt)
+        CARRERA_DESPEGUE → EN_TIERRA   "frenó en carrera"
+        grabación detenida
+
+    Al aterrizar se pasan varios segundos frenando por encima de 50 kt, y
+    eso se confundía con un despegue nuevo que acababa "abortado". De
+    DETENIDO solo se sale por el aire, nunca por velocidad.
+    """
+
+    def _recien_aterrizado(self) -> FlightStateMachine:
+        machine = FlightStateMachine(confirmation_stopped_s=10.0)
+        machine.state = FlightState.DETENIDO
+        machine.recording = True
+        machine.has_flown = True
+        return machine
+
+    def test_frenar_en_pista_no_corta_la_grabacion(self):
+        machine = self._recien_aterrizado()
+
+        for gs in (57.6, 52.8, 47.8, 30.0, 15.0):
+            accion, _ = machine.update(_state(gs_kt=gs, on_ground=True), 1.0)
+            assert accion == "nada", f"cortó a {gs} kt"
+            assert machine.recording
+            assert machine.state == FlightState.DETENIDO
+
+    def test_un_despegue_de_verdad_si_saca_de_detenido(self):
+        """Stop and go: si vuelve al aire, el vuelo continúa."""
+        machine = self._recien_aterrizado()
+
+        machine.update(
+            _state(gs_kt=80.0, on_ground=False, alt_agl_ft=200), 1.0
+        )
+
+        assert machine.state == FlightState.EN_VUELO
+        assert machine.recording
+
+    def test_el_vuelo_se_cierra_al_parar_tras_el_rodaje(self):
+        machine = self._recien_aterrizado()
+
+        for gs in (57.6, 40.0, 20.0, 8.0):
+            machine.update(_state(gs_kt=gs, on_ground=True), 2.0)
+        machine.update(_state(gs_kt=0.0, on_ground=True), 5.0)
+        accion, _ = machine.update(_state(gs_kt=0.0, on_ground=True), 6.0)
+
+        assert accion == "parar_grabacion"
+        assert machine.state == FlightState.GUARDANDO
