@@ -509,7 +509,54 @@ class EvaApp:
             "<Leave>", lambda _e: self._minimize_button.configure(bg=PANEL, fg=FG_DIM)
         )
 
+        # Cerrar. Hacía falta uno propio: `_quitar_controles_nativos` se
+        # lleva el aspa de la barra de título, así que sin esto la única
+        # forma de salir era Alt+F4, que no es evidente.
+        self._close_button = tk.Label(
+            links,
+            text="✕  Cerrar",
+            bg=PANEL,
+            fg=FG_DIM,
+            font=("Segoe UI Semibold", 8),
+            relief="solid",
+            borderwidth=1,
+            highlightbackground=BORDER,
+            padx=10,
+            pady=4,
+            cursor="hand2",
+        )
+        self._close_button.pack(side="left", padx=(8, 0))
+        self._close_button.bind("<Button-1>", lambda _e: self._cerrar())
+        self._close_button.bind(
+            "<Enter>", lambda _e: self._close_button.configure(bg=RED, fg="white")
+        )
+        self._close_button.bind(
+            "<Leave>", lambda _e: self._close_button.configure(bg=PANEL, fg=FG_DIM)
+        )
+
         self._set_status()
+
+    def _cerrar(self) -> None:
+        """Cierra EvA, avisando si hay un vuelo a medio grabar.
+
+        Salir con la grabación en marcha pierde el vuelo, así que se
+        pregunta. El fichero parcial queda en disco de todas formas (ver
+        `flight_log_writer`), pero el piloto tiene que saberlo antes.
+        """
+        if self._recording:
+            seguir = messagebox.askyesno(
+                APP_NAME,
+                "Estás grabando un vuelo.\n\n"
+                "Si cierras ahora, el vuelo no se cerrará como es debido.\n"
+                "¿Seguro que quieres salir?",
+                icon="warning",
+                default="no",
+            )
+            if not seguir:
+                return
+            self._apuntar_evento("EvA cerrado con una grabación en marcha")
+
+        self.root.destroy()
 
     def _set_mode(self, modo: str) -> None:
         """Cambia el modo de grabacion y lo recuerda para la proxima vez."""

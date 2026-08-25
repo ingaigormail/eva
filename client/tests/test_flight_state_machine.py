@@ -122,15 +122,20 @@ class TestEnTierra:
 
 
 class TestRodando:
-    def test_empieza_a_rodar_arranca_grabacion(self):
-        """Rodaje lento (5 km/h ~ 2.7 kt): ya graba, sin esperar a 50 kt."""
+    def test_empezar_a_rodar_no_graba_todavia(self):
+        """La grabación empieza en la carrera de despegue, no al rodar.
+
+        Arrancaba al primer movimiento para poder verificar las luces de
+        rodaje; esas reglas ya no puntúan, así que grabar el rodaje solo
+        añadía ruido — y metía en el vuelo el backtrack a cabecera.
+        """
         machine = FlightStateMachine()
         machine.state = FlightState.EN_TIERRA
 
         action, _ = machine.update(_state(gs_kt=5, on_ground=True), 1.0)
 
-        assert action == "empezar_grabacion"
-        assert machine.recording
+        assert action == "nada"
+        assert not machine.recording
         assert machine.state == FlightState.RODANDO
 
     def test_por_debajo_del_umbral_no_arranca(self):
@@ -147,23 +152,20 @@ class TestRodando:
         """A diferencia de la carrera de despegue, aquí frenar no aborta."""
         machine = FlightStateMachine()
         machine.state = FlightState.RODANDO
-        machine.recording = True
 
         for gs in (10, 0, 0, 3, 15):
             action, _ = machine.update(_state(gs_kt=gs, on_ground=True), 1.0)
             assert action == "nada"
-            assert machine.recording
             assert machine.state == FlightState.RODANDO
 
     def test_alcanza_velocidad_de_rotacion_pasa_a_carrera_despegue(self):
         machine = FlightStateMachine()
         machine.state = FlightState.RODANDO
-        machine.recording = True
 
         action, _ = machine.update(_state(gs_kt=60, on_ground=True), 1.0)
 
-        # Ya se estaba grabando: solo cambia de estado, no hay nueva acción.
-        assert action == "nada"
+        # Aquí es donde arranca la grabación.
+        assert action == "empezar_grabacion"
         assert machine.recording
         assert machine.state == FlightState.CARRERA_DESPEGUE
 
@@ -373,15 +375,17 @@ class TestAbrirEvAConElAvionYaRodando:
         assert machine.state != FlightState.ESPERANDO_SIMULADOR
 
     def test_acaba_grabando_sin_tener_que_parar_el_avion(self):
-        """Lo que de verdad importa: que termine grabando."""
+        """Lo que de verdad importa: que termine grabando al despegar.
+
+        Ya no graba al rodar, así que se comprueba que la máquina sale del
+        atasco y llega a grabar cuando el piloto acelera.
+        """
         machine = FlightStateMachine()
 
-        acciones = [
-            machine.update(_state(gs_kt=25, on_ground=True), 1.0)[0]
-            for _ in range(3)
-        ]
+        machine.update(_state(gs_kt=25, on_ground=True), 1.0)
+        accion, _ = machine.update(_state(gs_kt=60, on_ground=True), 1.0)
 
-        assert "empezar_grabacion" in acciones
+        assert accion == "empezar_grabacion"
         assert machine.recording
 
     def test_con_el_avion_parado_sigue_funcionando_como_antes(self):
@@ -404,11 +408,12 @@ class TestAbrirEvAConElAvionYaRodando:
 
 
 class TestRodajeQueNuncaDespega:
-    """El otro fallo del 2026-08-25: rodó, aparcó, y siguió grabando.
+    """Rodar y aparcar sin llegar a volar.
 
-    `RODANDO` solo tenía salida hacia arriba (superar 50 kt), así que quien
-    rodaba y aparcaba sin volar se quedaba grabando indefinidamente y tenía
-    que pararlo a mano.
+    Antes esto importaba mucho: la grabación arrancaba al rodar y, si el
+    piloto desistía, no paraba nunca. Ahora no se graba hasta la carrera de
+    despegue, así que no hay nada que cortar — pero la máquina sí tiene que
+    volver a EN_TIERRA para quedar lista para el intento siguiente.
     """
 
     def _rodando(self) -> FlightStateMachine:
@@ -416,70 +421,53 @@ class TestRodajeQueNuncaDespega:
         machine.update(_state(gs_kt=0, on_ground=True), 1.0)
         machine.update(_state(gs_kt=10, on_ground=True), 1.0)
         assert machine.state == FlightState.RODANDO
-        assert machine.recording
+        assert not machine.recording
         return machine
 
-    def test_para_con_freno_puesto_y_motores_apagados(self):
+    def test_aparcar_deja_la_maquina_lista_para_otro_intento(self):
         machine = self._rodando()
         parado = _state(
             gs_kt=0, on_ground=True, parking_brake=True, engine_running=False
         )
 
         # No basta un instante: la condición tiene que mantenerse.
-        accion, _ = machine.update(parado, 1.0)
-        assert accion == "nada"
-        assert machine.recording
+        machine.update(parado, 1.0)
+        assert machine.state == FlightState.RODANDO
 
-        accion, _ = machine.update(parado, 60.0)
+        machine.update(parado, 60.0)
 
-        assert accion == "parar_grabacion"
+        assert machine.state == FlightState.EN_TIERRA
         assert not machine.recording
 
-    def test_un_dato_raro_de_un_instante_no_corta_el_vuelo(self):
-        """Cortar un vuelo bueno es peor que grabar de más.
-
-        Pasó de verdad: una variable de motores que devolvía siempre 0 cortó
-        la grabación de un avión parado con el freno puesto esperando para
-        entrar en pista, con el motor en marcha.
-        """
+    def test_el_freno_con_el_motor_en_marcha_no_hace_nada(self):
+        """El piloto sin pedales que frena en el punto de espera."""
         machine = self._rodando()
 
         machine.update(
-            _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=False),
-            5.0,
-        )
-        # Vuelve el dato bueno antes de cumplirse el minuto.
-        machine.update(
-            _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=True),
-            5.0,
-        )
-        accion, _ = machine.update(
-            _state(gs_kt=12, on_ground=True, parking_brake=False, engine_running=True),
-            5.0,
-        )
-
-        assert accion == "nada"
-        assert machine.recording
-
-    def test_el_freno_con_el_motor_en_marcha_no_para_nada(self):
-        """El caso del piloto sin pedales que frena en el punto de espera."""
-        machine = self._rodando()
-
-        accion, _ = machine.update(
             _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=True),
             120.0,
         )
 
-        assert accion == "nada"
-        assert machine.recording
+        assert machine.state == FlightState.RODANDO
 
-    def test_sin_esos_datos_no_se_para_por_suposiciones(self):
-        """Si el simulador no da freno ni motores, se sigue grabando."""
+    def test_sin_esos_datos_no_se_decide_por_suposiciones(self):
         machine = self._rodando()
 
-        accion, _ = machine.update(_state(gs_kt=0, on_ground=True), 120.0)
+        machine.update(_state(gs_kt=0, on_ground=True), 120.0)
 
-        assert accion == "nada"
+        assert machine.state == FlightState.RODANDO
+
+    def test_desde_ahi_todavia_se_puede_despegar(self):
+        """Aparcar no puede impedir grabar el vuelo siguiente."""
+        machine = self._rodando()
+        machine.update(
+            _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=False),
+            60.0,
+        )
+
+        accion, _ = machine.update(_state(gs_kt=60, on_ground=True), 1.0)
+
+        assert accion == "empezar_grabacion"
         assert machine.recording
 
 
@@ -510,9 +498,10 @@ class TestAvionAparcadoQueElSimuladorDaComoVolando:
 
         # Escena cargando: el simulador miente sobre `on_ground`.
         machine.update(_state(gs_kt=0.0, on_ground=False, alt_agl_ft=500), 1.0)
-        # Ya asentado, y el piloto empieza a rodar.
+        # Ya asentado: rueda y luego acelera para despegar.
         machine.update(_state(gs_kt=0.0, on_ground=True), 1.0)
-        accion, _ = machine.update(_state(gs_kt=8.0, on_ground=True), 1.0)
+        machine.update(_state(gs_kt=8.0, on_ground=True), 1.0)
+        accion, _ = machine.update(_state(gs_kt=60.0, on_ground=True), 1.0)
 
         assert accion == "empezar_grabacion"
         assert machine.recording

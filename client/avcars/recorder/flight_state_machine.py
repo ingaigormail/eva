@@ -9,10 +9,10 @@ Estados y transiciones:
     ESPERANDO_SIMULADOR
         ↓ hay conexión y datos válidos
     EN_TIERRA (armado, no graba)
-        ↓ en tierra y velocidad > 5 km/h (empieza a rodar)
-    RODANDO ← empieza a grabar (rodaje completo: luces, taxi...)
+        ↓ en tierra y velocidad > 2,7 kt (empieza a rodar)
+    RODANDO (tampoco graba: solo informa de la fase)
         ↓ en tierra y velocidad > 50 kt
-    CARRERA_DESPEGUE (sigue grabando, ya iba a 50kt desde el principio)
+    CARRERA_DESPEGUE ← **aquí empieza a grabar**
         ↓ sin contacto 3s y altitud > 50 ft
     EN_VUELO
         ↓ toca tierra
@@ -25,16 +25,19 @@ Estados y transiciones:
         ↓ éxito o error
     EN_TIERRA (listo para otro vuelo)
 
-El umbral de arranque (RODANDO) es deliberadamente bajo: hasta ahora la
-grabación empezaba en la carrera de despegue, así que el rodaje entero
-quedaba fuera del log — y con él, cualquier posibilidad de verificar
-`taxi_light`/`strobe_airborne` (que dependen justo de datos de rodaje, ver
-`evaluation/reglas_info.py`). RODANDO no hereda la lógica de aborto de
-CARRERA_DESPEGUE: parar en un cruce o en el holding point no debe cortar
-la grabación, solo bajar de 50 kt en plena carrera de despegue sí (aborto
-real). Que el vuelo llegue a su destino o no ya no lo decide esta máquina:
-lo filtra el servidor al subirlo (solo cuentan para estadísticas los
-vuelos completos).
+**La grabación empieza en la carrera de despegue (50 kt), no en el rodaje.**
+Hubo una época en que arrancaba al primer movimiento, para poder verificar
+las reglas de luces de rodaje (`taxi_light` y la antigua `strobe_taxi`).
+Esas reglas ya no puntúan —de las luces solo queda `strobe_airborne`, que
+se comprueba en el aire—, así que grabar el rodaje ya no aporta nada y sí
+traía problemas: es la fase donde el simulador da datos menos fiables, y
+además obligaba a que un backtrack hasta la cabecera de pista entrara en el
+vuelo. `RODANDO` se conserva **sin grabar**, solo para que el piloto vea en
+qué fase está.
+
+Que el vuelo llegue a su destino o no ya no lo decide esta máquina: lo
+filtra el servidor al subirlo (solo cuentan para estadísticas los vuelos
+completos).
 
 La robustez viene de:
 - Exigir permanencia temporal, no cambios por un dato aislado.
@@ -159,7 +162,7 @@ class FlightStateMachine:
         if self.state == FlightState.EN_TIERRA:
             return "listo en tierra, empezará a grabar al rodar"
         if self.state == FlightState.RODANDO:
-            return "rodando, grabando"
+            return "rodando, grabará al acelerar para despegar"
         if self.state == FlightState.CARRERA_DESPEGUE:
             return "carrera de despegue, grabando"
         if self.state == FlightState.EN_VUELO:
@@ -268,41 +271,36 @@ class FlightStateMachine:
                 self._last_reason = "carrera de despegue iniciada"
                 self._time_without_contact_s = 0.0
             elif state.on_ground and state.gs_kt >= TAXI_MOVEMENT_THRESHOLD_KT:
-                # Empieza a rodar: arranca la grabación ya, para cubrir todo
-                # el rodaje (luces incluidas).
+                # Empieza a rodar. **No se graba todavía**: la grabación
+                # arranca en la carrera de despegue (ver RODANDO). El estado
+                # existe para que el piloto vea en qué fase está.
                 self.state = FlightState.RODANDO
-                self.recording = True
-                action = "empezar_grabacion"
-                self._last_reason = "empieza a rodar"
+                self._last_reason = "rodando, aún no se graba"
             return action, self.describe_state()
 
         if self.state == FlightState.RODANDO:
             if state.on_ground and state.gs_kt >= SPEED_THRESHOLD_KT:
-                # Alcanza velocidad de rotación: empieza la carrera de
-                # despegue de verdad. Ya se estaba grabando, no hay acción.
+                # Velocidad de rotación: **aquí empieza la grabación**.
                 self.state = FlightState.CARRERA_DESPEGUE
+                self.recording = True
+                action = "empezar_grabacion"
                 self._last_reason = "carrera de despegue iniciada"
                 self._time_without_contact_s = 0.0
             elif self._vuelo_abandonado(state, elapsed_s):
                 # Parado, con el freno de aparcamiento puesto y los motores
-                # apagados: el piloto ha desistido sin llegar a volar. Sin
-                # esto la grabación no paraba nunca (solo se salía de aquí
-                # hacia arriba, al superar 50 kt) y quien rodaba y aparcaba
-                # se quedaba grabando indefinidamente.
+                # apagados: el piloto ha desistido sin llegar a volar. No hay
+                # grabación que parar (aquí todavía no se graba); solo se
+                # vuelve a EN_TIERRA para dejarlo listo para el siguiente.
                 #
                 # Hacen falta las tres cosas a la vez **a propósito**: el
                 # freno solo no vale, porque hay quien lo usa para
                 # mantenerse quieto en el punto de espera cuando no tiene
                 # pedales, y ahí el motor sigue en marcha.
                 self.state = FlightState.EN_TIERRA
-                self.recording = False
-                action = "parar_grabacion"
                 self._last_reason = "motores parados y freno puesto sin haber volado"
-            # Si sigue en tierra por debajo de 50 kt —rodando despacio,
-            # parado en un cruce o en el holding point— no pasa nada: se
-            # sigue grabando. A diferencia de CARRERA_DESPEGUE, aquí no hay
-            # aborto por velocidad baja: es justo el rango que se quiere
-            # capturar.
+            # Rodar despacio, parar en un cruce, esperar en el punto de
+            # espera o hacer backtrack no cambian nada: se sigue en RODANDO
+            # sin grabar hasta que se acelera para despegar.
             return action, self.describe_state()
 
         if self.state == FlightState.CARRERA_DESPEGUE:
