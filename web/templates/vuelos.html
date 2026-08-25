@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block titulo %}Vuelos — EvA{% endblock %}
+{% block titulo %}Cartilla de piloto — EvA{% endblock %}
 {% block nav_vuelos %}activo{% endblock %}
-{% block marca_sub %}Mis vuelos{% endblock %}
+{% block marca_sub %}Cartilla de piloto{% endblock %}
 
 {% block estilos %}
   .aviso {
@@ -21,7 +21,67 @@
         <div class="cabecera-tarjeta">
           <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span>
           <div>
-            <h2>Mis vuelos</h2>
+            <h2>Tu marca</h2>
+            <p>
+              Las horas y las millas cuentan <strong>solo los vuelos aprobados</strong>:
+              son tu marca, y un vuelo suspendido no debería engordarla.
+            </p>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <div class="valor">{{ resumen.total }}</div>
+            <div class="etiqueta">✈ Vuelos</div>
+          </div>
+          <div class="kpi apto">
+            <div class="valor">{{ resumen.aprobados }}</div>
+            <div class="etiqueta">✔ Aprobados</div>
+          </div>
+          <div class="kpi {{ 'ambar' if resumen.suspendidos else '' }}">
+            <div class="valor">{{ resumen.suspendidos }}</div>
+            <div class="etiqueta">✖ Suspendidos</div>
+          </div>
+          <div class="kpi">
+            <div class="valor">{% if resumen.porcentaje_aprobados is not none %}{{ resumen.porcentaje_aprobados }}%{% else %}—{% endif %}</div>
+            <div class="etiqueta">◎ Tasa de aprobados</div>
+          </div>
+          <div class="kpi">
+            <div class="valor">{{ resumen.horas_aprobadas }}</div>
+            <div class="etiqueta">⏱ Horas aprobadas</div>
+          </div>
+          <div class="kpi">
+            <div class="valor">{{ resumen.millas_aprobadas }}</div>
+            <div class="etiqueta">⇄ Millas aprobadas</div>
+          </div>
+          <div class="kpi">
+            <div class="valor">{{ resumen.vuelo_mas_largo_nm }}</div>
+            <div class="etiqueta">➤ Vuelo más largo (NM)</div>
+          </div>
+          <div class="kpi">
+            <div class="valor">{{ resumen.altitud_maxima_ft }}</div>
+            <div class="etiqueta">▲ Altitud máxima (ft)</div>
+          </div>
+        </div>
+
+        {% if resumen.sin_evaluar %}
+        <p class="pie" style="margin-top:10px">
+          {{ resumen.sin_evaluar }}
+          {{ 'vuelo no se pudo evaluar' if resumen.sin_evaluar == 1 else 'vuelos no se pudieron evaluar' }}
+          y no cuentan ni a favor ni en contra de la tasa.
+        </p>
+        {% endif %}
+
+        {# El hangar llegará cuando los puntos permitan comprar aviones. No se
+           pinta todavía: una sección vacía prometiendo algo estorba más de lo
+           que aporta. #}
+      </section>
+
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2"/></svg></span>
+          <div>
+            <h2>Tus vuelos</h2>
             <p>Los vuelos que has grabado y subido a tu cartilla.</p>
           </div>
         </div>
@@ -36,6 +96,7 @@
               <th>Altitud Máx</th>
               <th>Vel. Máx</th>
               <th>Puntos</th>
+              <th>Estado</th>
               <th></th>
               <th></th>
             </tr>
@@ -48,7 +109,19 @@
               <td>{{ vuelo.distancia_nm }} NM</td>
               <td>{{ vuelo.alt_max_ft }} ft</td>
               <td>{{ vuelo.gs_max_kt }} kt</td>
-              <td>{{ vuelo.puntos }}</td>
+              <td>
+                {# El veredicto sale de `evaluate_flight()`, el mismo que la
+                   ficha del vuelo: aprueba con la puntuación del perfil
+                   (70 en «normal»), sin fallos graves y con datos
+                   suficientes. Los .csv no pasan por el motor. #}
+                {% if vuelo.estado == 'apto' %}
+                <span class="etiqueta activa">APROBADO</span>
+                {% elif vuelo.estado == 'no_apto' %}
+                <span class="etiqueta bloqueada">SUSPENDIDO</span>
+                {% else %}
+                <span class="etiqueta" title="Sin datos suficientes para evaluarlo">SIN EVALUAR</span>
+                {% endif %}
+              </td>
               {# Un .avlog.json tiene cartilla completa (veredicto, mapa, criterios);
                  un .csv de fstelemetry solo da para la ficha de telemetría. #}
               <td><a href="{{ url_for('detalle', nombre=vuelo.archivo) if vuelo.archivo.endswith('.avlog.json') else url_for('detalle_registro', nombre=vuelo.archivo) }}">Ver →</a></td>

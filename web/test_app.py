@@ -490,8 +490,10 @@ def test_vuelos_enlaza_cada_tipo_a_su_ficha():
     """
     def fila(archivo):
         return {"archivo": archivo, "fecha": archivo, "duracion_min": 1,
-                "distancia_nm": 1, "alt_max_ft": 1, "gs_max_kt": 1, "puntos": 1}
+                "distancia_nm": 1, "alt_max_ft": 1, "gs_max_kt": 1, "puntos": 1,
+                "estado": "apto"}
 
+    import app as app_module
     from flask import render_template
 
     with app.test_request_context("/vuelos"):
@@ -499,6 +501,9 @@ def test_vuelos_enlaza_cada_tipo_a_su_ficha():
             "vuelos.html",
             vuelos=[fila("un_vuelo.avlog.json"), fila("20260816143000.csv")],
             total=2,
+            resumen=app_module._resumen_de_la_cartilla(
+                [fila("un_vuelo.avlog.json"), fila("20260816143000.csv")]
+            ),
         )
 
     assert 'href="/vuelo/un_vuelo.avlog.json"' in html
@@ -900,7 +905,7 @@ def test_la_barra_lateral_tiene_los_destinos_del_mapa(cliente):
     html = cliente.get("/").get_data(as_text=True)
     assert ">PLAN</a>" in html
     assert ">VUELO</a>" in html
-    assert ">VUELOS</a>" in html
+    assert ">CARTILLA DE PILOTO</a>" in html
     assert ">PLANES DE VUELO</a>" in html
     assert ">REGISTRO</a>" in html
 
@@ -1135,3 +1140,125 @@ def test_progreso_ruta_no_duplica(cliente, oc05_datos, cartilla_aislada):
         ).fetchall()
     assert len(filas) == 1
     assert filas[0]["vuelo_huella"] == "h-oc05-2"
+
+
+# -- Cartilla de piloto: la columna Estado -------------------------------
+
+
+def test_la_cartilla_muestra_el_resultado_de_cada_vuelo(cliente):
+    """El veredicto no se inventa: sale de `evaluate_flight()`.
+
+    Un vuelo aprueba con la puntuación del perfil (70 en «normal»), sin
+    fallos graves y con datos suficientes. Los `.csv` de fstelemetry no
+    pasan por el motor, así que salen SIN EVALUAR en vez de suponerles un
+    resultado.
+    """
+    html = cliente.get("/vuelos").get_data(as_text=True)
+
+    assert "<th>Estado</th>" in html
+    assert "Cartilla de piloto" in html
+    # Alguno de los tres estados posibles tiene que salir.
+    assert any(e in html for e in ("APROBADO", "SUSPENDIDO", "SIN EVALUAR"))
+
+
+def test_el_estado_usa_la_misma_regla_que_la_ficha_del_vuelo():
+    """Sin duplicar criterios: el mismo `passed` que ya decide APTO/NO APTO."""
+    from app import _estado_del_vuelo
+    from avcars import estadisticas
+
+    # Un fichero que no es .avlog.json no tiene veredicto posible.
+    assert _estado_del_vuelo(Path("20260101120000.csv")) == estadisticas.NO_EVALUABLE
+    # Y uno ilegible tampoco tumba la cartilla.
+    assert _estado_del_vuelo(Path("no_existe.avlog.json")) == estadisticas.NO_EVALUABLE
+
+
+def test_el_indicativo_del_vuelo_no_distingue_mayusculas(monkeypatch):
+    """Un piloto tiene que ver sus vuelos aunque cambie la caja.
+
+    El grabador escribe el indicativo tal como lo teclea el piloto, así que
+    los ficheros decían `EVA18L` mientras la cuenta era `EvA18L`, y la
+    comparación exacta dejaba al piloto sin ver **ninguno** de sus vuelos,
+    sin ningún aviso que explicara por qué. Las cuentas ya comparaban sin
+    distinguir caja (`COLLATE NOCASE`); esto lo pone a la par.
+    """
+    import app as app_module
+
+    monkeypatch.setattr(app_module, "dueno_del_vuelo", lambda _p: "EVA18L")
+    fichero = Path("cualquiera.avlog.json")
+
+    assert app_module.es_de(fichero, "EvA18L")
+    assert app_module.es_de(fichero, "eva18l")
+    assert app_module.es_de(fichero, "  EVA18L  ")
+    # Y sigue sin enseñarle el vuelo a quien no es.
+    assert not app_module.es_de(fichero, "OTRO99")
+    assert not app_module.es_de(fichero, "")
+
+
+def test_un_vuelo_sin_dueno_sigue_sin_ensenarse(monkeypatch):
+    import app as app_module
+
+    monkeypatch.setattr(app_module, "dueno_del_vuelo", lambda _p: None)
+
+    assert not app_module.es_de(Path("x.avlog.json"), "EvA18L")
+
+
+def test_importar_no_distingue_mayusculas_en_el_indicativo():
+    """Mismo piloto aunque cambie la caja, también al importar.
+
+    El grabador escribe el indicativo tal como lo teclea el piloto, así que
+    el mismo piloto aparece como `EVA18L` o `EvA18L` según el día. Comparar
+    exacto le impedía importar sus propios vuelos, y encima con un mensaje
+    que decía "este vuelo es de otro piloto" señalándole a él mismo.
+    """
+    from importacion import _mismo_piloto
+
+    assert _mismo_piloto("EVA18L", "EvA18L")
+    assert _mismo_piloto("eva18l", "EVA18L")
+    assert _mismo_piloto("  EvA18L  ", "eva18l")
+    # Pero sigue distinguiendo a pilotos distintos.
+    assert not _mismo_piloto("EVA18L", "EVA99Z")
+    assert not _mismo_piloto("", "EVA18L")
+    assert not _mismo_piloto("EVA18L", "")
+
+
+def test_la_distancia_sale_del_fichero_no_de_una_estimacion(tmp_path):
+    """La distancia se estimaba con `sum(gs_kt / 60)`, que da por hecho que
+    cada punto está a un minuto del anterior. El grabador muestrea una vez
+    por segundo, así que multiplicaba por ~60: un circuito de 4,7 minutos en
+    un C172 salía con 279 NM, unos 3.570 kt de media.
+    """
+    import json
+    from avlog_reader import AvlogJsonReader
+
+    fichero = tmp_path / "v.avlog.json"
+    # Dos minutos a 60 kt = 2 NM, y el grabador ya lo dice.
+    fichero.write_text(json.dumps({
+        "summary": {"total_distance_nm": 2.0},
+        "track": [
+            {"t": s, "lat": 40.0, "lon": -3.0, "gs_kt": 60.0}
+            for s in range(0, 121)
+        ],
+    }), encoding="utf-8")
+
+    _, resumen = AvlogJsonReader.read_avlog(fichero)
+
+    assert resumen.distance_nm == 2.0
+
+
+def test_sin_distancia_declarada_se_calcula_con_los_tiempos_reales(tmp_path):
+    """Ficheros antiguos: se usa el hueco real entre puntos, no uno fijo."""
+    import json
+    from avlog_reader import AvlogJsonReader
+
+    fichero = tmp_path / "viejo.avlog.json"
+    fichero.write_text(json.dumps({
+        "track": [
+            {"t": s, "lat": 40.0, "lon": -3.0, "gs_kt": 60.0}
+            for s in range(0, 121)
+        ],
+    }), encoding="utf-8")
+
+    _, resumen = AvlogJsonReader.read_avlog(fichero)
+
+    # 120 s a 60 kt = 2 NM. Con el fallo antiguo salían 121 NM.
+    assert 1.9 <= resumen.distance_nm <= 2.1

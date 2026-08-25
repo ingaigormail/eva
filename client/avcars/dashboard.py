@@ -491,7 +491,7 @@ class DashboardApp:
     def _open_web_planner(self) -> None:
         """Abre el navegador a http://127.0.0.1:5000/plan (D2 web)."""
         try:
-            webbrowser.open("http://127.0.0.1:5000/plan", new=2)
+            webbrowser.open("http://127.0.0.1:5000/plan", new=0)
         except Exception as e:
             messagebox.showwarning(
                 APP_TITLE,
@@ -529,7 +529,7 @@ class DashboardApp:
             )
 
     def _open_planner(self) -> None:
-        webbrowser.open("http://127.0.0.1:5000/plan", new=2)
+        webbrowser.open("http://127.0.0.1:5000/plan", new=0)
 
     def _open_logbook(self) -> None:
         """D7: Abre registro de vuelos en web."""
@@ -546,7 +546,7 @@ class DashboardApp:
     def _open_evaluation(self) -> None:
         """D6: Abre evaluación de vuelo en web."""
         try:
-            webbrowser.open("http://127.0.0.1:5000/", new=2)
+            webbrowser.open("http://127.0.0.1:5000/", new=0)
         except Exception as e:
             messagebox.showwarning(
                 APP_TITLE,

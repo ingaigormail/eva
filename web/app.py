@@ -287,10 +287,19 @@ def es_de(path: Path, piloto: str) -> bool:
     Un vuelo sin dueño averiguable **no se enseña a nadie**: es preferible
     que falte un vuelo antiguo en la cartilla a que un piloto vea los vuelos
     de otro. Para reclamarlo basta con volver a importarlo.
+
+    La comparación **no distingue mayúsculas**, igual que la de las cuentas
+    (`cuentas._ficha` usa `COLLATE NOCASE`). El grabador escribe el
+    indicativo tal como lo teclea el piloto, así que un vuelo de `EVA18L` es
+    del titular de la cuenta `EvA18L`: sin esto, un piloto no veía sus
+    propios vuelos y no había forma de saber por qué.
     """
     if not piloto:
         return False
-    return dueno_del_vuelo(path) == piloto
+    dueno = dueno_del_vuelo(path)
+    if not dueno:
+        return False
+    return dueno.strip().casefold() == piloto.strip().casefold()
 
 
 def flights_of(piloto: str) -> list[Path]:
@@ -1547,6 +1556,39 @@ def borrar_mi_vuelo(nombre: str):
     return redirect(url_for("vuelos"))
 
 
+def _estado_del_vuelo(path: Path) -> str:
+    """APTO / NO APTO / NO EVALUABLE de un vuelo, para la cartilla.
+
+    **No se inventa ningún criterio**: se usa el mismo `evaluate_flight()`
+    que la ficha del vuelo, con el perfil por defecto (`normal`) y las
+    reglas que el administrador tenga activas. Un vuelo aprueba si su
+    puntuación llega al `pass_score` del perfil (70 en `normal`), no tiene
+    ningún fallo grave y hay datos suficientes para juzgarlo.
+
+    Los `.csv` de fstelemetry no pasan por el motor, así que no tienen
+    veredicto: se devuelve `NO_EVALUABLE` en vez de suponerles uno.
+    """
+    if not path.name.endswith(".avlog.json"):
+        return estadisticas.NO_EVALUABLE
+    try:
+        flight = load_flight(path)
+        if flight is None:
+            return estadisticas.NO_EVALUABLE
+        aeronave = AIRCRAFT.get(flight.flight_plan.aircraft_icao_type)
+        perfil, activas = _perfil_y_reglas_activas(DEFAULT_PROFILE)
+        verdict = evaluate_flight(
+            flight, perfil, aircraft=aeronave, reglas_activas=activas
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Un vuelo ilegible no puede tumbar la cartilla entera.
+        app.logger.warning("no se pudo evaluar %s: %s", path.name, exc)
+        return estadisticas.NO_EVALUABLE
+
+    if not verdict.evaluable:
+        return estadisticas.NO_EVALUABLE
+    return estadisticas.APTO if verdict.passed else estadisticas.NO_APTO
+
+
 @app.route("/vuelos")
 @login_requerido
 def vuelos():
@@ -1574,6 +1616,8 @@ def vuelos():
                         "alt_max_ft": int(summary.alt_max_ft),
                         "gs_max_kt": int(summary.gs_max_kt),
                         "puntos": summary.points_recorded,
+                        # Los .csv no pasan por el motor de evaluación.
+                        "estado": estadisticas.NO_EVALUABLE,
                     })
             except Exception:
                 continue
@@ -1593,6 +1637,7 @@ def vuelos():
                         "alt_max_ft": int(summary.alt_max_ft),
                         "gs_max_kt": int(summary.gs_max_kt),
                         "puntos": summary.points_recorded,
+                        "estado": _estado_del_vuelo(avlog_file),
                     })
             except Exception:
                 continue
@@ -1600,7 +1645,47 @@ def vuelos():
     # Ordenar por fecha (más recientes primero)
     vuelos.sort(key=lambda v: v["fecha"], reverse=True)
 
-    return render_template("vuelos.html", vuelos=vuelos, total=len(vuelos))
+    return render_template(
+        "vuelos.html",
+        vuelos=vuelos,
+        total=len(vuelos),
+        resumen=_resumen_de_la_cartilla(vuelos),
+    )
+
+
+def _resumen_de_la_cartilla(vuelos: list[dict]) -> dict:
+    """Las cifras que encabezan la cartilla del piloto.
+
+    Las horas y las millas cuentan **solo los vuelos aprobados**: son la
+    marca del piloto, y un vuelo suspendido no debería engordarla. El total
+    de vuelos sí los cuenta todos, porque ahí lo que se mide es la
+    actividad, no la calidad.
+
+    Se calcula sobre la lista que ya se ha construido para la tabla, sin
+    volver a leer ni evaluar ningún fichero.
+    """
+    aprobados = [v for v in vuelos if v["estado"] == estadisticas.APTO]
+    suspendidos = [v for v in vuelos if v["estado"] == estadisticas.NO_APTO]
+
+    minutos_ok = sum(v["duracion_min"] for v in aprobados)
+    millas_ok = sum(v["distancia_nm"] for v in aprobados)
+    evaluados = len(aprobados) + len(suspendidos)
+
+    return {
+        "total": len(vuelos),
+        "aprobados": len(aprobados),
+        "suspendidos": len(suspendidos),
+        "sin_evaluar": len(vuelos) - evaluados,
+        # Porcentaje sobre los evaluados, no sobre el total: los que no se
+        # pudieron juzgar no cuentan ni a favor ni en contra.
+        "porcentaje_aprobados": (
+            round(100 * len(aprobados) / evaluados) if evaluados else None
+        ),
+        "horas_aprobadas": round(minutos_ok / 60, 1),
+        "millas_aprobadas": round(millas_ok),
+        "vuelo_mas_largo_nm": round(max((v["distancia_nm"] for v in vuelos), default=0)),
+        "altitud_maxima_ft": max((v["alt_max_ft"] for v in vuelos), default=0),
+    }
 
 
 @app.route("/registro/<nombre>")

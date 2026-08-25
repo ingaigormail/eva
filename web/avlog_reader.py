@@ -42,6 +42,34 @@ class TelemetrySummary:
     points_recorded: int
 
 
+def _distancia_declarada(data: dict) -> Optional[float]:
+    """La distancia que escribió el grabador, si el fichero la trae."""
+    resumen = data.get("summary") or {}
+    valor = resumen.get("total_distance_nm")
+    try:
+        distancia = float(valor)
+    except (TypeError, ValueError):
+        return None
+    return distancia if distancia >= 0 else None
+
+
+def _distancia_por_tiempos(points: list) -> float:
+    """Distancia a partir de la velocidad y el tiempo **real** entre puntos.
+
+    Solo para ficheros antiguos que no traen la distancia calculada. Usa el
+    hueco de tiempo de cada tramo en vez de suponer uno fijo, que es el
+    error que tenía la versión anterior.
+    """
+    total = 0.0
+    for anterior, actual in zip(points, points[1:]):
+        segundos = actual.timestamp - anterior.timestamp
+        if segundos <= 0:
+            continue
+        # Velocidad media del tramo, por horas.
+        total += ((anterior.gs_kt + actual.gs_kt) / 2.0) * (segundos / 3600.0)
+    return total
+
+
 class AvlogJsonReader:
     """Lee logs de vuelo en formato .avlog.json."""
 
@@ -134,8 +162,21 @@ class AvlogJsonReader:
         vs_values = [p.vs_fpm for p in points]
         weights = [p.total_weight_lb for p in points]
 
-        # Distancia aproximada (suma de velocidades / 60)
-        distance_nm = sum(p.gs_kt / 60 for p in points)
+        # Distancia: la que calculó el grabador punto a punto, que está en
+        # el propio fichero (`summary.total_distance_nm`).
+        #
+        # Antes se estimaba aquí con `sum(gs_kt / 60)`, que da por hecho que
+        # **cada punto está a un minuto del anterior**. El grabador muestrea
+        # una vez por segundo, así que multiplicaba la distancia por unas 60
+        # veces: un circuito de 4,7 minutos en un C172 salía con 279 NM
+        # (≈3.570 kt de media). Visto el 2026-08-25 al pintar las
+        # estadísticas de la cartilla.
+        #
+        # El respaldo sí usa los tiempos reales de cada punto, por si un
+        # fichero antiguo no trae el dato.
+        distance_nm = _distancia_declarada(data)
+        if distance_nm is None:
+            distance_nm = _distancia_por_tiempos(points)
 
         # Tiempo de vuelo en minutos
         flight_time_min = points[-1].timestamp / 60 if points else 0

@@ -306,6 +306,18 @@ def vuelo_llego_a_destino(datos: dict, aeropuertos: dict) -> bool:
 # -- la comprobación completa ------------------------------------------
 
 
+def _mismo_piloto(uno: str, otro: str) -> bool:
+    """Compara indicativos sin distinguir mayúsculas ni espacios.
+
+    El grabador escribe el indicativo tal como lo teclea el piloto, así que
+    el mismo piloto aparece como `EVA18L` o `EvA18L` según el día. Comparar
+    exacto le impedía importar sus propios vuelos, con un mensaje que además
+    decía "este vuelo es de otro piloto" señalándole a él mismo. Las cuentas
+    ya comparaban así (`cuentas._ficha`, con `COLLATE NOCASE`).
+    """
+    return (uno or "").strip().casefold() == (otro or "").strip().casefold()
+
+
 def revisar(
     contenido: bytes,
     nombre: str,
@@ -325,7 +337,7 @@ def revisar(
         huella, dueno = huella_de_avlog(contenido)
         # Un vuelo sin dueño declarado (grabado antes de que EvA lo guardara)
         # se lo queda quien lo sube: no hay nada que contradiga.
-        if dueno is not None and dueno != piloto_sesion:
+        if dueno is not None and not _mismo_piloto(dueno, piloto_sesion):
             raise ImportacionRechazada(
                 f"Este vuelo es del piloto {dueno}, no tuyo. "
                 "Cada piloto importa solo sus vuelos.",
@@ -358,7 +370,7 @@ def revisar(
     if anterior is not None:
         cuando = str(anterior.get("importado_utc", "")).replace("T", " ")
         de_quien = anterior.get("piloto", "")
-        if de_quien and de_quien != piloto_sesion:
+        if de_quien and not _mismo_piloto(de_quien, piloto_sesion):
             raise ImportacionRechazada(
                 "Este vuelo ya está en la cartilla de otro piloto.", 403
             )

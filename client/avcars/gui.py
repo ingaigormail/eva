@@ -944,7 +944,7 @@ class EvaApp:
         """Abre la cartilla del piloto en el navegador."""
         url = self._url_cartilla()
         try:
-            webbrowser.open(url, new=2)
+            webbrowser.open(url, new=0)
             self._apuntar_evento(f"abierta la cartilla: {url}")
         except Exception as exc:
             debuglog.fallo("apertura de la cartilla", exc)
