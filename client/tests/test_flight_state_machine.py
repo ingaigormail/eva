@@ -616,3 +616,50 @@ class TestCarreraDeDeceleracionTrasAterrizar:
 
         assert accion == "parar_grabacion"
         assert machine.state == FlightState.GUARDANDO
+
+
+class TestCierreDelVueloTrasAterrizar:
+    """Por qué un vuelo se quedaba sin cerrar (2026-08-25).
+
+    El registro terminaba en `EN_PISTA → DETENIDO (GS 58.6 kt)` y ya no
+    decía nada más: DETENIDO no contaba nada de lo que hacía mientras
+    esperaba, así que no había forma de saber si el contador de parada
+    llegaba a arrancar o se reiniciaba solo.
+    """
+
+    def _detenido(self) -> FlightStateMachine:
+        machine = FlightStateMachine(confirmation_stopped_s=10.0)
+        machine.state = FlightState.DETENIDO
+        machine.recording = True
+        machine.has_flown = True
+        return machine
+
+    def test_la_cuenta_atras_se_ve_en_la_descripcion(self):
+        machine = self._detenido()
+
+        _, texto = machine.update(_state(gs_kt=30.0, on_ground=True), 1.0)
+        assert "pare del todo" in texto
+
+        _, texto = machine.update(_state(gs_kt=0.0, on_ground=True), 4.0)
+        assert "6s" in texto, texto
+
+    def test_aparcar_con_el_freno_cierra_sin_esperar(self):
+        machine = self._detenido()
+
+        accion, _ = machine.update(
+            _state(gs_kt=0.0, on_ground=True, parking_brake=True), 1.0
+        )
+
+        assert accion == "parar_grabacion"
+        assert machine.state == FlightState.GUARDANDO
+
+    def test_el_freno_rodando_todavia_no_cierra_nada(self):
+        """Frenar a 30 kt no es aparcar."""
+        machine = self._detenido()
+
+        accion, _ = machine.update(
+            _state(gs_kt=30.0, on_ground=True, parking_brake=True), 1.0
+        )
+
+        assert accion == "nada"
+        assert machine.recording

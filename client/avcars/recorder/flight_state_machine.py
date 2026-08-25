@@ -171,7 +171,15 @@ class FlightStateMachine:
             remaining = max(0, int(self.confirmation_landing_s - self._time_with_contact_s))
             return f"confirmando aterrizaje ({remaining}s), grabando"
         if self.state == FlightState.DETENIDO:
-            return "vuelo completado, preparando cierre"
+            # Con cuenta atrás visible: si el vuelo no se cierra, el piloto
+            # tiene que poder ver si es que el contador no llega a arrancar
+            # (el avión sigue moviéndose) o si es que se reinicia.
+            if self._time_below_threshold_s > 0:
+                quedan = max(
+                    0, int(self.confirmation_stopped_s - self._time_below_threshold_s)
+                )
+                return f"parado, cerrando el vuelo en {quedan}s"
+            return "esperando a que el avión pare del todo"
         if self.state == FlightState.GUARDANDO:
             return "guardando el vuelo"
         if self.state == FlightState.ERROR_GUARDADO:
@@ -363,6 +371,19 @@ class FlightStateMachine:
             # un avión que iba a 25 kt saliendo de pista y cerraba el vuelo
             # en mitad del rodaje de llegada — visto en el vuelo de pruebas
             # del 2026-08-25: "avión parado, guardando (GS 25.1 kt)".
+            # Aparcar con el freno puesto es un "he terminado" sin
+            # ambigüedad, y cierra el vuelo sin esperar la cuenta atrás. Aquí
+            # no hace falta exigir además los motores apagados (como sí se
+            # hace en RODANDO): a estas alturas el avión ya ha volado y ha
+            # aterrizado, así que no hay nada que confundir con una espera en
+            # el punto de espera.
+            if state.parking_brake and state.gs_kt < TAXI_MOVEMENT_THRESHOLD_KT:
+                self.state = FlightState.GUARDANDO
+                self.recording = False
+                action = "parar_grabacion"
+                self._last_reason = "avión aparcado con el freno puesto, guardando"
+                return action, self.describe_state()
+
             if state.gs_kt < TAXI_MOVEMENT_THRESHOLD_KT:
                 self._time_below_threshold_s += elapsed_s
                 if self._time_below_threshold_s >= self.confirmation_stopped_s:
