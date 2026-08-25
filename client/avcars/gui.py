@@ -26,6 +26,7 @@ import threading
 import time
 import tkinter as tk
 import webbrowser
+from datetime import datetime, timezone
 from pathlib import Path
 from tkinter import messagebox
 from typing import Optional
@@ -192,6 +193,18 @@ class EvaApp:
         self._plan_web_pedido_en = 0.0
         self._plan_web_pidiendo = False
 
+        # Últimos datos que el simulador no supo dar, para apuntarlos cuando
+        # cambien y no en cada refresco (ver `_avisar_datos_que_faltan`).
+        self._datos_que_faltaban: tuple[str, ...] = ()
+
+        # Bitácora de eventos (ver `_apuntar_evento`). La lista existe desde
+        # el arranque aunque la ventana no se abra nunca.
+        self._eventos: list[str] = []
+        self._eventos_window: Optional[tk.Toplevel] = None
+        self._eventos_text: Optional[tk.Text] = None
+        self._ultimo_motivo = ""
+        self._ultimo_estado_mostrado = ""
+
         self.recorder: Optional[FlightRecorder] = None
         self.state_machine: Optional[FlightStateMachine] = None
         self.connector: Optional[SimConnectConnector] = None
@@ -324,6 +337,22 @@ class EvaApp:
             justify="center",
         )
         self.status_detail.pack(pady=(6, 0))
+
+        # Estado interno de la máquina, en crudo. La frase de arriba es para
+        # el piloto; esto es para saber en qué fase está exactamente, que es
+        # lo que hacía falta cuando la grabación no arrancaba.
+        self.fase_label = tk.Label(
+            inner, text="—", bg=PANEL, fg=FG_DIM,
+            font=("Consolas", 7),
+        )
+        self.fase_label.pack(pady=(2, 0))
+
+        self.eventos_link = tk.Label(
+            inner, text="Ver eventos", bg=PANEL, fg=ACCENT,
+            font=("Segoe UI", 7, "underline"), cursor="hand2",
+        )
+        self.eventos_link.bind("<Button-1>", lambda _e: self._abrir_ventana_eventos())
+        self.eventos_link.pack(pady=(2, 0))
 
         self.transponder_label = tk.Label(
             inner,
@@ -1186,20 +1215,41 @@ class EvaApp:
         if self.state_machine is None:
             return
 
+        estado_antes = self.state_machine.state.name
         accion, motivo = self.state_machine.update(state, transcurrido)
+        estado_ahora = self.state_machine.state.name
+
+        # El cambio de estado es el dato que más falta hacía: sin esto no
+        # había forma de saber si el grabador seguía atascado en tierra o si
+        # es que la condición de arranque nunca se cumplía.
+        if estado_ahora != estado_antes:
+            self._apuntar_evento(
+                f"{estado_antes} → {estado_ahora}: {self.state_machine.last_reason} "
+                f"(GS {state.gs_kt:.1f} kt, "
+                f"{'en tierra' if state.on_ground else 'en el aire'})"
+            )
 
         if accion == "empezar_grabacion" and not self._recording:
             if self._ruta_completa():
                 self._start()
+                self._apuntar_evento("empieza la grabación")
             else:
                 motivo = "Falta origen/destino del plan de vuelo — no se graba"
+                self._apuntar_evento(
+                    "NO se graba: falta el origen o el destino del plan de vuelo"
+                )
         elif accion == "parar_grabacion" and self._recording:
             self._stop()
+            self._apuntar_evento("grabación detenida")
             # Vuelo cerrado: la máquina queda lista para el siguiente sin
             # tener que reabrir EvA.
             self.state_machine.reset()
 
+        # El motivo se apunta cuando cambia; en pantalla se ve siempre.
+        if motivo and motivo != self._ultimo_motivo:
+            self._ultimo_motivo = motivo
         self.status_detail.configure(text=motivo)
+        self.fase_label.configure(text=estado_ahora)
 
     def _update_sim_display(self) -> None:
         """Refresca el reloj y los datos del simulador."""
@@ -1218,7 +1268,11 @@ class EvaApp:
         self._refresh_tiempo()
 
         if state is not None and not self._minimized:
-            transponder = TRANSPONDER_LABELS.get(state.transponder_state, "---")
+            transponder = (
+                TRANSPONDER_LABELS.get(state.transponder_state)
+                or state.squawk
+                or "---"
+            )
             self.transponder_label.configure(
                 text=(
                     f"ALT: {int(state.alt_msl_ft):05d}ft | "
@@ -1226,8 +1280,103 @@ class EvaApp:
                 )
             )
             self._update_estado_badges(state)
+            self._avisar_datos_que_faltan()
 
         self.root.after(500, self._update_sim_display)
+
+    # -- Bitácora de eventos ------------------------------------------
+    # Lo que el grabador va detectando, con su hora. Nació de un problema
+    # concreto: durante las pruebas la grabación automática no arrancó y no
+    # hubo forma de saber por qué, porque la única pista era una frase que
+    # se pisaba a sí misma cada medio segundo. Aquí queda el historial.
+
+    #: Cuántas líneas se guardan. Un vuelo largo no puede comerse la memoria,
+    #: y para entender qué pasó sobran las últimas.
+    _MAX_EVENTOS = 500
+
+    def _apuntar_evento(self, texto: str) -> None:
+        """Añade una línea a la bitácora, con la hora UTC delante."""
+        marca = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        linea = f"[{marca}Z] {texto}"
+
+        self._eventos.append(linea)
+        if len(self._eventos) > self._MAX_EVENTOS:
+            del self._eventos[: len(self._eventos) - self._MAX_EVENTOS]
+
+        # Al registro también: si el piloto no tiene la ventana abierta, el
+        # rastro no se pierde.
+        debuglog.apunte(texto)
+
+        if self._eventos_text is not None:
+            try:
+                self._eventos_text.configure(state="normal")
+                self._eventos_text.insert("end", linea + "\n")
+                self._eventos_text.see("end")
+                self._eventos_text.configure(state="disabled")
+            except tk.TclError:
+                # La ventana se cerró entre medias: se sigue guardando en la
+                # lista, que es lo que importa.
+                self._eventos_text = None
+
+    def _abrir_ventana_eventos(self) -> None:
+        """Ventana con la bitácora. Redimensionable, y se puede tener al lado."""
+        if self._eventos_window is not None:
+            try:
+                self._eventos_window.deiconify()
+                self._eventos_window.lift()
+                return
+            except tk.TclError:
+                self._eventos_window = None
+
+        ventana = tk.Toplevel(self.root)
+        ventana.title("Eventos del vuelo")
+        ventana.configure(bg=BG)
+        ventana.geometry("560x360")
+
+        marco = tk.Frame(ventana, bg=BG, padx=10, pady=10)
+        marco.pack(fill="both", expand=True)
+
+        barra = tk.Scrollbar(marco)
+        barra.pack(side="right", fill="y")
+
+        texto = tk.Text(
+            marco, bg=PANEL, fg=FG, font=("Consolas", 9), wrap="word",
+            relief="flat", yscrollcommand=barra.set,
+        )
+        texto.pack(side="left", fill="both", expand=True)
+        barra.configure(command=texto.yview)
+
+        # Lo ocurrido antes de abrir la ventana también cuenta.
+        texto.insert("end", "\n".join(self._eventos) + ("\n" if self._eventos else ""))
+        texto.see("end")
+        texto.configure(state="disabled")
+
+        def _al_cerrar() -> None:
+            self._eventos_text = None
+            self._eventos_window = None
+            ventana.destroy()
+
+        ventana.protocol("WM_DELETE_WINDOW", _al_cerrar)
+        self._eventos_window = ventana
+        self._eventos_text = texto
+
+    def _avisar_datos_que_faltan(self) -> None:
+        """Deja constancia de los datos que el simulador no da.
+
+        El conector ya llevaba esta lista (`missing_variables`) y **nadie la
+        miraba**: por eso el transpondedor podía llevar días sin llegar sin
+        que nada lo dijera. Se apunta una sola vez por conjunto de datos que
+        falten, no en cada vuelta del refresco (medio segundo), que llenaría
+        el registro de ruido.
+        """
+        if self.connector is None:
+            return
+        faltan = tuple(sorted(self.connector.missing_variables))
+        if faltan and faltan != self._datos_que_faltaban:
+            self._apuntar_evento(
+                "el simulador no da estos datos: " + ", ".join(faltan)
+            )
+        self._datos_que_faltaban = faltan
 
     def _update_estado_badges(self, state: SimState) -> None:
         """Colorea el XPDR y las luces SOP con el estado real del simulador.
@@ -1235,14 +1384,21 @@ class EvaApp:
         Verde = encendida/en ALT, rojo = apagada, gris = el simulador no
         expone ese dato (no se inventa un color para "no sé").
         """
-        if state.transponder_state is None:
-            self.xpdr_badge.configure(text="XPDR ---", bg=GREY)
-        else:
+        if state.transponder_state is not None:
             texto = f"XPDR {TRANSPONDER_LABELS.get(state.transponder_state, '---')}"
             color = GREEN if state.mode_charlie else (
                 RED if state.transponder_state == 0 else GREY
             )
             self.xpdr_badge.configure(text=texto, bg=color)
+        elif state.squawk:
+            # Sin el modo, pero con el código: es lo que hay y vale de algo.
+            # `TRANSPONDER STATE` no está en la tabla de python-SimConnect
+            # (solo `TRANSPONDER CODE` y `TRANSPONDER AVAILABLE`), así que en
+            # la práctica el modo casi nunca llega. Enseñar el squawk es
+            # mejor que un "---" que hace pensar que el transpondedor no va.
+            self.xpdr_badge.configure(text=f"XPDR {state.squawk}", bg=GREY)
+        else:
+            self.xpdr_badge.configure(text="XPDR ---", bg=GREY)
 
         for campo, badge in self._luces_badges.items():
             valor = getattr(state, campo)

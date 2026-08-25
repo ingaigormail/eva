@@ -79,11 +79,17 @@ VARIABLE_CANDIDATES: dict[str, tuple[str, ...]] = {
     "stall_warning": ("STALL_WARNING",),
     "overspeed_warning": ("OVERSPEED_WARNING",),
     "autopilot_engaged": ("AUTOPILOT_MASTER",),
-    "landing_light": ("LIGHT_LANDING",),
-    "beacon_light": ("LIGHT_BEACON",),
-    "nav_light": ("LIGHT_NAV",),
-    "taxi_light": ("LIGHT_TAXI",),
-    "strobe_light": ("LIGHT_STROBE",),
+    # Luces: se pide primero la variable `..._ON`, que es la que dice si la
+    # luz **está encendida**; `LIGHT_LANDING` y compañía son la posición del
+    # interruptor ("Light switch state" en la tabla de python-SimConnect), que
+    # no es lo mismo y en algunos aviones no coincide. Lo que se enseña y se
+    # puntúa es si la luz luce, así que esa es la que manda; la del
+    # interruptor se deja detrás como respaldo.
+    "landing_light": ("LIGHT_LANDING_ON", "LIGHT_LANDING"),
+    "beacon_light": ("LIGHT_BEACON_ON", "LIGHT_BEACON"),
+    "nav_light": ("LIGHT_NAV_ON", "LIGHT_NAV"),
+    "taxi_light": ("LIGHT_TAXI_ON", "LIGHT_TAXI"),
+    "strobe_light": ("LIGHT_STROBE_ON", "LIGHT_STROBE"),
 }
 
 

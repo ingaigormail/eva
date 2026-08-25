@@ -20,10 +20,35 @@ def _aislar(tmp_path, monkeypatch):
     debuglog.reiniciar_deteccion()
 
 
-def test_apagado_por_defecto(tmp_path):
-    """Sin encenderlo no se escribe nada: en producción no debe estorbar."""
-    assert not debuglog.activo()
+def test_encendido_por_defecto(tmp_path):
+    """Al revés que antes, y a propósito.
+
+    Estuvo apagado por defecto hasta el 2026-08-24: ese día un vuelo de
+    pruebas falló dos veces (no arrancó la grabación automática y el cierre
+    dio error) y no quedó rastro de ninguno de los dos fallos. Mientras EvA
+    esté en pruebas, escribir de más sale mucho más barato que eso.
+    """
+    assert debuglog.activo()
+    debuglog.apunte("esto si aparece")
+    assert "esto si aparece" in debuglog.ruta().read_text(encoding="utf-8")
+
+
+def test_se_apaga_con_la_variable_de_entorno(monkeypatch):
+    monkeypatch.setenv("EVA_DEBUG", "0")
+    debuglog.reiniciar_deteccion()
+
     debuglog.apunte("no deberia aparecer")
+
+    assert not debuglog.ruta().exists()
+
+
+def test_se_apaga_con_el_fichero(tmp_path):
+    """Para quien no quiera tocar variables de entorno."""
+    (tmp_path / debuglog.NOMBRE_APAGADO).touch()
+    debuglog.reiniciar_deteccion()
+
+    debuglog.apunte("no deberia aparecer")
+
     assert not debuglog.ruta().exists()
 
 

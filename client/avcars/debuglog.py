@@ -16,15 +16,19 @@ devolviendo `None`), y ninguno dejaba rastro en pantalla.
 Este módulo es el rastro. No cambia el comportamiento: lo que se tragaba se
 sigue tragando, pero antes queda escrito con su traza completa.
 
-Cómo se enciende
-----------------
-Apagado por defecto. Se enciende con la variable de entorno::
+Cómo se apaga
+-------------
+**Encendido por defecto** mientras EvA esté en pruebas. Estuvo al revés
+hasta el 2026-08-24, y salió caro: ese día un vuelo de pruebas falló dos
+veces —no arrancó la grabación automática y el cierre dio error— y no quedó
+rastro de ninguno de los dos, justo por esto.
 
-    $env:EVA_DEBUG = "1"        # PowerShell
-    python -m client.avcars.gui
+Se apaga con la variable de entorno::
 
-o dejando un fichero vacío llamado `eva.debug` junto a `eva.config.json`, que
-es más cómodo para el piloto que esté probando: no hay que tocar la consola.
+    $env:EVA_DEBUG = "0"        # PowerShell
+
+o dejando un fichero vacío llamado `eva.nodebug` junto a `eva.config.json`,
+que es más cómodo para el piloto: no hay que tocar la consola.
 
 El fichero se escribe en `eva-debug.log`, junto a la configuración. Se corta
 solo al llegar a 2 MB para no comerse el disco en un vuelo largo.
@@ -50,7 +54,12 @@ from typing import Optional
 from . import paths
 
 NOMBRE_FICHERO = "eva-debug.log"
+#: Se conserva por compatibilidad: antes encendía el diario. Hoy el diario
+#: está encendido de serie, así que este fichero ya no hace falta (tenerlo
+#: no molesta).
 NOMBRE_INTERRUPTOR = "eva.debug"
+#: El que sí importa ahora: su presencia **apaga** el diario.
+NOMBRE_APAGADO = "eva.nodebug"
 
 #: Al llegar aquí se empieza de cero. Un vuelo largo con el simulador dando
 #: guerra puede escribir mucho, y el log no debe llenar el disco del piloto.
@@ -70,12 +79,28 @@ def activo() -> bool:
 
 
 def _detectar() -> bool:
-    if os.environ.get("EVA_DEBUG", "").strip() not in ("", "0"):
+    """Encendido salvo que se apague a propósito.
+
+    Estuvo apagado por defecto y salió caro: en las pruebas de vuelo del
+    2026-08-24 la grabación automática no arrancó y el cierre del vuelo dio
+    error, y **ninguno de los dos dejó rastro** porque el diario no estaba
+    puesto. Mientras EvA esté en pruebas, el coste de escribir unas líneas es
+    ridículo comparado con perder un vuelo entero de información.
+
+    Se apaga con `EVA_DEBUG=0`, o creando un fichero `eva.nodebug` al lado de
+    la configuración para quien no quiera tocar variables de entorno.
+    """
+    apagado = os.environ.get("EVA_DEBUG", "").strip()
+    if apagado == "0":
+        return False
+    if apagado not in ("",):
         return True
     try:
-        return (paths.base_dir() / NOMBRE_INTERRUPTOR).exists()
+        return not (paths.base_dir() / NOMBRE_APAGADO).exists()
     except Exception:
-        return False
+        # Ante la duda, encendido: un diario de más no rompe nada; uno de
+        # menos deja un fallo sin explicación.
+        return True
 
 
 def reiniciar_deteccion() -> None:
