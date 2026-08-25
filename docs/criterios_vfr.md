@@ -28,11 +28,12 @@ El log **no** es un POH. Varias reglas de velocidad estructural dependen de
 | Sim | `pause_duration` | pausa ≤ 120 s | −10 por exceso |
 | Sim | `time_compression` | sim rate ≤ 1 | **FAIL** `time_compression_used` |
 | Actitud | `bank_angle` | warn 30° sostenido 3 muestras; fail 60° | −15 sostenida; **FAIL** (id en código: ver `failed_hard` de `_evaluate_bank_angle`) |
-| Luces | `landing_light_takeoff` / `landing_light_landing` | ON ± `lights.check_tolerance_s` (30 s) | −10 (`penalties.landing_light_off`) |
-| Luces | `beacon_airborne` | ON todo el aire | −10 |
-| Luces | `nav_light_airborne` | ON todo el aire | −10 |
-| Luces | `taxi_light` | ON si `on_ground` y GS > 2 kt | −5 |
-| Luces | `strobe_taxi` | OFF en rodaje | −5 |
+| Luces | `strobe_airborne` | ON todo el aire | −5 (`penalties.strobe_wrong_state`) |
+| Luces | `landing_light_takeoff` / `landing_light_landing` | ON ± `lights.check_tolerance_s` (30 s) | **inactiva de serie** |
+| Luces | `beacon_airborne` | ON todo el aire | **inactiva de serie** |
+| Luces | `nav_light_airborne` | ON todo el aire | **inactiva de serie** |
+| Luces | `taxi_light` | ON si `on_ground` y GS > 2 kt | **inactiva de serie** |
+| Radio | `transponder_airborne` | ON o ALT todo el aire | −5 (`penalties.transponder_off_airborne`) |
 | Seguridad | `stall_warning` | ningún True | **FAIL** `stall_warning_triggered` |
 | Seguridad | `overspeed_warning` | ningún True | **FAIL** `overspeed_warning_triggered` |
 | Seguridad | `structural_overspeed` | IAS ≤ VMO/VNE efectivo | **FAIL** `structural_overspeed` si hay límite |

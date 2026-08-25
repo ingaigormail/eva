@@ -84,4 +84,16 @@ def test_reglas_activas_dict_para_el_motor(tmp_path):
     overrides = reglas_config.cargar_overrides(path)
 
     activas = reglas_config.reglas_activas_dict(overrides)
-    assert activas == {"stall_warning": False}
+    assert activas["stall_warning"] is False
+    # Y las que la aerolínea tiene apagadas de serie viajan también, porque
+    # el motor da por activa toda regla que no aparezca en este diccionario.
+    for regla in reglas_config.REGLAS_INACTIVAS_POR_DEFECTO:
+        assert activas[regla] is False
+
+
+def test_lo_que_diga_el_administrador_manda_sobre_el_valor_de_serie():
+    """Una regla apagada de serie se puede volver a encender desde la web."""
+    apagada = next(iter(reglas_config.REGLAS_INACTIVAS_POR_DEFECTO))
+
+    assert not reglas_config.regla_activa(apagada, {})
+    assert reglas_config.regla_activa(apagada, {"activo": {apagada: True}})

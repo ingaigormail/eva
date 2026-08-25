@@ -119,11 +119,24 @@ Si no hay touchdown: landing alignment, zona y VS pasan a `not_evaluated`.
 | `time_compression` | `timing.max_sim_rate_observed` ≤ 1; si no, `failed_hard` `time_compression_used` |
 | `bank_angle` | max > fail_deg → FAIL `excessive_bank_angle`; sostenido > warn_deg N muestras → penalización |
 
-### 6.3 Luces
+### 6.3 Luces y transpondedor
 
-`landing_light_takeoff` / `_landing`, `beacon_airborne`, `nav_light_airborne`,
-`taxi_light` (GS > 2 kt en tierra), `strobe_taxi` (deben ir **apagados**
-rodando). Si no hay ningún dato de luces, `not_evaluated` incluye `"lights"`.
+De las luces, **la única que puntúa es `strobe_airborne`**: los estrobos
+deben ir **encendidos en el aire**. Antes existía `strobe_taxi`, que
+penalizaba justo lo contrario (llevarlos encendidos rodando); se sustituyó
+por decisión de la aerolínea el 2026-08-25.
+
+El motor sigue sabiendo evaluar `landing_light_takeoff` / `_landing`,
+`beacon_airborne`, `nav_light_airborne` y `taxi_light` (GS > 2 kt en
+tierra), pero están **inactivas de serie**
+(`reglas_config.REGLAS_INACTIVAS_POR_DEFECTO`). Se pueden volver a encender
+desde `/gestion/reglas`: lo que diga el administrador manda sobre el valor
+de serie.
+
+`transponder_airborne` penaliza volar con el transpondedor apagado o en
+espera; valen tanto ON como ALT (ver `SimState.mode_charlie`).
+
+Si no hay ningún dato de luces, `not_evaluated` incluye `"lights"`.
 
 ### 6.4 Avisos y configuración
 

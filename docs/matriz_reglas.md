@@ -32,7 +32,8 @@
 | 12 | `beacon_airborne` | `ambas` | `track[airborne=!on_ground].beacon_light` (`TrackPoint:102`) | — | — | `penalties.beacon_off_airborne=10` | `scoring.py:397` `all(beacon)` else FAIL | ✅ |
 | 13 | `nav_light_airborne` | `ambas` | `track[airborne].nav_light` (`TrackPoint:103`) | — | — | `penalties.nav_light_off_airborne=10` | `scoring.py:413` | ✅ |
 | 14 | `taxi_light` | `ambas` | `track[on_ground && gs_kt>2].taxi_light` (`TrackPoint:104`, `TrackPoint:77`) | — | — | `penalties.taxi_light_off=5` | `scoring.py:427` | ✅ |
-| 15 | `strobe_taxi` | `ambas` | `track[taxiing].strobe_light` debe estar OFF (`TrackPoint:105`) | — | — | `penalties.strobe_wrong_state=5` | `scoring.py:443` `all(not strobe)` | ✅ |
+| 15 | `strobe_airborne` | `ambas` | `track[airborne].strobe_light` debe estar ON (`TrackPoint:105`) | — | — | `penalties.strobe_wrong_state=5` | `scoring.py:518` `all(strobe)` | ✅ |
+| 15b | `transponder_airborne` | `ambas` | `track[airborne].transponder_state` en ON o ALT | — | — | `penalties.transponder_off_airborne=5` | `scoring.py:498` | ✅ si hay dato |
 | 16 | `stall_warning` | `ambas` | `track[].stall_warning` (`TrackPoint:86`) | — | — | FAIL duro ( `penalties.stall_warning` 0) | `scoring.py:284` `failed_hard+=stall_warning_triggered` | ✅ si `stall_warning!=None`, si no -> `not_evaluated` |
 | 17 | `overspeed_warning` | `ambas` | `track[].overspeed_warning` (`TrackPoint:87`) — **aviso del sim, no VNE calculado** | `limites_poh.vmo/mmo/vne` **no usado** hoy (solo DHC6 `vmo:166`, C25C `vmo:305/mmo:0.77` tienen valor; resto `null`) | — | FAIL duro | `scoring.py:301` | ✅ si hay dato |
 | 18 | `qnh` | `ambas` | `track[].qnh_inhg` (`TrackPoint:85`) | — | — | `qnh {min:28.5, max:31.2}` (`normal:28-30`), `penalties.qnh_out_of_range=10` | `scoring.py:318` `cfg["min"] <= qnh <= max` | ✅ |

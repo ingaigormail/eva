@@ -227,12 +227,22 @@ _REGLAS: list[ReglaInfo] = [
         "scoring.py:427",
     ),
     ReglaInfo(
-        "strobe_taxi", "Luz estroboscópica apagada al rodar",
-        "Al contrario que las demás: la estroboscópica debe estar APAGADA "
-        "mientras se rueda (se reserva para pista activa).",
-        "track[rodando].strobe_light", "penalización fija si está encendida",
-        "todos los puntos rodando deben tener strobe_light=False.",
-        "scoring.py:443",
+        "transponder_airborne", "Transpondedor puesto en vuelo",
+        "En IVAO y en VATSIM se vuela con el transpondedor transmitiendo: "
+        "apagado o en espera, ni el control ni el resto del tráfico ven al "
+        "avión. Valen tanto ON como ALT.",
+        "track[en vuelo].transponder_state", "penalización fija si va apagado",
+        "todos los puntos en vuelo deben tener el transpondedor en ON o ALT.",
+        "scoring.py:498",
+    ),
+    ReglaInfo(
+        "strobe_airborne", "Luz estroboscópica encendida en vuelo",
+        "La estroboscópica debe ir ENCENDIDA mientras se vuela. De las "
+        "luces, es la única que penaliza: las demás se dejaron de puntuar "
+        "por decisión de la aerolínea.",
+        "track[en vuelo].strobe_light", "penalización fija si está apagada",
+        "todos los puntos en vuelo deben tener strobe_light=True.",
+        "scoring.py:493",
     ),
     ReglaInfo(
         "stall_warning", "Sin aviso de pérdida",

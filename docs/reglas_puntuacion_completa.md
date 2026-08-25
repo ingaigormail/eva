@@ -122,7 +122,7 @@ Mencionado en la especificación funcional: cada vuelo evaluado produce `Evaluat
 - **Infringir:** `on_ground && gs_kt > 2 && taxi_light==False` (`scoring.py:477`), −5.
 - **Detecta:** filtra `taxiing`, exige `all(taxi_light)` en ese tramo.
 
-### 4.14 `strobe_taxi` — Luces — ambas
+### 4.14 `strobe_airborne` — Luces — ambas
 - **Qué significa:** strobes OFF en rodaje.
 - **Infringir:** `strobe_light==True` mientras `on_ground && gs>2` (`scoring.py:495`), −5 `strobe_wrong_state`.
 - **Lógica inversa:** OK = todos OFF.

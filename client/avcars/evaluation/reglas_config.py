@@ -60,9 +60,31 @@ def cargar_overrides(path: Path = RUNTIME_CONFIG_PATH) -> dict:
     return _leer(path)
 
 
+#: Reglas que la aerolínea ha decidido no puntuar, aunque el motor sepa
+#: evaluarlas. Van aquí, en el código y versionadas, porque son una decisión
+#: de EvA y no la preferencia de un administrador suelto — pero se pueden
+#: volver a encender desde `/gestion/reglas` como cualquier otra.
+#:
+#: De las luces solo puntúa `strobe_airborne` (estrobos encendidos en
+#: vuelo). El resto dejó de contar el 2026-08-25 por decisión de la
+#: aerolínea: no se consideran motivo de penalización.
+REGLAS_INACTIVAS_POR_DEFECTO = frozenset({
+    "landing_light_takeoff",
+    "landing_light_landing",
+    "beacon_airborne",
+    "nav_light_airborne",
+    "taxi_light",
+})
+
+
 def regla_activa(regla_id: str, overrides: dict) -> bool:
-    """Activa por defecto: una regla nueva participa hasta que alguien la apague."""
-    return bool(overrides.get("activo", {}).get(regla_id, True))
+    """Activa salvo que se apague, o que esté apagada de serie.
+
+    Lo que diga el administrador manda sobre el valor de serie: una regla de
+    `REGLAS_INACTIVAS_POR_DEFECTO` se puede volver a encender desde la web.
+    """
+    por_defecto = regla_id not in REGLAS_INACTIVAS_POR_DEFECTO
+    return bool(overrides.get("activo", {}).get(regla_id, por_defecto))
 
 
 def _navegar(d: dict, ruta: str) -> Optional[Any]:
@@ -103,8 +125,15 @@ def perfil_efectivo(perfil_base: dict, overrides: dict) -> dict:
 
 
 def reglas_activas_dict(overrides: dict) -> dict:
-    """El `{regla_id: bool}` que espera `scoring.evaluate_flight(reglas_activas=...)`."""
-    return dict(overrides.get("activo", {}))
+    """El `{regla_id: bool}` que espera `scoring.evaluate_flight(reglas_activas=...)`.
+
+    Incluye las apagadas de serie. El motor da por activa toda regla que no
+    aparezca aquí, así que si solo se le pasaran los cambios del
+    administrador, `REGLAS_INACTIVAS_POR_DEFECTO` no tendría ningún efecto.
+    """
+    activas = {regla: False for regla in REGLAS_INACTIVAS_POR_DEFECTO}
+    activas.update(overrides.get("activo", {}))
+    return activas
 
 
 def guardar_activo(regla_id: str, activo: bool, path: Path = RUNTIME_CONFIG_PATH) -> dict:

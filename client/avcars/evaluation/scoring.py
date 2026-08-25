@@ -25,6 +25,7 @@ from .data_quality import check as check_quality
 from datetime import datetime, timedelta
 
 from avcars.config import limite_efectivo
+from avcars.connectors.base import TRANSPONDER_ALT, TRANSPONDER_ON
 from avcars.schema import Event, FlightLog, TrackPoint
 
 
@@ -59,7 +60,7 @@ RULE_SCOPE: dict[str, str] = {
     "beacon_airborne": "ambas",
     "nav_light_airborne": "ambas",
     "taxi_light": "ambas",
-    "strobe_taxi": "ambas",
+    "strobe_airborne": "ambas",
     "stall_warning": "ambas",
     "overspeed_warning": "ambas",
     "qnh": "ambas",
@@ -490,18 +491,47 @@ def _evaluate_lights(flight: FlightLog, profile: dict) -> tuple[list[VerdictItem
             None if ok else _first(with_taxi, lambda p: not p.taxi_light),
         ))
 
-    with_strobe = [p for p in taxiing if p.strobe_light is not None]
+    # Transpondedor puesto en vuelo. En IVAO y en VATSIM se vuela con el
+    # transpondedor transmitiendo: si va apagado o en espera, el resto del
+    # tráfico y el control no ven al avión. `mode_charlie` da por bueno ON
+    # y ALT (ver `SimState.mode_charlie`).
+    with_xpdr = [p for p in airborne if p.transponder_state is not None]
+    if with_xpdr:
+        evaluated_any = True
+        ok = all(
+            p.transponder_state in (TRANSPONDER_ON, TRANSPONDER_ALT)
+            for p in with_xpdr
+        )
+        pts = 0 if ok else penalties["transponder_off_airborne"]
+        items.append(_at(
+            VerdictItem(
+                "transponder_airborne", ok, pts,
+                "transpondedor puesto en vuelo" if ok
+                else "transpondedor apagado o en espera en algún punto del vuelo",
+            ),
+            flight,
+            None if ok else _first(
+                with_xpdr,
+                lambda p: p.transponder_state not in (TRANSPONDER_ON, TRANSPONDER_ALT),
+            ),
+        ))
+
+    # Estrobos: se mira que estén **encendidos en el aire**, no que estén
+    # apagados rodando. Antes era al revés (`strobe_taxi`) y se cambió por
+    # decisión de la aerolínea el 2026-08-25: de las luces, la única que
+    # penaliza es esta.
+    with_strobe = [p for p in airborne if p.strobe_light is not None]
     if with_strobe:
         evaluated_any = True
-        ok = all(not p.strobe_light for p in with_strobe)
+        ok = all(p.strobe_light for p in with_strobe)
         pts = 0 if ok else penalties["strobe_wrong_state"]
         items.append(_at(
             VerdictItem(
-                "strobe_taxi", ok, pts,
-                "strobes apagados mientras rodaba" if ok else "strobes encendidos mientras rodaba",
+                "strobe_airborne", ok, pts,
+                "estrobos encendidos en vuelo" if ok else "estrobos apagados en algún punto del vuelo",
             ),
             flight,
-            None if ok else _first(with_strobe, lambda p: p.strobe_light),
+            None if ok else _first(with_strobe, lambda p: not p.strobe_light),
         ))
 
     return items, not evaluated_any

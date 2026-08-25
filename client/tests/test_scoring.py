@@ -313,7 +313,7 @@ def test_good_flight_has_no_bank_or_light_penalties():
     assert "lights" not in verdict.not_evaluated
     assert all(item.passed for item in verdict.items if item.rule == "bank_angle")
     light_rules = {"landing_light_takeoff", "landing_light_landing", "beacon_airborne",
-                   "nav_light_airborne", "taxi_light", "strobe_taxi"}
+                   "nav_light_airborne", "taxi_light", "strobe_airborne"}
     assert all(item.passed for item in verdict.items if item.rule in light_rules)
 
 
@@ -333,4 +333,4 @@ def test_light_violations_are_penalized():
     by_rule = {item.rule: item for item in verdict.items}
     assert by_rule["landing_light_takeoff"].passed is False
     assert by_rule["taxi_light"].passed is False
-    assert by_rule["strobe_taxi"].passed is False
+    assert by_rule["strobe_airborne"].passed is False

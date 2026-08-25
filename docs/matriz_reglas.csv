@@ -13,7 +13,8 @@ num;regla;scope;log_schema;aircraft_yaml;airports_eva_db;profiles_yaml;scoring_p
 12;beacon_airborne;ambas;track[airborne].beacon_light (TrackPoint:102);;;;penalties.beacon_off_airborne=10;scoring.py:397;SI
 13;nav_light_airborne;ambas;track[airborne].nav_light (TrackPoint:103);;;;penalties.nav_light_off_airborne=10;scoring.py:413;SI
 14;taxi_light;ambas;track[on_ground && gs>2].taxi_light (TrackPoint:104);;;;penalties.taxi_light_off=5;scoring.py:427;SI
-15;strobe_taxi;ambas;track[taxiing].strobe_light OFF (TrackPoint:105);;;;penalties.strobe_wrong_state=5;scoring.py:443;SI
+15;strobe_airborne;ambas;track[airborne].strobe_light ON (TrackPoint:105);;;;penalties.strobe_wrong_state=5;scoring.py:518;SI
+15b;transponder_airborne;ambas;track[airborne].transponder_state en ON o ALT;;;;penalties.transponder_off_airborne=5;scoring.py:498;SI
 16;stall_warning;ambas;track[].stall_warning (TrackPoint:86);;;;;scoring.py:284;SI si dato !=None
 17;overspeed_warning;ambas;track[].overspeed_warning (TrackPoint:87);limites_poh.vmo/mmo NO usado (solo DHC6/C25C);;FAIL duro;scoring.py:301;SI
 18;qnh;ambas;track[].qnh_inhg (TrackPoint:85);;;;qnh 28.5-31.2 (normal:28-30);scoring.py:318;SI

@@ -49,6 +49,7 @@ normal:
     nav_light_off_airborne: 10
     taxi_light_off: 5
     strobe_wrong_state: 5
+    transponder_off_airborne: 5
 
 easy:
   pass_score: 60
@@ -91,6 +92,7 @@ easy:
     nav_light_off_airborne: 5
     taxi_light_off: 5
     strobe_wrong_state: 5
+    transponder_off_airborne: 5
 
 hard:
   pass_score: 80
@@ -133,3 +135,4 @@ hard:
     nav_light_off_airborne: 15
     taxi_light_off: 10
     strobe_wrong_state: 10
+    transponder_off_airborne: 10

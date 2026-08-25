@@ -28,7 +28,7 @@ Estados y transiciones:
 El umbral de arranque (RODANDO) es deliberadamente bajo: hasta ahora la
 grabación empezaba en la carrera de despegue, así que el rodaje entero
 quedaba fuera del log — y con él, cualquier posibilidad de verificar
-`taxi_light`/`strobe_taxi` (que dependen justo de datos de rodaje, ver
+`taxi_light`/`strobe_airborne` (que dependen justo de datos de rodaje, ver
 `evaluation/reglas_info.py`). RODANDO no hereda la lógica de aborto de
 CARRERA_DESPEGUE: parar en un cruce o en el holding point no debe cortar
 la grabación, solo bajar de 50 kt en plena carrera de despegue sí (aborto

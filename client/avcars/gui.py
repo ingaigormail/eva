@@ -399,7 +399,7 @@ class EvaApp:
 
         # Orden y letra tal como se comprueban en el rodaje: Beacon, Nav,
         # Taxi, Landing, Strobe — coincide con las reglas taxi_light/
-        # strobe_taxi/beacon_airborne/nav_light_airborne del motor.
+        # strobe_airborne/beacon_airborne/nav_light_airborne del motor.
         self._luces_badges: dict[str, tk.Label] = {}
         for letra, campo in (
             ("B", "beacon_light"), ("N", "nav_light"), ("T", "taxi_light"),
