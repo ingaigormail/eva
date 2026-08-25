@@ -31,6 +31,7 @@ from pathlib import Path
 from tkinter import messagebox
 from typing import Optional
 
+from . import __version__
 from . import debuglog, paths, plan_web, settings as settings_module, timing
 from .connectors.base import TRANSPONDER_LABELS, SimState
 from .connectors.flight_plan import read_flight_plan
@@ -172,7 +173,10 @@ class EvaApp:
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title(APP_NAME)
+        # La versión, en el título y abajo del todo. Cuando un piloto
+        # reporta un fallo, lo primero que hace falta saber es con cuál
+        # estaba volando — y no siempre se acuerda de cuándo actualizó.
+        self.root.title(f"{APP_NAME}  v{__version__}")
         self.root.configure(bg=BG)
         self.root.resizable(False, False)
         _apply_icon(self.root)
@@ -253,56 +257,56 @@ class EvaApp:
         # verde es "lo tengo", gris o rojo es "me falta". Antes el LED del
         # piloto era en realidad el del simulador (confuso) y era el doble de
         # grande que el de la ruta.
+        # Piloto y ruta comparten fila: son las dos señas de "qué vuelo es
+        # este", y separadas ocupaban el doble sin decir más.
+        #
+        # El LED de la ruta avisa si falta: rojo parpadeante hasta que haya
+        # salida Y llegada, verde fijo en cuanto las hay (ver
+        # `_refresh_flight_plan_display` y `_parpadear_led_ruta`). Grabar
+        # está bloqueado mientras esté en rojo.
         header = tk.Frame(outer, bg=BG)
-        header.pack(fill="x", pady=(0, 12))
+        header.pack(fill="x", pady=(0, 8))
 
+        tk.Label(
+            header, text="👤", bg=BG, fg=FG_DIM, font=("Segoe UI Emoji", 11)
+        ).pack(side="left", padx=(0, 4))
         self.led_piloto = self._crear_led(header)
-        self.led_piloto.pack(side="left", padx=(0, 6))
+        self.led_piloto.pack(side="left", padx=(0, 5))
         tk.Label(
             header,
             text=pilot_id,
             bg=BG,
             fg=FG,
             font=("Segoe UI Semibold", 12)
-        ).pack(side="left")
+        ).pack(side="left", padx=(0, 12))
 
-        # Origen -> destino del plan de vuelo (detectado en MSFS, o lo que
-        # el piloto tenga puesto en preferencias si aún no hay avión cargado).
-        # El LED avisa si falta: rojo parpadeante hasta que haya salida Y
-        # llegada, verde fijo en cuanto las hay (ver `_refresh_flight_plan_display`
-        # y `_parpadear_led_ruta`). Grabar está bloqueado mientras esté en rojo.
-        route_frame = tk.Frame(outer, bg=BG)
-        route_frame.pack(fill="x", pady=(0, 10))
+        route_frame = tk.Frame(header, bg=BG)
+        route_frame.pack(side="left")
 
         self.route_led = self._crear_led(route_frame, fg=RED)
-        self.route_led.pack(side="left", padx=(0, 6))
+        self.route_led.pack(side="left", padx=(0, 5))
+        tk.Label(
+            route_frame, text="🗺", bg=BG, fg=FG_DIM, font=("Segoe UI Emoji", 10)
+        ).pack(side="left", padx=(0, 4))
 
         self.route_label = tk.Label(
             route_frame,
             text=_describir_ruta({"salida": self._plan_salida, "llegada": self._plan_llegada}),
             bg=BG,
-            fg=FG_DIM,
-            font=("Segoe UI Semibold", 9),
+            fg=FG,
+            font=("Segoe UI Semibold", 10),
         )
         self.route_label.pack(side="left")
 
-        # Atajo para enlazar el grabador con la web. Se enseña solo mientras
-        # no haya clave: una vez enlazado no pinta nada y estorbaría.
-        self.route_link = tk.Label(
-            route_frame,
-            text="Traer el plan de la web",
-            bg=BG,
-            fg=ACCENT,
-            font=("Segoe UI", 8, "underline"),
-            cursor="hand2",
-        )
-        self.route_link.bind("<Button-1>", lambda _e: self._enlazar_con_la_web())
-        self._actualizar_enlace_web()
-
         # Simulador y vPilot, con el mismo criterio que los de arriba: verde
-        # es detectado, gris es que no está. Los cuatro caben en esta zona.
+        # es detectado, gris es que no está.
         deteccion_frame = tk.Frame(outer, bg=BG)
-        deteccion_frame.pack(fill="x", pady=(0, 10))
+        deteccion_frame.pack(fill="x", pady=(0, 8))
+
+        tk.Label(
+            deteccion_frame, text="🔌", bg=BG, fg=FG_DIM,
+            font=("Segoe UI Emoji", 10),
+        ).pack(side="left", padx=(0, 5))
 
         self.led_msfs = self._crear_led(deteccion_frame)
         self.led_msfs.pack(side="left", padx=(0, 5))
@@ -317,6 +321,24 @@ class EvaApp:
             deteccion_frame, text="VPILOT", bg=BG, fg=FG_DIM,
             font=("Segoe UI Semibold", 8),
         ).pack(side="left")
+
+        # Atajo para enlazar el grabador con la web. Se enseña solo mientras
+        # no haya clave: una vez enlazado no pinta nada y estorbaría.
+        self.route_link = tk.Label(
+            outer,
+            text="Traer el plan de la web",
+            bg=BG,
+            fg=ACCENT,
+            font=("Segoe UI", 8, "underline"),
+            cursor="hand2",
+        )
+        self.route_link.bind("<Button-1>", lambda _e: self._enlazar_con_la_web())
+
+        def _al_empaquetar_enlace() -> None:
+            self.route_link.pack(fill="x", pady=(0, 6))
+
+        self._empaquetar_enlace_web = _al_empaquetar_enlace
+        self._actualizar_enlace_web()
 
         # El avión que se está volando. Se graba en el fichero y decide qué
         # límites del POH se aplican, así que conviene poder comprobarlo de
@@ -533,6 +555,11 @@ class EvaApp:
         self._close_button.bind(
             "<Leave>", lambda _e: self._close_button.configure(bg=PANEL, fg=FG_DIM)
         )
+
+        tk.Label(
+            links, text=f"v{__version__}", bg=BG, fg=FG_DIM,
+            font=("Segoe UI", 8),
+        ).pack(side="right")
 
         self._set_status()
 
@@ -1203,7 +1230,7 @@ class EvaApp:
         if self.settings.clave_grabador:
             self.route_link.pack_forget()
         else:
-            self.route_link.pack(side="left", padx=(10, 0))
+            self._empaquetar_enlace_web()
 
     def _enlazar_con_la_web(self) -> None:
         """Pide las credenciales de EvA y las cambia por la clave.

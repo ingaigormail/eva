@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
 from .. import timing
+from .. import __version__
 from ..connectors.base import SimState
 from ..integrity import build_integrity
 
@@ -46,7 +47,9 @@ from ..schema import (
 
 SCHEMA_VERSION = "1.0"
 CLIENT_NAME = "EvA"
-CLIENT_VERSION = "0.1.0"
+#: De `avcars.__version__`, que es la fuente única. Estuvo duplicada aquí y
+#: se quedó en 0.1.0 mientras la del paquete iba por otro lado.
+CLIENT_VERSION = __version__
 
 LOG_SUFFIX = ".avlog.json"
 PARTIAL_SUFFIX = ".parcial"
