@@ -360,7 +360,12 @@ class FlightStateMachine:
             return action, self.describe_state()
 
         if self.state == FlightState.DETENIDO:
-            if state.gs_kt < SPEED_THRESHOLD_KT:
+            # Parado es parado. Esto comparaba contra SPEED_THRESHOLD_KT
+            # (50 kt, la velocidad de rotación), así que daba por detenido
+            # un avión que iba a 25 kt saliendo de pista y cerraba el vuelo
+            # en mitad del rodaje de llegada — visto en el vuelo de pruebas
+            # del 2026-08-25: "avión parado, guardando (GS 25.1 kt)".
+            if state.gs_kt < TAXI_MOVEMENT_THRESHOLD_KT:
                 self._time_below_threshold_s += elapsed_s
                 if self._time_below_threshold_s >= self.confirmation_stopped_s:
                     # Parado de verdad: cierra el vuelo.
@@ -369,10 +374,17 @@ class FlightStateMachine:
                     action = "parar_grabacion"
                     self._last_reason = "avión parado, guardando"
                     return action, self.describe_state()
-            else:
-                # Se movió de nuevo: vuelve a tierra.
+            elif state.gs_kt >= SPEED_THRESHOLD_KT:
+                # Vuelve a coger velocidad de despegue: no era el final del
+                # vuelo. Rodar hacia el aparcamiento no cuenta como "se
+                # movió de nuevo"; antes cualquier movimiento devolvía a
+                # EN_TIERRA y el rodaje de llegada se quedaba fuera.
                 self.state = FlightState.EN_TIERRA
                 self._last_reason = "se movió de nuevo"
+            else:
+                # Rodando hacia el aparcamiento: se sigue grabando y el
+                # contador de parada espera a que se pare de verdad.
+                self._time_below_threshold_s = 0.0
 
             return action, self.describe_state()
 

@@ -70,14 +70,21 @@ class SimState:
 
     @property
     def mode_charlie(self) -> Optional[bool]:
-        """True si el transpondedor está en modo C (transmitiendo altitud).
+        """True si el transpondedor está transmitiendo (ON o ALT).
 
-        En VFR sin control, el transpondedor debe ir en ALT con 7000 (Europa)
-        o 1200 (EEUU) para que el resto del tráfico vea la altitud.
+        En VFR sin control, el transpondedor debe ir encendido con 7000
+        (Europa) o 1200 (EEUU) para que el resto del tráfico vea al avión.
+
+        Por convenio, el modo C —el que transmite altitud— es la posición
+        ALT, y ON es modo A, solo el código. Pero en bastantes aviones del
+        simulador el mando no se corresponde con eso y la posición ON ya
+        transmite altitud, así que se dan por buenas las dos: lo que importa
+        aquí es distinguir "transpondedor puesto" de "apagado o en espera",
+        no arbitrar entre modo A y modo C.
         """
         if self.transponder_state is None:
             return None
-        return self.transponder_state == TRANSPONDER_ALT
+        return self.transponder_state in (TRANSPONDER_ON, TRANSPONDER_ALT)
 
     # Configuración
     gear_down: Optional[bool] = None

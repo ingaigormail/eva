@@ -521,3 +521,49 @@ class TestAvionAparcadoQueElSimuladorDaComoVolando:
         assert machine.state == FlightState.EN_VUELO
         assert machine.has_flown
         assert not machine.recording
+
+
+class TestSalidaDePistaDespuesDeAterrizar:
+    """Del registro de un vuelo real (2026-08-25):
+
+        DETENIDO → GUARDANDO: avión parado, guardando (GS 25.1 kt)
+
+    `DETENIDO` comparaba contra los 50 kt de la velocidad de rotación, así
+    que daba por detenido un avión que salía de pista a 25 kt y cerraba el
+    vuelo en mitad del rodaje de llegada. Peor aún: al seguir rodando,
+    arrancaba acto seguido una segunda grabación del mismo vuelo.
+    """
+
+    def _aterrizado(self) -> FlightStateMachine:
+        machine = FlightStateMachine(confirmation_stopped_s=10.0)
+        machine.state = FlightState.DETENIDO
+        machine.recording = True
+        machine.has_flown = True
+        return machine
+
+    def test_saliendo_de_pista_no_se_cierra_el_vuelo(self):
+        machine = self._aterrizado()
+
+        for _ in range(6):
+            accion, _ = machine.update(_state(gs_kt=25.1, on_ground=True), 5.0)
+            assert accion == "nada"
+
+        assert machine.recording
+
+    def test_se_cierra_cuando_para_de_verdad(self):
+        machine = self._aterrizado()
+
+        machine.update(_state(gs_kt=25.0, on_ground=True), 5.0)   # rodando
+        machine.update(_state(gs_kt=0.0, on_ground=True), 5.0)    # frena
+        accion, _ = machine.update(_state(gs_kt=0.0, on_ground=True), 6.0)
+
+        assert accion == "parar_grabacion"
+        assert machine.state == FlightState.GUARDANDO
+
+    def test_el_rodaje_de_llegada_entero_queda_grabado(self):
+        """Un rodaje largo hasta el aparcamiento no puede perderse."""
+        machine = self._aterrizado()
+
+        for gs in (30, 20, 15, 8, 12, 5, 20, 10):
+            machine.update(_state(gs_kt=gs, on_ground=True), 5.0)
+            assert machine.recording
