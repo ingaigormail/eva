@@ -443,3 +443,50 @@ class TestRodajeQueNuncaDespega:
 
         assert accion == "nada"
         assert machine.recording
+
+
+class TestAvionAparcadoQueElSimuladorDaComoVolando:
+    """El fallo del 2026-08-25, visto en el registro de un vuelo real.
+
+    Al abrir EvA con el avión aparcado, el simulador contestó
+    `on_ground = False` con altura de sobra —pasa mientras la escena
+    termina de cargar— y la máquina saltó a EN_VUELO con el avión a
+    0,0 kt. Desde EN_VUELO no se graba nunca, así que el vuelo no se
+    grabó ni en automático ni dándole a mano: la ventana decía
+    "detenido" todo el rato.
+    """
+
+    def test_a_cero_nudos_no_se_esta_volando(self):
+        machine = FlightStateMachine()
+
+        machine.update(
+            _state(gs_kt=0.0, on_ground=False, alt_agl_ft=500), 1.0
+        )
+
+        assert machine.state != FlightState.EN_VUELO
+        assert not machine.has_flown
+
+    def test_y_acaba_grabando_cuando_el_avion_empieza_a_rodar(self):
+        """Lo que importa: que el vuelo no se pierda."""
+        machine = FlightStateMachine()
+
+        # Escena cargando: el simulador miente sobre `on_ground`.
+        machine.update(_state(gs_kt=0.0, on_ground=False, alt_agl_ft=500), 1.0)
+        # Ya asentado, y el piloto empieza a rodar.
+        machine.update(_state(gs_kt=0.0, on_ground=True), 1.0)
+        accion, _ = machine.update(_state(gs_kt=8.0, on_ground=True), 1.0)
+
+        assert accion == "empezar_grabacion"
+        assert machine.recording
+
+    def test_abrir_de_verdad_en_pleno_vuelo_sigue_detectandose(self):
+        """El caso legítimo no puede haberse roto: ahí el avión va rápido."""
+        machine = FlightStateMachine()
+
+        machine.update(
+            _state(gs_kt=250.0, on_ground=False, alt_agl_ft=8000), 1.0
+        )
+
+        assert machine.state == FlightState.EN_VUELO
+        assert machine.has_flown
+        assert not machine.recording

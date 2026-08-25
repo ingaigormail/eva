@@ -66,6 +66,20 @@ TAXI_MOVEMENT_THRESHOLD_KT = 2.7
 # comprueba que encajan con la cadencia de muestreo y con la detección de
 # datos congelados.
 MIN_ALTITUDE_AFTER_LIFTOFF_FT = timing.CONFIRM_LIFTOFF_AGL_FT
+
+# Velocidad mínima para creerse que un avión está en el aire.
+#
+# Nace de un fallo real (2026-08-25): al abrir EvA con el avión aparcado, el
+# simulador contestó `on_ground = False` con altura de sobra —pasa mientras
+# el avión se está asentando después de cargar la escena— y la máquina se
+# fue a EN_VUELO con el avión a 0,0 kt. Desde EN_VUELO no se graba nunca (es
+# la protección para no grabar medio vuelo si abres EvA por la mitad), así
+# que la grabación no arrancaba ni en automático ni a mano.
+#
+# Un avión que de verdad va por el aire se mueve. Muy por debajo de
+# cualquier velocidad de vuelo, y muy por encima del ruido de un avión
+# parado: solo sirve para descartar el 0 kt, no para decidir nada más.
+MIN_GROUNDSPEED_EN_VUELO_KT = 30.0
 DEFAULT_CONFIRMATION_LIFTOFF_S = timing.CONFIRM_LIFTOFF_S
 DEFAULT_CONFIRMATION_LANDING_S = timing.CONFIRM_LANDING_S
 DEFAULT_CONFIRMATION_STOPPED_S = timing.CONFIRM_STOPPED_S
@@ -206,7 +220,15 @@ class FlightStateMachine:
                     if state.gs_kt < TAXI_MOVEMENT_THRESHOLD_KT
                     else "conectado con el avión ya rodando"
                 )
-            elif not state.on_ground and state.alt_agl_ft > MIN_ALTITUDE_AFTER_LIFTOFF_FT:
+            elif (
+                not state.on_ground
+                and state.alt_agl_ft > MIN_ALTITUDE_AFTER_LIFTOFF_FT
+                # La velocidad es la que desempata. Sin ella, un avión
+                # aparcado al que el simulador contesta `on_ground = False`
+                # mientras carga la escena se daba por volando, y como desde
+                # EN_VUELO no se graba, el vuelo entero se perdía.
+                and state.gs_kt >= MIN_GROUNDSPEED_EN_VUELO_KT
+            ):
                 # EvA se abrió con el avión ya en el aire. Entra en EN_VUELO
                 # pero sin grabar: solo se graba desde EN_TIERRA en adelante.
                 self.state = FlightState.EN_VUELO

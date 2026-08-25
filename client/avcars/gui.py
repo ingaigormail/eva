@@ -198,9 +198,9 @@ class EvaApp:
         self._plan_web_pedido_en = 0.0
         self._plan_web_pidiendo = False
 
-        # Últimos datos que el simulador no supo dar, para apuntarlos cuando
-        # cambien y no en cada refresco (ver `_avisar_datos_que_faltan`).
-        self._datos_que_faltaban: tuple[str, ...] = ()
+        # Datos que el simulador no ha sabido dar en algún momento. Solo
+        # crece: cada uno se apunta una vez (ver `_avisar_datos_que_faltan`).
+        self._datos_que_faltaban: set[str] = set()
 
         # Bitácora de eventos (ver `_apuntar_evento`). La lista existe desde
         # el arranque aunque la ventana no se abra nunca.
@@ -1382,12 +1382,22 @@ class EvaApp:
         """
         if self.connector is None:
             return
-        faltan = tuple(sorted(self.connector.missing_variables))
-        if faltan and faltan != self._datos_que_faltaban:
+        # Acumulativo, y solo se apuntan los que aparecen por primera vez.
+        #
+        # Antes se comparaba con la lista de la vuelta anterior y el registro
+        # se llenaba de la misma línea cada segundo: el conector vacía
+        # `_missing` al empezar cada consulta y lo va rellenando, así que
+        # leerlo desde la interfaz a medias devuelve a veces la lista entera
+        # y a veces un trozo. Comparar contra un conjunto que solo crece
+        # quita esa carrera de en medio.
+        nuevos = sorted(
+            set(self.connector.missing_variables) - self._datos_que_faltaban
+        )
+        if nuevos:
+            self._datos_que_faltaban.update(nuevos)
             self._apuntar_evento(
-                "el simulador no da estos datos: " + ", ".join(faltan)
+                "el simulador no da estos datos: " + ", ".join(nuevos)
             )
-        self._datos_que_faltaban = faltan
 
     def _update_estado_badges(self, state: SimState) -> None:
         """Colorea el XPDR y las luces SOP con el estado real del simulador.
