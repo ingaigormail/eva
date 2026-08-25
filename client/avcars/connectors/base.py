@@ -103,6 +103,13 @@ class SimState:
     taxi_light: Optional[bool] = None
     strobe_light: Optional[bool] = None
 
+    # Freno de aparcamiento y motores. Juntos, con el avión parado, son la
+    # señal de "aquí se acabó" cuando el vuelo no llegó a despegar: el freno
+    # solo no vale, porque hay quien lo usa para mantenerse quieto en el
+    # punto de espera cuando no tiene pedales.
+    parking_brake: Optional[bool] = None
+    engine_running: Optional[bool] = None
+
     # Diagnóstico: valores crudos tal cual los devuelve el simulador, sin
     # convertir. Sirve para verificar unidades desde la interfaz sin tener
     # que mirar la consola.

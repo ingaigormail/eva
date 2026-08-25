@@ -52,7 +52,12 @@ APP_NAME = "EvA Grabador"
 #:
 #: EvA no sube el fichero por su cuenta: cada piloto puede tener las
 #: grabaciones en otra carpeta, así que decide él qué importar y cuándo.
-URL_CARTILLA = "http://127.0.0.1:5000/registro"
+#:
+#: La dirección sale de las preferencias (`settings.eva_url`), que apuntan al
+#: servidor de verdad. Estuvo fija en `http://127.0.0.1:5000` y era un enlace
+#: muerto para cualquiera que no tuviera el servidor de desarrollo levantado
+#: en su propio equipo — es decir, para todos los pilotos.
+RUTA_CARTILLA = "/registro"
 
 # Colores claros (coherencia con web D2/D6/D7)
 BG = "#eef1f6"
@@ -830,17 +835,23 @@ class EvaApp:
         # siguiente paso siempre es importarlo.
         ventana.protocol("WM_DELETE_WINDOW", cerrar_y_importar)
 
+    def _url_cartilla(self) -> str:
+        """La cartilla en el servidor que tenga configurado el piloto."""
+        base = (self.settings.eva_url or "").strip().rstrip("/")
+        return f"{base}{RUTA_CARTILLA}"
+
     def _abrir_cartilla(self) -> None:
         """Abre la cartilla del piloto en el navegador."""
+        url = self._url_cartilla()
         try:
-            webbrowser.open(URL_CARTILLA, new=2)
-            debuglog.apunte(f"abierta la cartilla: {URL_CARTILLA}")
+            webbrowser.open(url, new=2)
+            self._apuntar_evento(f"abierta la cartilla: {url}")
         except Exception as exc:
             debuglog.fallo("apertura de la cartilla", exc)
             messagebox.showwarning(
                 APP_NAME,
                 "No se pudo abrir el navegador con tu cartilla.\n\n"
-                f"Ábrela a mano en: {URL_CARTILLA}",
+                f"Ábrela a mano en: {url}",
             )
 
     def _minimize(self) -> None:

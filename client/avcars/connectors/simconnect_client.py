@@ -90,6 +90,11 @@ VARIABLE_CANDIDATES: dict[str, tuple[str, ...]] = {
     "nav_light": ("LIGHT_NAV_ON", "LIGHT_NAV"),
     "taxi_light": ("LIGHT_TAXI_ON", "LIGHT_TAXI"),
     "strobe_light": ("LIGHT_STROBE_ON", "LIGHT_STROBE"),
+    # `BRAKE_PARKING_INDICATOR` es booleano; `..._POSITION` es una posición
+    # (0..1 o 0..32767 según el avión), así que va detrás y solo como
+    # respaldo — `_coerce_bool` la da por puesta con cualquier valor > 0.
+    "parking_brake": ("BRAKE_PARKING_INDICATOR", "BRAKE_PARKING_POSITION"),
+    "engine_running": ("ENG_COMBUSTION", "GENERAL_ENG_COMBUSTION:1"),
 }
 
 
@@ -403,6 +408,8 @@ class SimConnectConnector(SimConnector):
             overspeed_warning=_coerce_bool(raw["overspeed_warning"]),
             autopilot_engaged=_coerce_bool(raw["autopilot_engaged"]),
             landing_light=_coerce_bool(raw["landing_light"]),
+            parking_brake=_coerce_bool(raw["parking_brake"]),
+            engine_running=_coerce_bool(raw["engine_running"]),
             beacon_light=_coerce_bool(raw["beacon_light"]),
             nav_light=_coerce_bool(raw["nav_light"]),
             taxi_light=_coerce_bool(raw["taxi_light"]),

@@ -153,6 +153,23 @@ class FlightStateMachine:
             return f"error al guardar: {self._last_reason}"
         return "estado desconocido"
 
+    @staticmethod
+    def _vuelo_abandonado(state: SimState) -> bool:
+        """Rodaje que termina sin vuelo: parado, frenado y sin motores.
+
+        Se exige que el simulador dé **las dos** variables (freno y motores).
+        Si falta cualquiera se devuelve False, porque no hay dato: es mejor
+        seguir grabando de más que cortarle el vuelo a alguien por una
+        suposición.
+        """
+        if state.parking_brake is None or state.engine_running is None:
+            return False
+        return (
+            state.gs_kt < TAXI_MOVEMENT_THRESHOLD_KT
+            and state.parking_brake
+            and not state.engine_running
+        )
+
     def update(self, state: SimState, elapsed_s: float) -> tuple[str, str]:
         """Procesa el estado del simulador y devuelve (acción, motivo).
 
@@ -172,11 +189,23 @@ class FlightStateMachine:
 
         # Máquina de estados
         if self.state == FlightState.ESPERANDO_SIMULADOR:
-            if state.on_ground and state.gs_kt < 5:
-                # Datos válidos: el avión está en el suelo y parado.
+            if state.on_ground:
+                # En el suelo, parado o ya moviéndose. Antes se exigía
+                # `gs_kt < 5` y eso dejaba un callejón sin salida: quien
+                # abría EvA con el avión ya rodando no cumplía ni esta
+                # condición ni la de estar en el aire, así que se quedaba
+                # aquí para siempre y la grabación automática no arrancaba
+                # nunca (visto en el vuelo de pruebas del 2026-08-25, con el
+                # avión a 25 kt y la ventana diciendo "esperando conexión").
+                # No hace falta distinguir la velocidad: de eso ya se ocupa
+                # EN_TIERRA en la vuelta siguiente.
                 self.state = FlightState.EN_TIERRA
                 self.has_flown = False
-                self._last_reason = "conectado, avión en tierra"
+                self._last_reason = (
+                    "conectado, avión en tierra"
+                    if state.gs_kt < TAXI_MOVEMENT_THRESHOLD_KT
+                    else "conectado con el avión ya rodando"
+                )
             elif not state.on_ground and state.alt_agl_ft > MIN_ALTITUDE_AFTER_LIFTOFF_FT:
                 # EvA se abrió con el avión ya en el aire. Entra en EN_VUELO
                 # pero sin grabar: solo se graba desde EN_TIERRA en adelante.
@@ -210,6 +239,21 @@ class FlightStateMachine:
                 self.state = FlightState.CARRERA_DESPEGUE
                 self._last_reason = "carrera de despegue iniciada"
                 self._time_without_contact_s = 0.0
+            elif self._vuelo_abandonado(state):
+                # Parado, con el freno de aparcamiento puesto y los motores
+                # apagados: el piloto ha desistido sin llegar a volar. Sin
+                # esto la grabación no paraba nunca (solo se salía de aquí
+                # hacia arriba, al superar 50 kt) y quien rodaba y aparcaba
+                # se quedaba grabando indefinidamente.
+                #
+                # Hacen falta las tres cosas a la vez **a propósito**: el
+                # freno solo no vale, porque hay quien lo usa para
+                # mantenerse quieto en el punto de espera cuando no tiene
+                # pedales, y ahí el motor sigue en marcha.
+                self.state = FlightState.EN_TIERRA
+                self.recording = False
+                action = "parar_grabacion"
+                self._last_reason = "motores parados y freno puesto sin haber volado"
             # Si sigue en tierra por debajo de 50 kt —rodando despacio,
             # parado en un cruce o en el holding point— no pasa nada: se
             # sigue grabando. A diferencia de CARRERA_DESPEGUE, aquí no hay

@@ -14,9 +14,18 @@ def _state(
     gs_kt: float = 0,
     on_ground: bool = True,
     alt_agl_ft: float = 0,
+    parking_brake: bool | None = None,
+    engine_running: bool | None = None,
 ) -> SimState:
-    """Estado de simulador con mínimos especificados."""
+    """Estado de simulador con mínimos especificados.
+
+    `parking_brake` y `engine_running` van a None por defecto a propósito:
+    es lo que devuelve un simulador que no dé esas variables, y así el resto
+    de pruebas siguen reflejando el caso normal.
+    """
     return SimState(
+        parking_brake=parking_brake,
+        engine_running=engine_running,
         lat=40.0,
         lon=-3.0,
         alt_msl_ft=2000.0,
@@ -336,3 +345,101 @@ class TestVueloCompleto:
         machine.reset()
         assert machine.state == FlightState.ESPERANDO_SIMULADOR
         assert not machine.recording
+
+
+class TestAbrirEvAConElAvionYaRodando:
+    """El fallo del vuelo de pruebas del 2026-08-25.
+
+    `ESPERANDO_SIMULADOR` solo tenía dos salidas: en tierra **y parado**
+    (`gs_kt < 5`), o en el aire por encima de 50 ft. Quien abría EvA con el
+    avión ya rodando no cumplía ninguna de las dos y se quedaba encallado:
+    la ventana decía "esperando conexión con el simulador" con el avión a
+    25 kt, y como nunca se llegaba a `EN_TIERRA`, la comprobación de los
+    2,7 kt no se hacía jamás y la grabación automática no arrancaba.
+    """
+
+    def test_sale_de_esperando_aunque_el_avion_ya_este_rodando(self):
+        machine = FlightStateMachine()
+
+        machine.update(_state(gs_kt=25, on_ground=True), 1.0)
+
+        assert machine.state != FlightState.ESPERANDO_SIMULADOR
+
+    def test_acaba_grabando_sin_tener_que_parar_el_avion(self):
+        """Lo que de verdad importa: que termine grabando."""
+        machine = FlightStateMachine()
+
+        acciones = [
+            machine.update(_state(gs_kt=25, on_ground=True), 1.0)[0]
+            for _ in range(3)
+        ]
+
+        assert "empezar_grabacion" in acciones
+        assert machine.recording
+
+    def test_con_el_avion_parado_sigue_funcionando_como_antes(self):
+        """El caso normal no puede haberse roto por el arreglo."""
+        machine = FlightStateMachine()
+
+        machine.update(_state(gs_kt=0, on_ground=True), 1.0)
+
+        assert machine.state == FlightState.EN_TIERRA
+        assert not machine.recording
+
+    def test_abrir_en_pleno_vuelo_sigue_sin_grabar(self):
+        """La otra salida de ESPERANDO_SIMULADOR no se ha tocado."""
+        machine = FlightStateMachine()
+
+        machine.update(_state(gs_kt=250, on_ground=False, alt_agl_ft=8000), 1.0)
+
+        assert machine.state == FlightState.EN_VUELO
+        assert not machine.recording
+
+
+class TestRodajeQueNuncaDespega:
+    """El otro fallo del 2026-08-25: rodó, aparcó, y siguió grabando.
+
+    `RODANDO` solo tenía salida hacia arriba (superar 50 kt), así que quien
+    rodaba y aparcaba sin volar se quedaba grabando indefinidamente y tenía
+    que pararlo a mano.
+    """
+
+    def _rodando(self) -> FlightStateMachine:
+        machine = FlightStateMachine()
+        machine.update(_state(gs_kt=0, on_ground=True), 1.0)
+        machine.update(_state(gs_kt=10, on_ground=True), 1.0)
+        assert machine.state == FlightState.RODANDO
+        assert machine.recording
+        return machine
+
+    def test_para_con_freno_puesto_y_motores_apagados(self):
+        machine = self._rodando()
+
+        accion, _ = machine.update(
+            _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=False),
+            1.0,
+        )
+
+        assert accion == "parar_grabacion"
+        assert not machine.recording
+
+    def test_el_freno_con_el_motor_en_marcha_no_para_nada(self):
+        """El caso del piloto sin pedales que frena en el punto de espera."""
+        machine = self._rodando()
+
+        accion, _ = machine.update(
+            _state(gs_kt=0, on_ground=True, parking_brake=True, engine_running=True),
+            1.0,
+        )
+
+        assert accion == "nada"
+        assert machine.recording
+
+    def test_sin_esos_datos_no_se_para_por_suposiciones(self):
+        """Si el simulador no da freno ni motores, se sigue grabando."""
+        machine = self._rodando()
+
+        accion, _ = machine.update(_state(gs_kt=0, on_ground=True), 1.0)
+
+        assert accion == "nada"
+        assert machine.recording
