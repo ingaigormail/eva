@@ -1364,6 +1364,12 @@ def crudo(nombre: str):
     path = _find_by_name(nombre)
     if path is None:
         abort(404)
+    # Esta ruta se quedó sin la comprobación de propiedad que sí tienen todas
+    # las demás, y devolvía el `.avlog.json` entero —traza a 1 Hz, matrícula,
+    # plan— de cualquier piloto a cualquiera con sesión abierta. Mismo criterio
+    # que `detalle()`: 404 y no 403, para no confirmar qué vuelos tienen otros.
+    if not es_de(path, piloto_actual()):
+        abort(404)
     return jsonify(json.loads(path.read_text(encoding="utf-8")))
 
 
