@@ -20,6 +20,8 @@ from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any, Optional
 
+from . import ubicacion
+
 MODO_AUTOMATICO = "automatico"
 MODO_MANUAL = "manual"
 MODOS_VALIDOS = (MODO_AUTOMATICO, MODO_MANUAL)
@@ -72,6 +74,12 @@ class Settings:
     # EvA se cierra de golpe.
     intervalo_autoguardado_s: float = 30.0
 
+    # A cuántas millas del aeródromo de salida se avisa de que el avión no
+    # está donde el plan dice. Ver `ubicacion.py`. Se puede subir para volar
+    # desde un aeródromo que no esté en la lista de coordenadas, o bajar en
+    # campos pequeños donde 8 NM ya es el pueblo de al lado.
+    tolerancia_salida_nm: float = ubicacion.TOLERANCIA_POR_DEFECTO_NM
+
     # None significa "la carpeta grabaciones junto al ejecutable".
     carpeta_grabaciones: Optional[str] = None
 
@@ -104,6 +112,13 @@ class Settings:
             self.segundos_confirmacion_parada, 1.0, 300.0, 10.0
         )
         self.altura_despegue_ft = _clamp(self.altura_despegue_ft, 10.0, 500.0, 50.0)
+
+        # El tope de 500 NM no es capricho: por encima de eso la comprobación
+        # deja de comprobar nada, y es mejor que quien la quiera desactivar lo
+        # haga a sabiendas y no creyéndose protegido.
+        self.tolerancia_salida_nm = _clamp(
+            self.tolerancia_salida_nm, 1.0, 500.0, ubicacion.TOLERANCIA_POR_DEFECTO_NM
+        )
         self.intervalo_autoguardado_s = _clamp(
             self.intervalo_autoguardado_s, 5.0, 600.0, 30.0
         )

@@ -32,7 +32,9 @@ from tkinter import messagebox
 from typing import Optional
 
 from . import __version__
+from . import config as config_module
 from . import debuglog, paths, plan_web, settings as settings_module, timing
+from . import ubicacion
 from .connectors.base import TRANSPONDER_LABELS, SimState
 from .connectors.flight_plan import read_flight_plan
 from .connectors.sim_poller import SimPoller
@@ -684,7 +686,64 @@ class EvaApp:
         if self._recording:
             self._stop()
         else:
+            if not self._confirmar_ubicacion_de_salida():
+                return
             self._start()
+
+    #: `airports.json` son 1,3 MB y 17.800 entradas. Se carga la primera vez
+    #: que hace falta y no al abrir la ventana, para no pagarlo en el arranque
+    #: de un piloto que quizá ni llegue a grabar. None = aún sin intentar.
+    _aeropuertos: Optional[dict] = None
+
+    def _lista_de_aeropuertos(self) -> dict:
+        """El diccionario de aeropuertos, cargado una sola vez.
+
+        Si el fichero falta o está roto se devuelve vacío en vez de reventar:
+        sin coordenadas la comprobación se queda sin poder afirmar nada, que
+        es justo el caso que `ubicacion.comprobar_salida` deja pasar.
+        """
+        if self._aeropuertos is None:
+            try:
+                self._aeropuertos = config_module.load_airports()
+            except Exception as exc:
+                debuglog.fallo("carga de airports.json", exc)
+                self._aeropuertos = {}
+        return self._aeropuertos
+
+    def _confirmar_ubicacion_de_salida(self) -> bool:
+        """Avisa si el avión no está en el aeródromo del que dice que sale.
+
+        Avisa, no bloquea: la comprobación es nueva y el umbral está sin
+        calibrar contra vuelos reales, así que el primer mes interesa más ver
+        cuántas veces salta y por qué que impedir despegues. Si resulta fiable,
+        convertirlo en un muro es cambiar el `askyesno` por un `showerror`.
+
+        Devuelve True si se puede seguir grabando.
+        """
+        estado = self.poller.latest if self.poller is not None else None
+        resultado = ubicacion.comprobar_salida(
+            estado.lat if estado else None,
+            estado.lon if estado else None,
+            self._plan_salida,
+            self._lista_de_aeropuertos(),
+            self.settings.tolerancia_salida_nm,
+        )
+
+        if resultado.conforme:
+            # También se apuntan las conformes: sin ellas no se sabe si la
+            # regla no salta porque todo va bien o porque nunca se evalúa.
+            debuglog.apunte(f"ubicación de salida: {resultado.motivo}")
+            return True
+
+        debuglog.apunte(f"ubicación de salida DISCREPA: {resultado.motivo}")
+        return messagebox.askyesno(
+            APP_NAME,
+            f"El avión está {resultado.motivo}.\n\n"
+            "Comprueba que has cargado el vuelo en el aeropuerto correcto y "
+            "que el plan es el de este vuelo.\n\n"
+            "¿Grabar de todas formas?",
+            default=messagebox.NO,
+        )
 
     def _build_flight_plan(self) -> FlightPlanInfo:
         """Datos del plan que acompañan al vuelo grabado.
