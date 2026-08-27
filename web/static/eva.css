@@ -310,3 +310,16 @@ button.boton:hover { background: #eef2f8; }
 button.boton.primario { background: var(--azul); color: #fff; border-color: var(--azul); }
 button.boton.primario:hover { background: var(--azul-hover); }
 button.boton:disabled { opacity: .5; cursor: default; background: #f8fafc; color: var(--texto); }
+
+/* Pie con la atribución a ENAIRE. Discreto pero legible: es una condición
+   de uso de sus datos, no un adorno, así que no puede quedar oculto. */
+.pie-legal {
+  margin: 28px 0 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--borde);
+  color: var(--tenue);
+  font-size: 11.5px;
+  line-height: 1.6;
+  max-width: 70ch;
+}
+.pie-legal strong { color: var(--texto); font-weight: 600; }

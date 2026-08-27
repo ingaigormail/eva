@@ -45,6 +45,20 @@
     <div class="contenido {% block contenido_clase %}{% endblock %}">
       {% block contenido %}{% endblock %}
     </div>
+    {#
+      Atribución a ENAIRE. No es cortesía: es una de las dos condiciones con
+      las que ENAIRE permite usar sus servicios de datos AIS (la otra es que
+      el uso nunca sea operacional, que un simulador cumple por definición).
+      Va en la plantilla base para que salga en todas las páginas y no
+      dependa de que alguien se acuerde de ponerla en una nueva.
+      Ver docs/datos_espacio_aereo_enaire.md
+    #}
+    <footer class="pie-legal">
+      Información aeronáutica de <strong>ENAIRE</strong>, titular de los
+      derechos de propiedad intelectual e industrial sobre estos datos.
+      Uso exclusivamente simulado: <strong>no válido para la navegación
+      aérea real</strong>.
+    </footer>
   </main>
 </div>
 {% if puede_lanzar_vuelo %}

@@ -6,6 +6,12 @@ web/data/sesion_activa.json
 web/data/trusted_log.json
 web/data/importados.json
 web/data/usuarios.json*
+
+# Espacio aéreo de ENAIRE: 7 MB que se rehacen enteros cada ciclo AIRAC.
+# No es un secreto, pero versionar un binario que cambia cada 28 días
+# hincha el repositorio para nada. Se regenera con web/tools/descargar_enaire.py
+web/data/aeronautica.db
+web/data/aeronautica.db.nuevo
 web/data/reglas_config.json
 web/logs/
 .env
