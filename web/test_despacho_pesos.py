@@ -5,8 +5,10 @@ from pathlib import Path
 WEB_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(WEB_DIR))
 
+sys.path.insert(0, str(WEB_DIR.parent / "client"))
+
+from avcars.config import load_aircraft  # noqa: E402
 from despacho_pesos import (  # noqa: E402
-    ESTIMACION,
     PESO_PERSONA_KG,
     combustible_kg,
     clasificar_peso,
@@ -15,23 +17,31 @@ from despacho_pesos import (  # noqa: E402
     mtow_kg,
 )
 
+#: Los datos de la flota salen de aircraft.yaml, que es el unico sitio donde
+#: viven. Antes estos tests usaban la tabla ESTIMACION del modulo, que era
+#: una segunda copia: si se desincronizaba del yaml, los tests seguian en
+#: verde contra la copia equivocada. Ahora prueban lo que se usa de verdad.
+FLOTA = datos_para_plantilla(load_aircraft())
+C172 = FLOTA["C172"]
+MTOW_C172 = C172["mtow_kg"]
+
 
 def test_c172_vacio_en_lem_d_leib_no_es_sobrepeso():
     """LEMD–LEIB ~247 NM a 93 kt: el 172 vacío no puede salir en rojo."""
     eet_min = round((247 / 93) * 60)
     minutos = minutos_de_combustible(eet_min, None)
-    c172 = ESTIMACION["C172"]
+    c172 = C172
     fuel = combustible_kg(
         minutos, c172["consumo_kg_h"], c172["combustible_util_kg"]
     )
     tow = c172["oew_kg"] + PESO_PERSONA_KG + fuel
-    assert clasificar_peso(tow, 1050) == "ok"
+    assert clasificar_peso(tow, MTOW_C172) == "ok"
     assert fuel < 1100
-    assert tow < 1050
+    assert tow < MTOW_C172
 
 
 def test_c172_lleno_de_pasajeros_si_puede_sobrepeso():
-    c172 = ESTIMACION["C172"]
+    c172 = C172
     eet_min = round((247 / 93) * 60)
     minutos = minutos_de_combustible(eet_min, None)
     fuel = combustible_kg(
@@ -39,7 +49,7 @@ def test_c172_lleno_de_pasajeros_si_puede_sobrepeso():
     )
     # 1 piloto + 4 pasajeros (más plazas de las que hay) + combustible
     tow = c172["oew_kg"] + PESO_PERSONA_KG + 4 * PESO_PERSONA_KG + fuel
-    assert clasificar_peso(tow, 1050) == "sobrepeso"
+    assert clasificar_peso(tow, MTOW_C172) == "sobrepeso"
 
 
 def test_autonomia_manda_sobre_el_eet():
@@ -55,15 +65,62 @@ def test_justo_cuando_el_margen_es_minimo():
     assert clasificar_peso(900, 1050) == "ok"
 
 
-def test_plantilla_incluye_c172_con_mtow_del_yaml():
+def test_la_ficha_sale_entera_del_bloque_despacho():
+    """Todo viene del yaml: aquí no se completa nada desde ninguna tabla.
+
+    Antes esta prueba daba un avión con solo el MTOW y esperaba que el resto
+    (peso en vacío, combustible…) lo rellenara la tabla `ESTIMACION` del
+    módulo. Esa tabla era una segunda copia de los datos de la flota y ya no
+    existe: `aircraft.yaml` es el único sitio.
+    """
     flota = {
-        "C172": {"referencia_atc": {"mtow_kg": 1050}},
-        "DA62": {"referencia_atc": {"disponible": False}},
+        "XXXX": {
+            "despacho": {
+                "mtow_kg": 2000,
+                "vacio_kg": 1200,
+                "combustible_util_kg": 300,
+                "consumo_kg_h": 50,
+                "plazas": 4,
+                "verificado": True,
+            }
+        }
     }
     datos = datos_para_plantilla(flota)
-    assert datos["C172"]["mtow_kg"] == 1050
-    assert datos["C172"]["oew_kg"] == 620
-    assert "DA62" not in datos
+
+    assert datos["XXXX"]["mtow_kg"] == 2000
+    assert datos["XXXX"]["oew_kg"] == 1200   # `vacio_kg` en el yaml
+    assert datos["XXXX"]["verificado"] is True
+
+
+def test_un_avion_con_la_ficha_a_medias_se_queda_fuera():
+    """Peor un peso equivocado que ninguno: si falta un sumando, no hay total."""
+    flota = {
+        "SOLO_MTOW": {"despacho": {"mtow_kg": 2000}},
+        "SIN_NADA": {"referencia_atc": {"disponible": False}},
+        "SIN_CONSUMO": {
+            "despacho": {
+                "mtow_kg": 2000,
+                "vacio_kg": 1200,
+                "combustible_util_kg": 300,
+                "plazas": 4,
+            }
+        },
+    }
+
+    assert datos_para_plantilla(flota) == {}
+
+
+def test_el_mtow_del_simulador_manda_sobre_el_de_eurocontrol():
+    """No es un conflicto que arreglar: son aviones distintos.
+
+    EUROCONTROL da 1050 kg para el C172 (un 172N/P) y el simulador modela un
+    172S de 1160 kg. Para juzgar un vuelo manda el que se vuela.
+    """
+    ficha = {
+        "despacho": {"mtow_kg": 1160},
+        "referencia_atc": {"mtow_kg": 1050},
+    }
+    assert mtow_kg(ficha) == 1160
 
 
 def test_mtow_tbm_sale_de_referencia_sim():
@@ -82,7 +139,7 @@ def test_todos_los_aviones_de_la_flota_calculan_su_peso():
 
     - el TBM 930 tenía su MTOW en el bloque `pesos` del yaml, donde
       `mtow_kg()` no miraba;
-    - el DA62 no tenía MTOW en ninguna parte, ni ficha en `ESTIMACION`.
+    - el DA62 no tenía MTOW en ninguna parte del yaml.
 
     Esta prueba no comprueba un avión concreto: recorre la flota real. Si
     mañana se añade uno y se olvida su ficha de despacho, falla aquí en vez
@@ -97,7 +154,7 @@ def test_todos_los_aviones_de_la_flota_calculan_su_peso():
     sin_datos = sorted(set(flota) - set(datos))
     assert not sin_datos, (
         "estos aviones se pueden elegir en /plan pero no calculan peso: "
-        f"{sin_datos}. Falta MTOW en aircraft.yaml o ficha en ESTIMACION."
+        f"{sin_datos}. Falta o esta incompleto su bloque `despacho` en aircraft.yaml."
     )
 
 

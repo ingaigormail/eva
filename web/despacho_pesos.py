@@ -1,8 +1,14 @@
 """Cálculo de peso de despacho para `/plan` (D2).
 
-No es POH y **no lo usa el motor de evaluación**. `aircraft.yaml` sigue
-sin OEW ni consumo verificados (DAT-11). Hasta que existan, el semáforo
-usa estas estimaciones de despacho, etiquetadas como tal en la UI.
+**Los datos de la flota NO viven aquí.** Salen de `client/config/aircraft.yaml`,
+bloque `despacho` de cada avión, que es el único sitio donde se guarda lo que
+describe a una aeronave: pesos, velocidades, combustible y plazas.
+
+Hasta el 2026-08-28 este módulo llevaba su propia tabla `ESTIMACION` escrita
+en Python, y pasó lo que tenía que pasar con dos copias del mismo dato: se
+desincronizaron sin que nadie se enterara. El C172 figuraba con 620 kg de
+peso en vacío cuando el simulador modela 767, y el Baron con 1750 cuando el
+simulador dice 1432. Aquí solo queda el **cálculo**, no los datos.
 
 Combustible = tiempo del plan (EET + 30 min VFR, o la autonomía si el
 piloto la rellena) × consumo horario, tope el combustible útil.
@@ -16,107 +22,76 @@ PESO_PERSONA_KG = 85  # DAT-09: masa estándar del planificador
 RESERVA_VFR_MIN = 30  # reserva diurna SERA, no dato de avión
 MARGEN_JUSTO_FRACCION = 0.02  # ≤ 2 % del MTOW restante = "va justo"
 
-# Estimación de despacho. No copiar a aircraft.yaml ni al motor.
-# Claves: oew_kg, combustible_util_kg, consumo_kg_h, plazas (incluye piloto).
-ESTIMACION: dict[str, dict] = {
-    "C172": {
-        "oew_kg": 620,
-        "combustible_util_kg": 100,
-        "consumo_kg_h": 22,
-        "plazas": 4,
-    },
-    "C208": {
-        "oew_kg": 2100,
-        "combustible_util_kg": 1000,
-        "consumo_kg_h": 180,
-        "plazas": 10,
-    },
-    "BE58": {
-        "oew_kg": 1750,
-        "combustible_util_kg": 370,
-        "consumo_kg_h": 70,
-        "plazas": 6,
-    },
-    # Anadido el 2026-08-28: era el unico avion de la flota que no aparecia
-    # en la tabla de pesos de /plan. Cifras de la ficha tecnica oficial de
-    # Diamond (diamondaircraft.com, DA62 > Technical Specifications):
-    #   vacio sin opcionales 1598 kg | util max 702 kg | MTOM 2300 kg
-    #   combustible utilizable: principal 151 kg + auxiliar 110 kg = 261 kg
-    #   consumo al 60% a 12.000 ft: 44,7 l/h -> ~36 kg/h (Jet-A, 0,80 kg/l)
-    "DA62": {
-        # 1650 y no los 1598 de catalogo: esa cifra es "sin opcionales" y
-        # cualquier avion equipado pesa mas. Cargar el mas ligero posible
-        # haria que el semaforo avisara tarde, que es el error que no
-        # interesa cometer en un calculo de peso.
-        "oew_kg": 1650,
-        "combustible_util_kg": 261,
-        "consumo_kg_h": 36,
-        "plazas": 7,
-    },
-    "TBM9": {
-        "oew_kg": 2100,
-        "combustible_util_kg": 1100,
-        "consumo_kg_h": 230,
-        "plazas": 6,
-    },
-    "B350": {
-        "oew_kg": 4400,
-        "combustible_util_kg": 1600,
-        "consumo_kg_h": 360,
-        "plazas": 11,
-    },
-    "DHC6": {
-        "oew_kg": 3400,
-        "combustible_util_kg": 1400,
-        "consumo_kg_h": 280,
-        "plazas": 19,
-    },
-    "C25C": {
-        "oew_kg": 4660,
-        "combustible_util_kg": 2090,
-        "consumo_kg_h": 410,
-        "plazas": 10,
-    },
-}
+#: Lo que un avión necesita tener en `aircraft.yaml` para poder despacharse.
+#: Sin uno solo de estos campos no hay peso que calcular.
+CAMPOS_DESPACHO = (
+    "mtow_kg",
+    "vacio_kg",
+    "combustible_util_kg",
+    "consumo_kg_h",
+    "plazas",
+)
 
 
 def mtow_kg(ficha: dict) -> Optional[float]:
-    """El MTOW del avión, mirando en los tres sitios donde puede estar.
+    """El MTOW del avión, por orden de autoridad.
 
-    `aircraft.yaml` no guarda el MTOW en un único sitio: la mayoría de los
-    aviones lo tienen en `referencia_atc`, pero el TBM 930 lo tiene en un
-    bloque `pesos` con las cifras del manual (MTOW, máximo en rampa, máximo
-    al aterrizar, máximo sin combustible). Mirar solo en `referencia_atc`
-    dejaba al TBM sin MTOW, y sin MTOW la tabla de pesos de `/plan` se
-    quedaba entera en "—": el piloto tocaba pasajeros y carga y no cambiaba
-    nada. Arreglado el 2026-08-28.
+    1. `despacho`: lo que modela el simulador. Manda, porque es la única
+       cifra contra la que el piloto puede comprobar lo que ve en cabina.
+    2. `pesos`: cifras del manual del avión.
+    3. `referencia_atc` / `referencia_sim`: fichas de referencia.
 
-    `pesos` va primero porque son datos de manual, que mandan sobre la ficha
-    de referencia para ATC. Hoy solo el TBM lo tiene, así que el orden no
-    cambia el valor de ningún otro avión.
+    Que discrepen no es un error, y conviene no "arreglarlo": EUROCONTROL da
+    1050 kg para el C172 (un 172N/P) y el simulador modela un 172S de
+    1160 kg. Son aviones distintos, y para juzgar un vuelo manda el que se
+    vuela de verdad.
     """
-    for bloque, clave in (
-        ("pesos", "mtow_kg"),
-        ("referencia_atc", "mtow_kg"),
-        ("referencia_sim", "mtow_kg"),
-    ):
+    for bloque in ("despacho", "pesos", "referencia_atc", "referencia_sim"):
         datos = ficha.get(bloque) or {}
-        if isinstance(datos, dict) and datos.get(clave):
-            return float(datos[clave])
+        if isinstance(datos, dict) and datos.get("mtow_kg"):
+            return float(datos["mtow_kg"])
     return None
 
 
+def datos_de_despacho(ficha: dict) -> Optional[dict]:
+    """El bloque `despacho` de un avión, solo si está completo.
+
+    None si falta cualquier campo: media ficha da un total que parece bueno
+    y no lo es, y es peor enseñar un peso equivocado que no enseñar ninguno.
+    """
+    datos = ficha.get("despacho")
+    if not isinstance(datos, dict):
+        return None
+    if any(datos.get(campo) is None for campo in CAMPOS_DESPACHO):
+        return None
+    return datos
+
+
 def datos_para_plantilla(flota: dict) -> dict[str, dict]:
-    """MTOW real del yaml + estimación de despacho, solo si hay ambos."""
+    """Lo que necesita la tabla de pesos de `/plan`, avión por avión.
+
+    Todo sale de `aircraft.yaml`. Un avión con la ficha incompleta se queda
+    fuera y `/plan` lo dice, en vez de enseñar un peso a medias.
+
+    `oew_kg` se llama así por historia en la plantilla; en el yaml el campo
+    es `vacio_kg`. Se traduce aquí y no allí para no tocar la interfaz.
+    """
     salida: dict[str, dict] = {}
     for icao, ficha in flota.items():
-        mtow = mtow_kg(ficha) if isinstance(ficha, dict) else None
-        estimacion = ESTIMACION.get(icao)
-        if mtow is None or estimacion is None:
+        if not isinstance(ficha, dict):
+            continue
+        datos = datos_de_despacho(ficha)
+        if datos is None:
             continue
         salida[icao] = {
-            "mtow_kg": mtow,
-            **estimacion,
+            "mtow_kg": float(datos["mtow_kg"]),
+            "oew_kg": datos["vacio_kg"],
+            "combustible_util_kg": datos["combustible_util_kg"],
+            "consumo_kg_h": datos["consumo_kg_h"],
+            "plazas": datos["plazas"],
+            # Para que la interfaz pueda distinguir un dato leído del
+            # simulador de uno de catálogo sin verificar (hoy, el DHC-6).
+            "verificado": bool(datos.get("verificado")),
         }
     return salida
 

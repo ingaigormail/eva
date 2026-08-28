@@ -86,6 +86,24 @@ C172:
     vr: null
     vx: null
     vy: null
+  despacho:
+    # Peso y combustible del propio simulador: `asobo-aircraft-c172sp-as1000`,
+    # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
+    # client/tools/leer_flight_model.py el 2026-08-28.
+    #
+    # Manda el simulador y no el catalogo del fabricante: el piloto vuela lo
+    # que MSFS modela y el grabador mide lo que MSFS reporta, asi que es la
+    # unica cifra contra la que puede comprobar lo que ve en cabina.
+    fuente: flight_model.cfg de asobo-aircraft-c172sp-as1000
+    fecha_consulta: 2026-08-28
+    verificado: true
+    mtow_kg: 1160
+    vacio_kg: 767
+    combustible_util_kg: 144
+    # No salen del flight_model.cfg: plazas es del catalogo del avion y el
+    # consumo es una estimacion de despacho a la espera de datos de manual.
+    plazas: 4
+    consumo_kg_h: 22
   referencia_atc:
     v2_kt: 60
     vat_kt: 65
@@ -144,6 +162,24 @@ C208:
     vr: null
     vx: null
     vy: null
+  despacho:
+    # Peso y combustible del propio simulador: `asobo-aircraft-208b-grand-caravan-ex`,
+    # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
+    # client/tools/leer_flight_model.py el 2026-08-28.
+    #
+    # Manda el simulador y no el catalogo del fabricante: el piloto vuela lo
+    # que MSFS modela y el grabador mide lo que MSFS reporta, asi que es la
+    # unica cifra contra la que puede comprobar lo que ve en cabina.
+    fuente: flight_model.cfg de asobo-aircraft-208b-grand-caravan-ex
+    fecha_consulta: 2026-08-28
+    verificado: true
+    mtow_kg: 3995
+    vacio_kg: 2336
+    combustible_util_kg: 986
+    # No salen del flight_model.cfg: plazas es del catalogo del avion y el
+    # consumo es una estimacion de despacho a la espera de datos de manual.
+    plazas: 10
+    consumo_kg_h: 180
   referencia_atc:
     v2_kt: 85
     vat_kt: 75
@@ -237,6 +273,24 @@ DA62:
     vne: 205                # max_indicated_speed (redline)
     vno: 162                # normal_operating_speed
     vfe: 119                # max_flaps_extended
+  despacho:
+    # Peso y combustible del propio simulador: `asobo-aircraft-da62`,
+    # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
+    # client/tools/leer_flight_model.py el 2026-08-28.
+    #
+    # Manda el simulador y no el catalogo del fabricante: el piloto vuela lo
+    # que MSFS modela y el grabador mide lo que MSFS reporta, asi que es la
+    # unica cifra contra la que puede comprobar lo que ve en cabina.
+    fuente: flight_model.cfg de asobo-aircraft-da62
+    fecha_consulta: 2026-08-28
+    verificado: true
+    mtow_kg: 2300
+    vacio_kg: 1570
+    combustible_util_kg: 235
+    # No salen del flight_model.cfg: plazas es del catalogo del avion y el
+    # consumo es una estimacion de despacho a la espera de datos de manual.
+    plazas: 7
+    consumo_kg_h: 36
   referencia_atc:
     disponible: false       # no esta en la BD de EUROCONTROL
   notas: >-
@@ -281,6 +335,24 @@ BE58:
     vr: null
     vx: null
     vy: null
+  despacho:
+    # Peso y combustible del propio simulador: `asobo-aircraft-baron-g58`,
+    # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
+    # client/tools/leer_flight_model.py el 2026-08-28.
+    #
+    # Manda el simulador y no el catalogo del fabricante: el piloto vuela lo
+    # que MSFS modela y el grabador mide lo que MSFS reporta, asi que es la
+    # unica cifra contra la que puede comprobar lo que ve en cabina.
+    fuente: flight_model.cfg de asobo-aircraft-baron-g58
+    fecha_consulta: 2026-08-28
+    verificado: true
+    mtow_kg: 2495
+    vacio_kg: 1432
+    combustible_util_kg: 495
+    # No salen del flight_model.cfg: plazas es del catalogo del avion y el
+    # consumo es una estimacion de despacho a la espera de datos de manual.
+    plazas: 6
+    consumo_kg_h: 70
   referencia_atc:
     v2_kt: 100
     vat_kt: 95
@@ -352,6 +424,24 @@ TBM9:
     mtow_kg: 3354
     max_aterrizaje_kg: 3186
     max_sin_combustible_kg: 2736
+  despacho:
+    # Peso y combustible del propio simulador: `asobo-aircraft-tbm930`,
+    # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
+    # client/tools/leer_flight_model.py el 2026-08-28.
+    #
+    # Manda el simulador y no el catalogo del fabricante: el piloto vuela lo
+    # que MSFS modela y el grabador mide lo que MSFS reporta, asi que es la
+    # unica cifra contra la que puede comprobar lo que ve en cabina.
+    fuente: flight_model.cfg de asobo-aircraft-tbm930
+    fecha_consulta: 2026-08-28
+    verificado: true
+    mtow_kg: 3354
+    vacio_kg: 2072
+    combustible_util_kg: 887
+    # No salen del flight_model.cfg: plazas es del catalogo del avion y el
+    # consumo es una estimacion de despacho a la espera de datos de manual.
+    plazas: 6
+    consumo_kg_h: 230
   referencia_atc:
     disponible: false
   referencia_sim:
@@ -426,6 +516,24 @@ B350:
     vr: null
     vx: 125
     vy: 140
+  despacho:
+    # Peso y combustible del propio simulador: `asobo-aircraft-kingair350`,
+    # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
+    # client/tools/leer_flight_model.py el 2026-08-28.
+    #
+    # Manda el simulador y no el catalogo del fabricante: el piloto vuela lo
+    # que MSFS modela y el grabador mide lo que MSFS reporta, asi que es la
+    # unica cifra contra la que puede comprobar lo que ve en cabina.
+    fuente: flight_model.cfg de asobo-aircraft-kingair350
+    fecha_consulta: 2026-08-28
+    verificado: true
+    mtow_kg: 7484
+    vacio_kg: 4516
+    combustible_util_kg: 1591
+    # No salen del flight_model.cfg: plazas es del catalogo del avion y el
+    # consumo es una estimacion de despacho a la espera de datos de manual.
+    plazas: 11
+    consumo_kg_h: 360
   referencia_atc:
     v2_kt: 120
     vat_kt: 110
@@ -492,6 +600,20 @@ DHC6:
       vne_kt: 178          # IAS, del nivel del mar a 10.000 ft
       vne_reduccion: "restar 4 kt por cada 1.000 ft por encima de 10.000 ft"
       nota: "tambien cambian los limites de centrado"
+  despacho:
+    # UNICO avion de la flota sin cifras del simulador: el Twin Otter no
+    # viene con MSFS y aqui no hay ningun anadido instalado. Estos numeros
+    # son del DHC-6-300 de catalogo, sin verificar contra nada que vuele.
+    # Si algun dia se instala un anadido, releer con
+    # client/tools/leer_flight_model.py y poner su paquete en PAQUETES.
+    fuente: catalogo DHC-6-300, sin verificar contra el simulador
+    fecha_consulta: 2026-08-28
+    verificado: false
+    mtow_kg: 5670
+    vacio_kg: 3400
+    combustible_util_kg: 1150
+    plazas: 19
+    consumo_kg_h: 300
   referencia_atc:
     v2_kt: 80
     vat_kt: 70
@@ -556,6 +678,24 @@ C25C:
   viento:
     max_viento_cola_aterrizaje_kt: 10
     max_viento_cruzado_demostrado_kt: 25
+  despacho:
+    # Peso y combustible del propio simulador: `asobo-aircraft-cj4`,
+    # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
+    # client/tools/leer_flight_model.py el 2026-08-28.
+    #
+    # Manda el simulador y no el catalogo del fabricante: el piloto vuela lo
+    # que MSFS modela y el grabador mide lo que MSFS reporta, asi que es la
+    # unica cifra contra la que puede comprobar lo que ve en cabina.
+    fuente: flight_model.cfg de asobo-aircraft-cj4
+    fecha_consulta: 2026-08-28
+    verificado: true
+    mtow_kg: 7761
+    vacio_kg: 4472
+    combustible_util_kg: 2613
+    # No salen del flight_model.cfg: plazas es del catalogo del avion y el
+    # consumo es una estimacion de despacho a la espera de datos de manual.
+    plazas: 10
+    consumo_kg_h: 410
   referencia_atc:
     v2_kt: 116
     vat_kt: 110
