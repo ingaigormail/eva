@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block titulo %}VATSIM Live — EvA{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
 {% endblock %}
 {% block contenido %}
 <style nonce="{{ csp_nonce }}">
@@ -76,6 +76,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:18, a
 const layer = L.layerGroup().addTo(map);
 let markers = new Map();
 
+const cidsAerolinea = {{ cids_aerolinea|tojson or [] }};
+
 function parseCids(raw){
   return [...new Set(raw.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{6,10}$/.test(s)) )];
 }
@@ -122,38 +124,45 @@ async function actualizar(manual=false){
   const cids = parseCids($cids.value);
   setURL(cids);
   localStorage.setItem('vatsim_cids', cids.join(','));
-  if(!cids.length){
-    $estado.textContent = 'Escribe al menos un CID.';
-    $contador.textContent = '';
-    $tituloBarra.textContent = 'Vuelos online en estos momentos: —';
-    $subBarra.textContent = 'filtra por CID para ver solo tus pilotos';
-    $dotEstado.style.background='#64748b';
-    $lista.innerHTML = '<p class="muted">Ejemplo: pega tu CID y el de tus pilotos, pulsa Buscar.</p>';
-    $tabla.innerHTML = '';
-    layer.clearLayers(); markers.clear();
-    return;
-  }
+  
   $estado.textContent = 'Consultando VATSIM…';
   try{
     const data = await fetchData();
     const pilots = data.pilots || [];
     const controllers = data.controllers || [];
-    const wanted = new Set(cids);
-    const filtrados = pilots.filter(p => wanted.has(String(p.cid)));
+    
+    let filtrados = [];
+    if(cids.length){
+      const wanted = new Set(cids);
+      filtrados = pilots.filter(p => wanted.has(String(p.cid)));
+    } else {
+      // Autofiltro por indicativo EVA o CIDs de pilotos de la aerolínea
+      filtrados = pilots.filter(p => {
+        const isCIDAerolinea = cidsAerolinea.includes(String(p.cid));
+        const isCallsignEVA = (p.callsign || "").toUpperCase().startsWith("EVA");
+        return isCIDAerolinea || isCallsignEVA;
+      });
+    }
+    
     const upd = data.general && data.general.update_timestamp ? new Date(data.general.update_timestamp) : new Date();
     $estado.textContent = 'Actualizado ' + upd.toLocaleTimeString() + ' — ' + (data.general.connected_clients||'') + ' conectados VATSIM';
-    $contador.textContent = filtrados.length + '/' + cids.length + ' en vuelo';
+    if(cids.length) {
+      $contador.textContent = filtrados.length + '/' + cids.length + ' en vuelo';
+    } else {
+      $contador.textContent = filtrados.length + ' en vuelo (Flota)';
+    }
+    
     // Barra superior sobre el mapa: vuelos online en estos momentos
     const conATC = filtrados.filter(p=> atcPara(p, controllers).length>0).length;
     const sinATC = filtrados.length - conATC;
-    $tituloBarra.textContent = 'Vuelos online en estos momentos: ' + filtrados.length + (cids.length ? ' / ' + cids.length + ' seguidos' : '');
-    $subBarra.textContent = filtrados.length ? ('· ' + conATC + ' CON ATC · ' + sinATC + ' UNICOM') : '';
+    $tituloBarra.textContent = 'Vuelos online en estos momentos: ' + filtrados.length + (cids.length ? ' / ' + cids.length + ' seguidos' : ' (Flota EvA)');
+    $subBarra.textContent = filtrados.length ? ('· ' + conATC + ' CON ATC · ' + sinATC + ' UNICOM') : 'sin pilotos online de la aerolínea ahora';
     $dotEstado.style.background = filtrados.length ? (conATC ? '#22c55e' : '#ef4444') : '#64748b';
 
     // Lista lateral + tabla debajo del mapa (piloto | origen → destino | ATC verde/rojo)
     $lista.innerHTML = '';
     $tabla.innerHTML = '';
-    const noVuelan = cids.filter(id => !filtrados.some(p=>String(p.cid)===id));
+    const noVuelan = cids.length ? cids.filter(id => !filtrados.some(p=>String(p.cid)===id)) : [];
     // tabla compacta debajo del mapa
     if(filtrados.length){
       let html = '<div class="panel" style="padding:0;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8fafc;text-align:left"><th style="padding:8px">Piloto</th><th style="padding:8px">Origen → Destino</th><th style="padding:8px">ATC</th></tr></thead><tbody>';
@@ -240,8 +249,7 @@ async function actualizar(manual=false){
   const fromURL = cidsEnURL();
   const fromLS = localStorage.getItem('vatsim_cids') || '';
   $cids.value = (fromURL || fromLS).replace(/,/g, '\n');
-  if($cids.value.trim()) actualizar();
-  else $lista.innerHTML = '<p class="muted">Pega CIDs y pulsa Buscar. Se guardan en tu navegador y en la URL para compartir.</p>';
+  actualizar();
 })();
 
 $btnBuscar.onclick = ()=> actualizar(true);

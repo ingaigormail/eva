@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 {% block titulo %}Aerolínea — EvA{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+{% endblock %}
 {% block marca_sub %}Estadísticas de la aerolínea{% endblock %}
 {% block nav_aerolinea %}activo{% endblock %}
 {% block contenido_clase %}ancho{% endblock %}
@@ -167,7 +171,7 @@
         <p>Aeropuertos y rutas del ranking, con grosor según vuelos. Solo ICAO conocidos.</p>
       </div>
     </div>
-    <svg id="mapa-flota" class="mapa-flota" viewBox="0 0 640 420" role="img" aria-label="Aeropuertos y rutas en el mapa de España"></svg>
+    <div id="mapa-flota" style="width:100%;height:420px;border-radius:12px;border:1px solid var(--borde)"></div>
   </section>
 {% endblock %}
 
@@ -199,54 +203,53 @@
     svg.innerHTML = html;
   }
 
-  // Mapa sin teselas: nada de Leaflet ni peticiones a un servidor externo.
-  // Solo una proyección plana (equirrectangular, corregida por latitud) de
-  // los puntos que ya tenemos en `geo` sobre el propio SVG — un piloto no
-  // necesita arrastrar ni hacer zoom para ver cuatro rutas y aeropuertos.
+  // Mapa de la Flota: Leaflet interactivo cargado localmente.
   const geo = {{ mapa_flota|tojson }};
-  const svgMapa = document.getElementById("mapa-flota");
-  if (!svgMapa) return;
+  const divMapa = document.getElementById("mapa-flota");
+  if (!divMapa) return;
 
   const puntos = geo.puntos || [];
   const rutas = geo.rutas || [];
   if (!puntos.length && !rutas.length) return;
 
-  const W = 640, H = 420, pad = 36;
-  const lats = [], lons = [];
-  puntos.forEach(p => { lats.push(p.lat); lons.push(p.lon); });
-  rutas.forEach(r => { lats.push(r.origen_lat, r.destino_lat); lons.push(r.origen_lon, r.destino_lon); });
-  const latMin = Math.min(...lats), latMax = Math.max(...lats);
-  const lonMin = Math.min(...lons), lonMax = Math.max(...lons);
-  const latMid = (latMin + latMax) / 2;
-  const corr = Math.max(0.4, Math.cos(latMid * Math.PI / 180));
-  const spanLat = Math.max(0.5, latMax - latMin);
-  const spanLon = Math.max(0.5, (lonMax - lonMin) * corr);
-  const escala = Math.min((W - 2 * pad) / spanLon, (H - 2 * pad) / spanLat);
-  const cx = W / 2, cy = H / 2;
-  const lonMid = (lonMin + lonMax) / 2;
-  const proyectar = (lat, lon) => [
-    cx + (lon - lonMid) * corr * escala,
-    cy - (lat - latMid) * escala,
-  ];
+  const map = L.map('mapa-flota').setView([40.4, -3.7], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
 
-  let html = "";
+  const markersGroup = L.featureGroup();
+
+  // Dibujar rutas
   rutas.forEach(r => {
-    const [x1, y1] = proyectar(r.origen_lat, r.origen_lon);
-    const [x2, y2] = proyectar(r.destino_lat, r.destino_lon);
-    const grosor = Math.min(6, 1.2 + Number(r.vuelos || 0) * 0.6);
-    html += '<line class="ruta-mapa" x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) +
-      '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke-width="' + grosor.toFixed(1) + '">' +
-      '<title>' + r.origen + ' → ' + r.destino + ': ' + r.vuelos + ' vuelos</title></line>';
+    const grosor = Math.min(8, 2 + Number(r.vuelos || 0) * 0.8);
+    const line = L.polyline([[r.origen_lat, r.origen_lon], [r.destino_lat, r.destino_lon]], {
+      color: '#2563eb',
+      weight: grosor,
+      opacity: 0.7
+    }).addTo(map);
+    line.bindPopup('<b>Ruta:</b> ' + r.origen + ' &rarr; ' + r.destino + '<br><b>Vuelos:</b> ' + r.vuelos);
   });
+
+  // Dibujar aeropuertos
   puntos.forEach(p => {
-    const [x, y] = proyectar(p.lat, p.lon);
-    const radio = Math.min(12, 4 + Math.sqrt(Number(p.operaciones) || 0) * 1.4);
-    html += '<circle class="punto-mapa" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + radio.toFixed(1) + '">' +
-      '<title>' + p.icao + ': ' + p.operaciones + ' operaciones</title></circle>';
-    html += '<text class="etiqueta-mapa" x="' + x.toFixed(1) + '" y="' + (y - radio - 4).toFixed(1) +
-      '" text-anchor="middle">' + p.icao + '</text>';
+    const radio = Math.min(15, 6 + Math.sqrt(Number(p.operaciones) || 0) * 1.5);
+    const marker = L.circleMarker([p.lat, p.lon], {
+      radius: radio,
+      color: '#111827',
+      fillColor: '#10b981',
+      fillOpacity: 0.9,
+      weight: 2
+    }).addTo(map);
+    marker.bindPopup('<b>Aeropuerto:</b> ' + p.icao + '<br><b>Operaciones:</b> ' + p.operaciones);
+    marker.addTo(markersGroup);
   });
-  svgMapa.innerHTML = html;
+
+  try {
+    if (puntos.length) {
+      map.fitBounds(markersGroup.getBounds().pad(0.2));
+    }
+  } catch (e) {}
 })();
 </script>
 {% endblock %}

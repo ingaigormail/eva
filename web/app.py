@@ -2475,7 +2475,13 @@ def _fetch_vatsim_raw() -> tuple[dict | None, str | None]:
 @app.route("/vatsim")
 def vatsim_live():
     """Mapa VATSIM simple filtrado por CID. Público, sin login."""
-    return render_template("vatsim_live.html")
+    cids = []
+    try:
+        usuarios = cuentas.listar_usuarios()
+        cids = [u["vatsim_cid"] for u in usuarios if u.get("vatsim_cid")]
+    except Exception:
+        pass
+    return render_template("vatsim_live.html", cids_aerolinea=cids)
 
 
 @app.route("/api/vatsim-data")

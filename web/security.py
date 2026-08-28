@@ -36,7 +36,7 @@ def setup_security_headers(app: Flask):
             "default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}'; "
             "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data:; "
+            "img-src 'self' data: https://*.tile.openstreetmap.org; "
             "font-src 'self'"
         )
 
