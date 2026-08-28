@@ -1,0 +1,23 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "MY-PROVIDER/MY-MODEL",
+  "provider": {
+    "ollama-local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama Local",
+      "options": {
+        "baseURL": "http://IP_SERVIDOR_LLM:11434/v1",
+        "apiKey": "ollama"
+      },
+      "models": {
+        "MY-MODEL": {
+          "name": "Mi Modelo",
+          "limit": {
+            "context": 16384,
+            "output": 8192
+          }
+        }
+      }
+    }
+  }
+}
