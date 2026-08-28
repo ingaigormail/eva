@@ -17,7 +17,12 @@ VENV="$PRE/.venv-pre"
 
 echo "--- 1/4  actualizando el clon limpio ---"
 cd "$PRE"
-git fetch -q origin
+# --no-tags y solo la rama: en GitHub conviven etiquetas que solo se
+# diferencian en mayusculas (V1.0.2 y v1.0.2, V1.0.3 y v1.0.3). Windows no
+# distingue mayusculas en los nombres de fichero, asi que un `git fetch
+# origin` a secas revienta al intentar guardar las dos. Aqui no hacen falta
+# las etiquetas: lo que se prueba es lo que hay en main.
+git fetch -q --no-tags origin main
 ANTES=$(git rev-parse --short HEAD)
 git reset -q --hard origin/main
 AHORA=$(git rev-parse --short HEAD)

@@ -47,7 +47,7 @@ se anotaron tareas en su `TAREAS.md` por error; ese fichero no lo lee nadie.
 - `b770910` **Aviso de aeródromo de salida** (`client/avcars/ubicacion.py`): si el avión no está donde dice el plan, avisa. No bloquea, y nunca por falta de datos. Idea tomada del cliente de FlyAnt.
 - `7e25bf2` **Espacio aéreo oficial de ENAIRE** (`web/tools/descargar_enaire.py`): 11 capas, 1.576 elementos → `web/data/aeronautica.db` (ignorado en git, se regenera). Atribución obligatoria puesta en `base.html`.
 - `2e07bd9` Documentos: `docs/economia_v1_decisiones.md`, `docs/analisis_ant_tracker_v2.md`, `docs/datos_espacio_aereo_enaire.md`.
-- `96d886e` **Primeras pruebas de rutas web** (`web/tests/`). La clave es `test_ninguna_ruta_de_vuelo_se_le_escapa_a_un_intruso`: recorre el mapa de URLs de Flask, así que una ruta nueva que se olvide de comprobar propiedad falla sola. Verificado quitando el parche del IDOR.
+- `96d886e` Pruebas de rutas de vuelo. **Corregido después**: dije que «no había ni una sola prueba de rutas web» y era falso — hay **209 en `web/test_*.py`**, en ficheros sueltos y no en una carpeta `tests/`, que es por lo que no las vi. El IDOR no se coló por falta de pruebas sino porque estaban escritas ruta por ruta: `test_app.py` cubría la propiedad de `/vuelo/<nombre>` pero nadie escribió la de su hermana `/vuelo/<nombre>/json`. Lo aportado de verdad está en `web/test_rutas_de_vuelo.py`: `test_ninguna_ruta_de_vuelo_se_le_escapa_a_un_intruso` recorre el mapa de URLs de Flask, así que una ruta nueva bajo `/vuelo/` que se olvide de comprobar propiedad falla sola. Verificado quitando el parche del IDOR.
 - `7c55ffe` **Regla de espacio aéreo** `airspace_zones`: invasión de zonas P/R/D y prohibición VFR. Penaliza, no suspende. Aparece sola en `/gestion/reglas` con 5 valores configurables.
 
 Decisiones de diseño de esa sesión, por si hay que discutirlas:
@@ -75,7 +75,8 @@ Decisiones de diseño de esa sesión, por si hay que discutirlas:
 - CSP vs Leaflet/OSM en `vuelo.html` (unpkg + tiles); `aerolinea.html` ya usa vendor local.
 
 ## Pendientes de la sesión de código (2026-08-28)
-- **7 pruebas rotas de antes**: 6 fallos en `test_scoring`, `test_data_quality`, `test_regresion_vuelo_real`, más `test_simconnect_hybrid.py`, que ni se recoge (importa `HAS_FSTELEMETRY`, que ya no existe). Una suite con fallos crónicos deja de avisar cuando se rompe algo de verdad.
+- **7 pruebas rotas de antes**: 6 fallos en `test_scoring`, `test_data_quality`, `test_regresion_vuelo_real`, más `test_simconnect_hybrid.py`, que ni se recoge (importa `HAS_FSTELEMETRY`, que ya no existe). Idénticos en `eva` y en `eva-pre`, así que no son cosa del entorno. Una suite con fallos crónicos deja de avisar cuando se rompe algo de verdad, y además **cortan `probar_pre.sh`** antes de que dé el visto bueno (`set -o pipefail`): mientras sigan ahí, ese script nunca dirá que se puede desplegar.
+- **Las pruebas de web viven sueltas en `web/test_*.py`, no en `web/tests/`.** 13 ficheros, 206 pruebas. Conviene saberlo antes de concluir que algo no está probado.
 - **Techo VFR** con la capa `SECTORES_VFR` (`VFRMAXALT` relleno en el 90% de sus filas). Es la continuación natural de `airspace_zones`.
 - **Desviación de ruta**: bloqueada hasta que existan rutas definidas por la aerolínea. Con ruta de texto libre escrita por el piloto es circular y no se puede puntuar.
 - **Relanzar `web/tools/descargar_enaire.py` cada ciclo AIRAC** (28 días). Hoy es manual.
