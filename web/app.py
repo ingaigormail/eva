@@ -51,7 +51,7 @@ from avcars.config import (  # noqa: E402
 )
 from avcars.evaluation.data_quality import Quality  # noqa: E402
 from avcars.evaluation.scoring import Verdict, evaluate_flight  # noqa: E402
-from avcars.evaluation import reglas_config, reglas_info  # noqa: E402
+from avcars.evaluation import espacio_aereo, reglas_config, reglas_info  # noqa: E402
 from avcars.prefile import PrefileExtras, icao_fpl, vatsim_prefile_url  # noqa: E402
 from avcars.schema import FlightLog, FlightPlanInfo, PilotInfo  # noqa: E402
 from avcars import (  # noqa: E402
@@ -202,6 +202,31 @@ PROFILES = load_profiles()
 DEFAULT_PROFILE = "normal"
 AIRCRAFT = load_aircraft()
 AIRPORTS = load_airports()
+
+#: Espacio aéreo oficial de ENAIRE, para la regla de invasión de zonas. Se
+#: genera con `web/tools/descargar_enaire.py` y no está en git: si falta, la
+#: regla queda en `not_evaluated` y el resto del vuelo se evalúa igual.
+AERONAUTICA_DB = Path(__file__).resolve().parent / "data" / "aeronautica.db"
+_zonas_cache: tuple = (None, [])
+
+
+def zonas_espacio_aereo() -> list:
+    """Las zonas prohibidas, releídas si el fichero ha cambiado.
+
+    Se comprueba la fecha del fichero en vez de cargarlo una vez al arrancar
+    porque la base se rehace entera en cada ciclo AIRAC (28 días). Si alguien
+    la actualiza en el servidor y esto no se enterara, se estaría penalizando
+    a pilotos contra un mapa caducado — y esta regla acusa, así que el dato
+    viejo no es un detalle. Un `stat` por evaluación es barato.
+    """
+    global _zonas_cache
+    try:
+        marca = AERONAUTICA_DB.stat().st_mtime
+    except OSError:
+        return []
+    if _zonas_cache[0] != marca:
+        _zonas_cache = (marca, espacio_aereo.cargar_zonas(AERONAUTICA_DB))
+    return _zonas_cache[1]
 
 
 def _perfil_y_reglas_activas(nombre_perfil: str) -> tuple[dict, dict]:
@@ -1333,7 +1358,8 @@ def detalle(nombre: str):
     aeronave = AIRCRAFT.get(flight.flight_plan.aircraft_icao_type)
     perfil_efectivo, reglas_activas = _perfil_y_reglas_activas(perfil)
     verdict = evaluate_flight(
-        flight, perfil_efectivo, aircraft=aeronave, reglas_activas=reglas_activas
+        flight, perfil_efectivo, aircraft=aeronave,
+        reglas_activas=reglas_activas, zonas=zonas_espacio_aereo(),
     )
     datos_veredicto = verdict_summary(verdict)
     datos_telemetria = telemetry(flight)
@@ -1583,7 +1609,8 @@ def _estado_del_vuelo(path: Path) -> str:
         aeronave = AIRCRAFT.get(flight.flight_plan.aircraft_icao_type)
         perfil, activas = _perfil_y_reglas_activas(DEFAULT_PROFILE)
         verdict = evaluate_flight(
-            flight, perfil, aircraft=aeronave, reglas_activas=activas
+            flight, perfil, aircraft=aeronave, reglas_activas=activas,
+            zonas=zonas_espacio_aereo(),
         )
     except Exception as exc:  # noqa: BLE001
         # Un vuelo ilegible no puede tumbar la cartilla entera.
@@ -2369,7 +2396,8 @@ def _resumir_para_estadisticas(huella: str, filepath: Path, piloto: str) -> None
             aeronave = AIRCRAFT.get(flight.flight_plan.aircraft_icao_type)
             perfil_efectivo, reglas_activas = _perfil_y_reglas_activas(DEFAULT_PROFILE)
             verdict = evaluate_flight(
-                flight, perfil_efectivo, aircraft=aeronave, reglas_activas=reglas_activas
+                flight, perfil_efectivo, aircraft=aeronave,
+                reglas_activas=reglas_activas, zonas=zonas_espacio_aereo(),
             )
             fecha = (
                 flight.timing.block_off_utc.isoformat()

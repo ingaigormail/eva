@@ -58,6 +58,11 @@ _UNIDADES: dict[str, str] = {
     "landing_vs_bands.smooth.max_fpm": " fpm",
     "landing_vs_bands.normal.max_fpm": " fpm",
     "landing_vs_bands.hard.max_fpm": " fpm",
+    "airspace.margen_nm": " NM",
+    "airspace.permanencia_s": " s",
+    "airspace.muestras_minimas": " muestras",
+    "airspace.penalizacion_maxima": " puntos",
+    "penalties.airspace_intrusion": " puntos por zona",
 }
 
 
@@ -280,6 +285,33 @@ _REGLAS: list[ReglaInfo] = [
             "Se salta por completo en aviones con configuracion.tren='fijo' "
             "(aircraft.yaml): en esos, la pregunta \"¿bajó el tren?\" no aplica."
         ),
+    ),
+    ReglaInfo(
+        "airspace_zones", "Invasión de zona prohibida, restringida o peligrosa",
+        "El vuelo no debe atravesar zonas P, R, D ni de prohibición VFR. "
+        "Para acusar hacen falta tres cosas a la vez: estar dentro del "
+        "polígono, a más de un margen del borde, y de forma continuada un "
+        "tiempo mínimo. Una zona cuya referencia vertical no se entiende se "
+        "deja fuera en vez de suponer.",
+        "track[].lat/lon + alt_msl_ft + alt_agl_ft",
+        "web/data/aeronautica.db (capas D_P_R, PROHIBIDO_VFR, NO_SOBREVUELO)",
+        "Penaliza por cada zona invadida, con tope. No es fallo duro: la "
+        "traza en crucero guarda 1 punto cada 10 s, así que detecta "
+        "travesías, no roces.",
+        "scoring.py:_evaluate_airspace",
+        condicion_estructural=(
+            "Necesita la base de espacio aéreo de ENAIRE, que genera "
+            "web/tools/descargar_enaire.py y se rehace cada ciclo AIRAC. Sin "
+            "ella la regla queda sin evaluar y el resto del vuelo se puntúa "
+            "igual. El cliente no la lleva: solo se evalúa en el servidor."
+        ),
+        config_paths=[
+            "airspace.margen_nm",
+            "airspace.permanencia_s",
+            "airspace.muestras_minimas",
+            "airspace.penalizacion_maxima",
+            "penalties.airspace_intrusion",
+        ],
     ),
     ReglaInfo(
         "route_deviation", "Desviación de la ruta planificada",

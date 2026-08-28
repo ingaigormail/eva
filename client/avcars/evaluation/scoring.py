@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import espacio_aereo
 from .data_quality import check as check_quality
 from datetime import datetime, timedelta
 
@@ -65,6 +66,7 @@ RULE_SCOPE: dict[str, str] = {
     "overspeed_warning": "ambas",
     "qnh": "ambas",
     "gear_on_touchdown": "ambas",
+    "airspace_zones": "ambas",
     # Pendientes de implementar, con el ámbito ya declarado.
     "route_deviation": "ambas",
     "cruise_altitude_semicircular": "VFR",
@@ -271,6 +273,58 @@ def _evaluate_bank_angle(
     # Si fue sostenida, interesa dónde se confirmó; si no, dónde escoró más.
     anchor = sustained_start or _first(samples, lambda p: abs(p.bank_deg) == max_bank)
     return [_at(item, flight, anchor)], [], False
+
+
+def _evaluate_airspace(
+    flight: FlightLog, profile: dict, zonas: list | None = None
+) -> tuple[list[VerdictItem], list[str], bool]:
+    """Evalúa si el vuelo se metió en zonas P, R, D o de prohibición VFR.
+
+    `zonas` viene de fuera (`espacio_aereo.cargar_zonas()`) y no se carga
+    aquí: el motor vive en el cliente y la base de espacio aéreo en el
+    servidor, que es quien evalúa. Sin ella la regla queda en
+    `not_evaluated`, igual que `structural_overspeed` sin `aircraft`.
+
+    Los datos son de ENAIRE, oficiales y con ciclo AIRAC, pero la traza en
+    crucero solo guarda un punto cada 10 s: esto detecta travesías, no roces.
+    Por eso **penaliza y no suspende**. Cuando lleve unos meses funcionando y
+    se sepa que no da falsos positivos, subirlo a fallo duro es cambiar una
+    línea.
+    """
+    cfg = profile.get("airspace")
+    if not cfg or not zonas or not flight.track:
+        return [], [], True
+
+    invasiones = espacio_aereo.invasiones(
+        flight.track,
+        zonas,
+        margen_nm=cfg.get("margen_nm", 0.5),
+        permanencia_s=cfg.get("permanencia_s", 20.0),
+        muestras_minimas=cfg.get("muestras_minimas", 2),
+    )
+    if not invasiones:
+        return [
+            VerdictItem("airspace_zones", True, 0, "sin invasiones de zona")
+        ], [], False
+
+    # Una sola entrada, aunque haya varias zonas: al piloto le sirve más
+    # "invadiste estas dos" que dos apuntes sueltos que no sabe relacionar.
+    peor = max(invasiones, key=lambda i: i.duracion_s)
+    detalle = "; ".join(
+        f"{i.zona.etiqueta} [{i.zona.capa}] {i.duracion_s:.0f}s a "
+        f"{i.altitud_ft:.0f} ft"
+        for i in invasiones[:3]
+    )
+    if len(invasiones) > 3:
+        detalle += f"; y {len(invasiones) - 3} más"
+
+    pts = profile["penalties"]["airspace_intrusion"] * len(invasiones)
+    pts = min(pts, cfg.get("penalizacion_maxima", 40))
+    item = VerdictItem("airspace_zones", False, pts, detalle)
+    # Se sitúa donde empezó la peor invasión, que es el momento que el piloto
+    # tiene que ir a revisar en la traza.
+    entrada = _first(flight.track, lambda p: p.t >= peor.t_entrada)
+    return [_at(item, flight, entrada)], [], False
 
 
 def _evaluate_warnings_and_config(
@@ -557,6 +611,7 @@ def evaluate_flight(
     profile: dict,
     aircraft: dict | None = None,
     reglas_activas: dict[str, bool] | None = None,
+    zonas: list | None = None,
 ) -> Verdict:
     """Evalúa un vuelo y devuelve el veredicto (puntuación, aprobado/suspendido, desglose).
 
@@ -565,6 +620,11 @@ def evaluate_flight(
     entero — igual que `profile` ya llega resuelto, no el fichero de
     perfiles completo. Opcional: sin él, `structural_overspeed` queda en
     `not_evaluated`, como si no existiera este parámetro.
+
+    `zonas` son las zonas de espacio aéreo de `espacio_aereo.cargar_zonas()`.
+    Vienen de fuera porque la base la tiene el servidor, que es quien evalúa,
+    y el motor vive en el cliente. Sin ellas `airspace_zones` queda en
+    `not_evaluated`, igual que `structural_overspeed` sin `aircraft`.
 
     `reglas_activas` es el `{regla_id: bool}` de
     `evaluation/reglas_config.py` — qué reglas ha apagado un administrador.
@@ -723,6 +783,16 @@ def evaluate_flight(
         score -= item.points
     if bank_not_evaluated:
         not_evaluated.append("bank_angle")
+
+    aire_items, aire_fails, aire_not_evaluated = _evaluate_airspace(
+        flight, profile, zonas
+    )
+    items += aire_items
+    failed_hard += aire_fails
+    for item in aire_items:
+        score -= item.points
+    if aire_not_evaluated:
+        not_evaluated.append("airspace_zones")
 
     light_items, lights_not_evaluated = _evaluate_lights(flight, profile)
     items += light_items

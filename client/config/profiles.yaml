@@ -34,6 +34,16 @@ normal:
     sustained_samples: 3
   lights:
     check_tolerance_s: 30
+  # Invasion de zonas P, R, D y de prohibicion VFR (datos de ENAIRE).
+  # margen_nm: cuanto hay que estar metido para que cuente; los limites
+  #   publicados y los del simulador no coinciden al metro.
+  # permanencia_s: cuanto tiempo seguido; cruzar un pico no es entrar.
+  # muestras_minimas: con un solo punto no se sabe si entro o solo paso.
+  airspace:
+    margen_nm: 0.5
+    permanencia_s: 20
+    muestras_minimas: 2
+    penalizacion_maxima: 40
   penalties:
     runway_alignment_takeoff: 10
     runway_alignment_landing: 15
@@ -50,6 +60,7 @@ normal:
     taxi_light_off: 5
     strobe_wrong_state: 5
     transponder_off_airborne: 5
+    airspace_intrusion: 15
 
 easy:
   pass_score: 60
@@ -77,6 +88,16 @@ easy:
     sustained_samples: 4
   lights:
     check_tolerance_s: 45
+  # Invasion de zonas P, R, D y de prohibicion VFR (datos de ENAIRE).
+  # margen_nm: cuanto hay que estar metido para que cuente; los limites
+  #   publicados y los del simulador no coinciden al metro.
+  # permanencia_s: cuanto tiempo seguido; cruzar un pico no es entrar.
+  # muestras_minimas: con un solo punto no se sabe si entro o solo paso.
+  airspace:
+    margen_nm: 1.0
+    permanencia_s: 30
+    muestras_minimas: 3
+    penalizacion_maxima: 25
   penalties:
     runway_alignment_takeoff: 5
     runway_alignment_landing: 10
@@ -93,6 +114,7 @@ easy:
     taxi_light_off: 5
     strobe_wrong_state: 5
     transponder_off_airborne: 5
+    airspace_intrusion: 10
 
 hard:
   pass_score: 80
@@ -120,6 +142,16 @@ hard:
     sustained_samples: 2
   lights:
     check_tolerance_s: 20
+  # Invasion de zonas P, R, D y de prohibicion VFR (datos de ENAIRE).
+  # margen_nm: cuanto hay que estar metido para que cuente; los limites
+  #   publicados y los del simulador no coinciden al metro.
+  # permanencia_s: cuanto tiempo seguido; cruzar un pico no es entrar.
+  # muestras_minimas: con un solo punto no se sabe si entro o solo paso.
+  airspace:
+    margen_nm: 0.3
+    permanencia_s: 10
+    muestras_minimas: 2
+    penalizacion_maxima: 60
   penalties:
     runway_alignment_takeoff: 15
     runway_alignment_landing: 20
@@ -136,3 +168,4 @@ hard:
     taxi_light_off: 10
     strobe_wrong_state: 10
     transponder_off_airborne: 10
+    airspace_intrusion: 20
