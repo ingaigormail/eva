@@ -42,6 +42,62 @@ Para un C172 tocando a −600 fpm daban tres cifras distintas: 220 (tabla), 45
 
 ---
 
+## Decisión de diseño: flota con matrícula, pero sin exclusiva
+
+Los aviones de la aerolínea tienen matrícula y el piloto elige uno. **Si dos o
+tres eligen el mismo a la vez, vuelan todos**: no se reserva en exclusiva y
+nadie se queda en tierra esperando.
+
+Que sea físicamente imposible da igual — nadie ve el avión de nadie. Y lo que
+se evita es lo primero que hace abandonar una aerolínea virtual: *«quería volar
+el sábado y no pude»*.
+
+**El desgaste de los vuelos simultáneos se suma sobre la misma célula.** Tres
+pilotos volando una hora el mismo avión le acumulan tres horas. Eso tiene una
+propiedad buena: el desgaste sigue al **uso que le da el club**, no al reloj de
+pared, así que los aviones populares se gastan antes. Es lo que pasa de verdad,
+aunque el mecanismo sea otro.
+
+Se conserva lo único que aporta una flota común: **las consecuencias se
+comparten**. Si alguien machaca el C172, la salud de esa célula baja para
+todos, y eso hace que a cada uno le importe cómo vuela el resto.
+
+### La matrícula la pone EvA, no el simulador
+
+MSFS reporta lo que el piloto tenga escrito en el campo de matrícula de su
+avión. En los 15 vuelos de prueba del 2026-08 decía `EVA18L`, que es el
+indicativo del piloto, no una matrícula de flota.
+
+Así que **el avión sale de lo que el piloto eligió en la web** al preparar el
+vuelo, y el campo del simulador se ignora. Como mucho, avisar si no coinciden
+—igual que el aviso de aeródromo de salida de `client/avcars/ubicacion.py`—,
+pero nunca usarlo como fuente.
+
+### Cuántas células
+
+Sin exclusiva, el número ya no decide quién puede volar: **decide el ritmo del
+mantenimiento**. Pocas células concentran horas y las revisiones llegan; muchas
+las reparten y el desgaste se queda de adorno.
+
+Con una sola célula por tipo y el número de pilotos activos:
+
+| Pilotos activos | Horas/semana | Revisión de 100 h cada… |
+|---:|---:|---|
+| 2 | ~5 | 5 meses |
+| 5 | ~12 | 2 meses |
+| 10 | ~24 | 1 mes |
+| 20 | ~48 | 2 semanas |
+
+**Empezar con una célula por tipo: ocho aviones.** Con 2 cuentas activas, más
+células harían que el mantenimiento no llegara a ocurrir nunca. Añadir una
+segunda es una fila; quitarla cuando ya hay pilotos con historial en ella, no.
+
+**Regla para crecer:** segunda célula de un tipo cuando su revisión de 100 h
+empiece a caer más a menudo de cada 6 semanas. Pasará primero con el C172,
+porque todo el mundo entra por ahí.
+
+---
+
 ## Decisión de diseño: provisión por hora, no factura de golpe
 
 Las revisiones de 50 h y 100 h son un coste por **horas acumuladas del avión**,
@@ -165,6 +221,32 @@ primero es mejor: al importar ya se tiene el veredicto delante.
 
 ---
 
+## Nada inmoviliza, y por eso no hace falta botón de reparar
+
+Con una sola célula por tipo, inmovilizar el C172 dos horas deja **a todo el
+club** sin C172. Va contra la decisión de que nadie se quede en tierra, así que
+la columna de horas de inmovilización de las tablas originales queda como dato
+informativo y no gobierna nada.
+
+El ciclo, sin ningún estado que bloquee:
+
+1. **Cada hora volada aporta su provisión**, cobrada en el vuelo. Automática:
+   no hay forma de "no mantener" el avión.
+2. **Al llegar a las 100 h**, la revisión se da por pasada —ya está pagada— y
+   el desgaste acumulado vuelve a cero.
+3. **Un evento de daño lo paga quien lo causa, en el momento**, y ese pago *es*
+   la reparación. No queda nada pendiente para nadie.
+
+Así no hay botón de reparar, y sobre todo **no hay gorrones**: si arreglar
+beneficiara a todos y lo pagara uno, nadie lo pagaría nunca. Es el problema
+clásico de lo común, y habría hundido el sistema en un mes.
+
+La salud de la célula queda entonces como un diente de sierra: baja con las
+horas y con los eventos, y sube con cada revisión. Sirve para **verse** —y para
+que a cada uno le importe cómo vuela el resto—, no para apagar aviones.
+
+---
+
 ## Preguntas abiertas
 
 1. **¿El alquiler ya incluía el mantenimiento?** Las tarifas de 60/140/250/400/900 €/h
@@ -173,7 +255,8 @@ primero es mejor: al importar ya se tiene el veredicto delante.
    la provisión visible aparte: si el mantenimiento va escondido en el
    alquiler, el piloto no lo mira y deja de cuidar el avión, que es justo lo
    contrario de lo que se busca.
-2. **¿Quién pasa la revisión cuando toca?** ¿Un botón que alguien pulsa, o el
-   avión vuelve solo al servicio cuando pasan las horas de inmovilización?
-3. **¿Qué pasa si nadie repara un avión?** Se queda en tierra indefinidamente,
-   y con flota compartida eso afecta a todos.
+2. **Las matrículas concretas de las ocho células.** Hoy no existen: hay que
+   elegirlas (EC-xxx) y crear la tabla de flota.
+3. **¿Se avisa si el simulador reporta otra matrícula?** Igual que el aviso de
+   aeródromo de salida: avisar sin bloquear, y mirar en un mes cuántas veces
+   salta antes de decidir si endurecerlo.
