@@ -215,6 +215,19 @@ DA62:
     vr: null
     vx: null
     vy: null
+  pesos:
+    # Ficha tecnica oficial de Diamond Aircraft (diamondaircraft.com,
+    # DA62 > Technical Specifications), consultada el 2026-08-28. Sin esto
+    # el DA62 era el unico avion de la flota sin MTOW en ninguna parte, y
+    # la tabla de pesos de /plan se quedaba en "-" al seleccionarlo.
+    #
+    # OJO: Diamond vende dos versiones, 2300 kg y 1999 kg. Aqui va la de
+    # 2300 kg, que es la que modela MSFS. Si algun dia se soporta la de
+    # 1999, no vale con cambiar el numero: son dos aviones distintos a
+    # efectos de despacho.
+    mtow_kg: 2300
+    vacio_kg: 1598            # sin opcionales; uno equipado pesa mas
+    carga_util_max_kg: 702
   referencia_sim:
     fuente: >-
       flight_model.cfg de asobo-aircraft-da62 (MSFS 2020),

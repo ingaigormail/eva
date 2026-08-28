@@ -37,6 +37,22 @@ ESTIMACION: dict[str, dict] = {
         "consumo_kg_h": 70,
         "plazas": 6,
     },
+    # Anadido el 2026-08-28: era el unico avion de la flota que no aparecia
+    # en la tabla de pesos de /plan. Cifras de la ficha tecnica oficial de
+    # Diamond (diamondaircraft.com, DA62 > Technical Specifications):
+    #   vacio sin opcionales 1598 kg | util max 702 kg | MTOM 2300 kg
+    #   combustible utilizable: principal 151 kg + auxiliar 110 kg = 261 kg
+    #   consumo al 60% a 12.000 ft: 44,7 l/h -> ~36 kg/h (Jet-A, 0,80 kg/l)
+    "DA62": {
+        # 1650 y no los 1598 de catalogo: esa cifra es "sin opcionales" y
+        # cualquier avion equipado pesa mas. Cargar el mas ligero posible
+        # haria que el semaforo avisara tarde, que es el error que no
+        # interesa cometer en un calculo de peso.
+        "oew_kg": 1650,
+        "combustible_util_kg": 261,
+        "consumo_kg_h": 36,
+        "plazas": 7,
+    },
     "TBM9": {
         "oew_kg": 2100,
         "combustible_util_kg": 1100,
@@ -65,12 +81,28 @@ ESTIMACION: dict[str, dict] = {
 
 
 def mtow_kg(ficha: dict) -> Optional[float]:
-    ref = ficha.get("referencia_atc") or {}
-    if isinstance(ref, dict) and ref.get("mtow_kg"):
-        return float(ref["mtow_kg"])
-    sim = ficha.get("referencia_sim") or {}
-    if isinstance(sim, dict) and sim.get("mtow_kg"):
-        return float(sim["mtow_kg"])
+    """El MTOW del avión, mirando en los tres sitios donde puede estar.
+
+    `aircraft.yaml` no guarda el MTOW en un único sitio: la mayoría de los
+    aviones lo tienen en `referencia_atc`, pero el TBM 930 lo tiene en un
+    bloque `pesos` con las cifras del manual (MTOW, máximo en rampa, máximo
+    al aterrizar, máximo sin combustible). Mirar solo en `referencia_atc`
+    dejaba al TBM sin MTOW, y sin MTOW la tabla de pesos de `/plan` se
+    quedaba entera en "—": el piloto tocaba pasajeros y carga y no cambiaba
+    nada. Arreglado el 2026-08-28.
+
+    `pesos` va primero porque son datos de manual, que mandan sobre la ficha
+    de referencia para ATC. Hoy solo el TBM lo tiene, así que el orden no
+    cambia el valor de ningún otro avión.
+    """
+    for bloque, clave in (
+        ("pesos", "mtow_kg"),
+        ("referencia_atc", "mtow_kg"),
+        ("referencia_sim", "mtow_kg"),
+    ):
+        datos = ficha.get(bloque) or {}
+        if isinstance(datos, dict) and datos.get(clave):
+            return float(datos[clave])
     return None
 
 

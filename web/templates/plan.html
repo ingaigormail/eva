@@ -602,7 +602,14 @@ function actualizarPesoTotal() {
   const detalles = $("detalles-peso");
   const pesoPiloto = PESO_PERSONA_KG;
   const pesoPasajeros = pasajeros * PESO_PERSONA_KG;
-  const pesoCarga = tipoCarga === "ninguno" ? 0 : cargaKg;
+  // Con el tipo en "ninguno" los kilos no cuentan. Antes se descartaban en
+  // silencio: escribías 200 kg de carga, no pasaba nada, y no había forma de
+  // saber por qué. Ahora el campo se apaga y se pone a cero, para que el
+  // motivo se vea en vez de adivinarse.
+  const sinCarga = tipoCarga === "ninguno";
+  $("carga-kg").disabled = sinCarga;
+  if (sinCarga && cargaKg !== 0) $("carga-kg").value = 0;
+  const pesoCarga = sinCarga ? 0 : cargaKg;
   const ingresoPasajeros = pasajeros * PRECIO_PASAJERO;
   const ingresoCarga = tipoCarga === "ninguno" ? 0 :
                        pesoCarga * (PRECIOS_CARGA[tipoCarga] || 4);
@@ -613,8 +620,10 @@ function actualizarPesoTotal() {
   $("label-pasajeros").textContent = `Pasajeros (${pasajeros} × ${PESO_PERSONA_KG} kg)`;
   $("ingreso-pasajeros").textContent = `${ingresoPasajeros} €`;
   $("peso-carga").textContent = pesoCarga;
-  const nombreCarga = tipoCarga === "ninguno" ? "Sin carga" : tipoCarga;
-  $("label-carga").textContent = `${nombreCarga} (${cargaKg} kg)`;
+  const nombreCarga = sinCarga ? "Sin carga" : tipoCarga;
+  // `pesoCarga` y no `cargaKg`: si no, al apagar el campo el rótulo se queda
+  // diciendo "Sin carga (200 kg)", que no significa nada.
+  $("label-carga").textContent = `${nombreCarga} (${pesoCarga} kg)`;
   $("ingreso-carga").textContent = `${ingresoCarga.toFixed(0)} €`;
   $("ingreso-total").textContent = `${(ingresoPasajeros + ingresoCarga).toFixed(0)} €`;
 

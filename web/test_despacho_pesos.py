@@ -68,3 +68,50 @@ def test_plantilla_incluye_c172_con_mtow_del_yaml():
 
 def test_mtow_tbm_sale_de_referencia_sim():
     assert mtow_kg({"referencia_sim": {"mtow_kg": 3354}}) == 3354
+
+
+# -- que ningun avion de la flota se quede sin calculo ------------------
+
+def test_todos_los_aviones_de_la_flota_calculan_su_peso():
+    """El fallo del 2026-08-28, y la red para que no vuelva.
+
+    Un avión que está en el desplegable de `/plan` pero no en `DESPACHO`
+    deja la tabla de pesos entera en "—": el piloto toca pasajeros y carga y
+    no cambia nada, sin ninguna explicación de por qué. Pasó con dos de los
+    ocho aviones a la vez y por motivos distintos:
+
+    - el TBM 930 tenía su MTOW en el bloque `pesos` del yaml, donde
+      `mtow_kg()` no miraba;
+    - el DA62 no tenía MTOW en ninguna parte, ni ficha en `ESTIMACION`.
+
+    Esta prueba no comprueba un avión concreto: recorre la flota real. Si
+    mañana se añade uno y se olvida su ficha de despacho, falla aquí en vez
+    de descubrirse volando.
+    """
+    sys.path.insert(0, str(WEB_DIR.parent / "client"))
+    from avcars.config import load_aircraft
+
+    flota = load_aircraft()
+    datos = datos_para_plantilla(flota)
+
+    sin_datos = sorted(set(flota) - set(datos))
+    assert not sin_datos, (
+        "estos aviones se pueden elegir en /plan pero no calculan peso: "
+        f"{sin_datos}. Falta MTOW en aircraft.yaml o ficha en ESTIMACION."
+    )
+
+
+def test_el_mtow_tambien_se_busca_en_el_bloque_pesos():
+    """El TBM 930 lo tiene ahí, con las cifras del manual."""
+    assert mtow_kg({"pesos": {"mtow_kg": 3354}}) == 3354
+
+
+def test_el_bloque_pesos_manda_sobre_la_referencia_para_atc():
+    """Son datos de manual: pesan más que una ficha de referencia."""
+    ficha = {"pesos": {"mtow_kg": 3354}, "referencia_atc": {"mtow_kg": 9999}}
+    assert mtow_kg(ficha) == 3354
+
+
+def test_sin_mtow_en_ningun_sitio_no_hay_ficha():
+    """Mejor sin ficha que con un MTOW inventado: el semáforo avisaría mal."""
+    assert mtow_kg({"referencia_atc": {"disponible": False}}) is None
