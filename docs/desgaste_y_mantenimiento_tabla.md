@@ -62,6 +62,45 @@ Se conserva lo único que aporta una flota común: **las consecuencias se
 comparten**. Si alguien machaca el C172, la salud de esa célula baja para
 todos, y eso hace que a cada uno le importe cómo vuela el resto.
 
+### La flota: ocho células, una por tipo
+
+Matrícula e indicativo son cosas distintas y hoy están confundidas:
+
+| | Qué es | Dónde vive |
+|---|---|---|
+| `EVA18L` | Indicativo de radio, el «número de vuelo» | vPilot, al conectar a VATSIM |
+| `EC-xxx` | Matrícula, lo que va pintado en el avión | Campo *tail number* de MSFS |
+
+No compiten: el piloto vuela como `EVA18L` en la red **y** lleva `EC-EVA`
+pintado, igual que en la realidad. El problema actual es que el campo de
+matrícula del simulador tiene el indicativo, así que EvA lee uno creyendo leer
+el otro.
+
+La flota, decidida el 2026-08-28. Serie `EC-EV·`, con la última letra siguiendo
+**el orden de la escalera de habilitaciones**: la A es el avión de entrada y la
+H es el reactor. Así la matrícula sola ya te dice dónde está ese avión en la
+progresión, y un piloto P1 sabe de un vistazo que la EC-EVE no es para él.
+
+| Matrícula | Tipo | Avión | Nivel |
+|---|---|---|---|
+| **EC-EVA** | C172 | Cessna 172 Skyhawk | P0 |
+| **EC-EVB** | DA62 | Diamond DA62 | P1 |
+| **EC-EVC** | BE58 | Beechcraft Baron G58 | P1 |
+| **EC-EVD** | C208 | Cessna 208 Caravan | P2 |
+| **EC-EVE** | TBM9 | Daher TBM 930 | P2 |
+| **EC-EVF** | B350 | Beechcraft King Air 350i | P3 |
+| **EC-EVG** | DHC6 | DHC-6 Twin Otter | P3 |
+| **EC-EVH** | C25C | Cessna Citation CJ4 | P4 |
+
+`EC-` es el prefijo español y `EV` ata la serie a EvA. Al añadir una segunda
+célula de un tipo, seguir por la I: `EC-EVI` sería el segundo C172, y su ficha
+dice de qué tipo es.
+
+**Sin comprobar contra el registro real de AESA.** Combinaciones como EC-EVA
+son plausibles y podrían pertenecer a un avión que existe de verdad. Para una
+aerolínea virtual no tiene consecuencias, pero si algún día se publican en la
+web conviene mirarlo antes.
+
 ### La matrícula la pone EvA, no el simulador
 
 MSFS reporta lo que el piloto tenga escrito en el campo de matrícula de su
@@ -255,8 +294,11 @@ que a cada uno le importe cómo vuela el resto—, no para apagar aviones.
    la provisión visible aparte: si el mantenimiento va escondido en el
    alquiler, el piloto no lo mira y deja de cuidar el avión, que es justo lo
    contrario de lo que se busca.
-2. **Las matrículas concretas de las ocho células.** Hoy no existen: hay que
-   elegirlas (EC-xxx) y crear la tabla de flota.
-3. **¿Se avisa si el simulador reporta otra matrícula?** Igual que el aviso de
+2. **¿Se avisa si el simulador reporta otra matrícula?** Igual que el aviso de
    aeródromo de salida: avisar sin bloquear, y mirar en un mes cuántas veces
-   salta antes de decidir si endurecerlo.
+   salta antes de decidir si endurecerlo. Al principio saltará siempre, porque
+   hoy todo el mundo lleva su indicativo en ese campo.
+3. **¿Se pide al piloto que ponga la matrícula en el simulador?** Es un campo
+   que se edita una vez por avión y se queda guardado, así que el coste es
+   bajo y a cambio el avión lleva pintado lo que le corresponde. Pero es
+   fricción, y hay que decidir si compensa.
