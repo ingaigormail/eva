@@ -507,6 +507,8 @@ def test_vuelos_enlaza_cada_tipo_a_su_ficha():
             ),
             catalogo=[],
             saldo=0,
+            dinero={"ingresos": 0, "costes": 0, "ganado": 0,
+                    "gastado_en_aviones": 0, "saldo": 0, "vuelos_con_dinero": 0},
         )
 
     assert 'href="/vuelo/un_vuelo.avlog.json"' in html

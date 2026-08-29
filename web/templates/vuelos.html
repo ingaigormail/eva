@@ -78,20 +78,44 @@
           <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a4 4 0 0 0 0 8h5.5M7 19h10a4 4 0 0 0 0-8H9"/></svg></span>
           <div>
             <h2>Tu economía</h2>
-            <p>Los €vAs que has ganado volando. Solo cuentan los vuelos aprobados.</p>
+            <p>
+              Lo que cobras por volar menos lo que cuesta el vuelo. Un vuelo
+              suspendido cobra menos y paga lo mismo.
+            </p>
           </div>
         </div>
 
         <div class="kpis">
           <div class="kpi">
-            <div class="valor">{{ resumen.evolocutor_vAs }}</div>
-            <div class="etiqueta">💰 €vAs conseguidos</div>
+            <div class="valor">{{ dinero.ingresos }}</div>
+            <div class="etiqueta">💰 Ingresos (€vAs)</div>
           </div>
-          <div class="kpi {{ 'apto' if saldo > 0 else '' }}">
+          <div class="kpi">
+            <div class="valor">{{ dinero.costes }}</div>
+            <div class="etiqueta">⛽ Costes (€vAs)</div>
+          </div>
+          <div class="kpi {{ 'apto' if dinero.ganado > 0 else ('ambar' if dinero.ganado < 0 else '') }}">
+            <div class="valor">{{ dinero.ganado }}</div>
+            <div class="etiqueta">📈 Ganado volando</div>
+          </div>
+          <div class="kpi {{ 'apto' if saldo > 0 else ('ambar' if saldo < 0 else '') }}">
             <div class="valor">{{ saldo }}</div>
             <div class="etiqueta">🏦 Saldo disponible</div>
           </div>
         </div>
+
+        {% if dinero.gastado_en_aviones %}
+        <p class="pie" style="margin-top:10px">
+          Has invertido <strong>{{ dinero.gastado_en_aviones }} €vAs</strong> en comprar aviones.
+        </p>
+        {% endif %}
+
+        {% if not dinero.vuelos_con_dinero %}
+        <p class="pie" style="margin-top:10px">
+          Todavía no hay ningún vuelo que mueva dinero: solo cuentan los que se
+          han podido evaluar.
+        </p>
+        {% endif %}
 
         {% if catalogo %}
         <h3 style="font-size:14px;margin:22px 0 4px">Mis aviones</h3>

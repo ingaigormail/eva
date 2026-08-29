@@ -54,6 +54,7 @@ from avcars.evaluation.scoring import Verdict, evaluate_flight  # noqa: E402
 from avcars.evaluation import espacio_aereo, reglas_config, reglas_info  # noqa: E402
 from avcars.prefile import PrefileExtras, icao_fpl, vatsim_prefile_url  # noqa: E402
 from avcars import ubicacion  # noqa: E402  (distancia entre coordenadas)
+from avcars import economia_vuelo  # noqa: E402  (lo que deja cada vuelo)
 from avcars.config import load_economia  # noqa: E402
 from avcars.schema import FlightLog, FlightPlanInfo, PilotInfo  # noqa: E402
 from avcars import (  # noqa: E402
@@ -212,6 +213,18 @@ AIRPORTS = load_airports()
 #: Base versionada de la economía; lo que un administrador pise en vivo se
 #: aplica encima con `reglas_config.economia_efectiva()`.
 ECONOMIA = load_economia()
+
+# Las etapas de la Vuelta a la Península son datos de siembra, como la cuenta
+# semilla: sin ellas la página de Eventos sale vacía y no avisa de nada.
+# Producción estuvo así porque el importador nunca se ejecutó allí. Solo
+# importa si faltan — nunca pisa el progreso de los pilotos.
+try:
+    import importar_vuelta_espana  # noqa: E402
+
+    if importar_vuelta_espana.asegurar_importadas():
+        app.logger.info("Vuelta a la Península: etapas importadas al arrancar")
+except Exception as exc:  # noqa: BLE001 — sin etapas la web funciona igual
+    app.logger.warning("no se pudieron importar las etapas de la Vuelta: %s", exc)
 
 #: Espacio aéreo oficial de ENAIRE, para la regla de invasión de zonas. Se
 #: genera con `web/tools/descargar_enaire.py` y no está en git: si falta, la
@@ -1777,32 +1790,102 @@ def vuelos():
     economia_viva = reglas_config.economia_efectiva(
         ECONOMIA, reglas_config.cargar_overrides()
     )
-    resumen = _resumen_de_la_cartilla(vuelos)
+    dinero = _economia_del_piloto(piloto, economia_viva)
     return render_template(
         "vuelos.html",
         vuelos=vuelos,
         total=len(vuelos),
-        resumen=resumen,
+        resumen=_resumen_de_la_cartilla(vuelos),
         catalogo=flota_eva.catalogo_de_compra(
             cuentas.categoria_de(piloto), piloto, AIRCRAFT, economia_viva
         ),
-        saldo=_saldo_del_piloto(piloto, resumen["evolocutor_vAs"]),
+        dinero=dinero,
+        saldo=dinero["saldo"],
     )
 
 
-def _saldo_del_piloto(license_id: str, ganado: float) -> float:
-    """Lo ganado volando menos lo gastado en aviones.
+def _tamano_de_aerodromo(icao: str) -> Optional[str]:
+    """'large' | 'medium' | 'small', o None si no se sabe.
 
-    Sin saldo inicial: el dinero que hay es el que se ha volado. Ponerlo de
-    regalo haría que el primer avión no costara ningún vuelo.
+    La tabla `aerodromos_es` no está en todos los despliegues (producción
+    arrancó sin ella). Sin el dato se cobra la tasa de «desconocido», que para
+    eso está en el fichero de economía.
     """
-    with cuentas.conexion() as con:
-        fila = con.execute(
-            "SELECT COALESCE(SUM(coste_pagado), 0) AS g FROM aviones_comprados"
-            " WHERE license_id = ? COLLATE NOCASE",
-            (license_id,),
-        ).fetchone()
-    return round(ganado - float(fila["g"] or 0), 2)
+    if not icao:
+        return None
+    try:
+        with cuentas.conexion() as con:
+            fila = con.execute(
+                "SELECT type FROM aerodromos_es WHERE icao = ? COLLATE NOCASE",
+                (icao,),
+            ).fetchone()
+    except Exception:  # noqa: BLE001 — sin tabla, tasa de desconocido
+        return None
+    if not fila or not fila["type"]:
+        return None
+    tipo = str(fila["type"]).lower()
+    for tamano in ("large", "medium", "small"):
+        if tamano in tipo:
+            return tamano
+    return None
+
+
+def _economia_del_piloto(license_id: str, economia: dict) -> dict:
+    """Lo que ha ganado, lo que ha gastado y lo que le queda.
+
+    Sale de `vuelos_resumen`, que es lo único que guarda el avión, el
+    combustible y la red de cada vuelo. La lista de ficheros de la cartilla no
+    sirve para esto: no sabe con qué se voló.
+
+    Sin saldo inicial: el dinero que hay es el que se ha volado. Regalarlo
+    haría que el primer avión no costara ningún vuelo.
+    """
+    propios = set(cuentas.aviones_de(license_id))
+
+    try:
+        with cuentas.conexion() as con:
+            filas = con.execute(
+                "SELECT * FROM vuelos_resumen WHERE license_id = ? COLLATE NOCASE",
+                (license_id,),
+            ).fetchall()
+            gastado = float(
+                con.execute(
+                    "SELECT COALESCE(SUM(coste_pagado), 0) AS g"
+                    " FROM aviones_comprados WHERE license_id = ? COLLATE NOCASE",
+                    (license_id,),
+                ).fetchone()["g"]
+                or 0
+            )
+    except Exception:  # noqa: BLE001 — la cartilla no se cae por la economía
+        return {"ingresos": 0.0, "costes": 0.0, "ganado": 0.0,
+                "gastado_en_aviones": 0.0, "saldo": 0.0, "vuelos_con_dinero": 0}
+
+    ingresos = costes = 0.0
+    con_dinero = 0
+    for fila in filas:
+        vuelo = dict(fila)
+        cuenta = economia_vuelo.calcular(
+            vuelo,
+            economia,
+            aviones=AIRCRAFT,
+            es_propio=(vuelo.get("aeronave") or "").upper() in propios,
+            tamano_aerodromo=_tamano_de_aerodromo,
+        )
+        if cuenta["sin_movimiento"]:
+            continue
+        ingresos += cuenta["ingreso"]
+        costes += cuenta["coste"]
+        con_dinero += 1
+
+    ganado = round(ingresos - costes, 2)
+    return {
+        "ingresos": round(ingresos, 2),
+        "costes": round(costes, 2),
+        "ganado": ganado,
+        "gastado_en_aviones": round(gastado, 2),
+        "saldo": round(ganado - gastado, 2),
+        "vuelos_con_dinero": con_dinero,
+    }
 
 
 @app.route("/economia/comprar/<icao>", methods=["POST"])
@@ -1822,9 +1905,7 @@ def comprar_avion(icao: str):
     elif cuentas.tiene_avion(piloto, icao):
         flash("Ya tienes ese avión.", "error")
     else:
-        vuelos = _vuelos_del_piloto(piloto)
-        ganado = _resumen_de_la_cartilla(vuelos)["evolocutor_vAs"]
-        if _saldo_del_piloto(piloto, ganado) < precio:
+        if _economia_del_piloto(piloto, economia_viva)["saldo"] < precio:
             flash("No tienes €vAs suficientes para comprarlo.", "error")
         else:
             cuentas.comprar_avion(piloto, icao, precio)
@@ -1851,12 +1932,9 @@ def _resumen_de_la_cartilla(vuelos: list[dict]) -> dict:
     millas_ok = sum(v["distancia_nm"] for v in aprobados)
     evaluados = len(aprobados) + len(suspendidos)
 
-    # Cálculo de €vAs: solo los vuelos aprobados generan ingresos
-    economia = reglas_config.economia_efectiva(ECONOMIA, reglas_config.cargar_overrides())
-    tarifa_base = economia.get("ingresos", {}).get("base_nm", 1.0)
-    millas_totales = sum(v["distancia_nm"] for v in aprobados)
-    evolocutor_vAs = round(millas_totales * tarifa_base, 2)
-
+    # El dinero NO se calcula aquí: sale de `_economia_del_piloto()`, que lee
+    # `vuelos_resumen` y sabe con qué avión se voló y qué combustible gastó.
+    # Esta lista son ficheros del disco y no lleva ninguna de las dos cosas.
     return {
         "total": len(vuelos),
         "aprobados": len(aprobados),
@@ -1870,7 +1948,6 @@ def _resumen_de_la_cartilla(vuelos: list[dict]) -> dict:
         "horas_aprobadas": round(minutos_ok / 60, 1),
         "millas_aprobadas": round(millas_ok),
         "vuelo_mas_largo_nm": round(max((v["distancia_nm"] for v in vuelos), default=0)),
-        "evolocutor_vAs": evolocutor_vAs,
     }
 
 

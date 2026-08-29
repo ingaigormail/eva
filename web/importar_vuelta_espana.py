@@ -118,5 +118,37 @@ def importar(dst: Path | None = None) -> None:
     print(f"[OK] {len(ETAPAS)} etapas importadas a rutas_vfr (route_id='{ROUTE_ID}')")
 
 
+def asegurar_importadas(dst: Path | None = None) -> bool:
+    """Importa las etapas solo si no están. Devuelve si hubo que importarlas.
+
+    El servidor de producción estuvo desde el 2026-08-29 con la página de
+    Eventos vacía porque nadie había ejecutado el importador allí: la tabla
+    `rutas_vfr` ni siquiera existía, y la página se traga el error y pinta
+    cero etapas. Esto lo arregla solo en el arranque.
+
+    **No** llama a `importar()` a ciegas: esa función borra `progreso_rutas`
+    de la ruta antes de reinsertar, así que hacerlo en cada arranque
+    machacaría las etapas que los pilotos llevan completadas.
+    """
+    destino = Path(dst) if dst is not None else EVA_DB
+    if not destino.parent.exists():
+        return False
+
+    conn = sqlite3.connect(destino)
+    try:
+        ya_estan = conn.execute(
+            "SELECT COUNT(*) FROM rutas_vfr WHERE route_id = ?", (ROUTE_ID,)
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        ya_estan = 0          # la tabla no existe todavía
+    finally:
+        conn.close()
+
+    if ya_estan:
+        return False
+    importar(destino)
+    return True
+
+
 if __name__ == "__main__":
     importar()
