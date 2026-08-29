@@ -74,13 +74,13 @@ Estado: ✅ en producción, respondiendo en `https://7c0cdce9-a46a-4339-9df6-50a
 - Decidir si desplegar `/vatsim` o dejarlo solo local.
 - X-Plane `poll()` sigue sin cerrar.
 - Economía V1 F1 pendiente de visto humano (no programar hasta aprobar `thoughts/plans/2026-08-28-economia-v1-15-secciones.md`).
-- Confirmación: `calidad.no_apto` en 0,2 (¿premia cantidad o calidad?).
 
 ## Decisiones importantes
 - Números de la guía = perfil `normal` (`profiles.yaml`); easy/hard solo relectura.
 - Beacon/nav/taxi/strobe **restan puntos**; no son fallo grave (el motor manda, no fichas antiguas).
 - Little, EvA cartilla y Airhispania comparten puerto **5000**: no arrancar más de una.
 - `/vatsim` y `/api/vatsim-data` están en la lista pública de `exigir_sesion` (sin login).
+- **Economía: `calidad.no_apto = 0.3`** (decidido 2026-08-29). Penaliza más los vuelos no aptos; un vuelo malo no cubre ni combustible.
 
 ## Problemas conocidos
 - `/registro/<nombre>` no usa `_find_by_name`: construye `directory / nombre` con lo que llega en la URL. **Comprobado el 2026-08-28: NO es explotable** — `..\..\Windows\win.ini`, `..\data\eva.db` y `C:\Windows\win.ini` dan los tres 404, porque `es_de()` devuelve falso para un fichero que no es un vuelo. Pero se salva por accidente, no por diseño: si alguien reordena el código o relaja `es_de`, se abre. Arreglo: usar `_find_by_name`, que compara nombres y nunca construye rutas (por eso lo hace así `detalle()`).

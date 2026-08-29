@@ -70,11 +70,10 @@ ingresos:
 #     mensual a quien vuela poco y bien.
 #   - A 0.2, un vuelo malo no cubre ni el combustible y machacar vuelos
 #     regulares deja de compensar.
-# Pendiente de decision del usuario (2026-08-28): se deja en 0.2, que es lo
-# recomendado, pero es el primer numero que revisar si la gente se queja.
+# Decisión del usuario (2026-08-29): 0.3. Penaliza más los vuelos no aptos.
 calidad:
   apto: 1.0
-  no_apto: 0.2
+  no_apto: 0.3
   fail: 0.0
   # Un vuelo que no se puede evaluar (CSV sin datos, traza incompleta) no
   # mueve dinero: ni ingreso ni coste. No es un abuso, es un problema
