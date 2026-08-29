@@ -10,6 +10,7 @@ Requisitos:
     - Cliente de EvA conectado a SimConnect
     - fstelemetry instalado (pip install fstelemetry)
 """
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -21,9 +22,15 @@ sys.path.insert(0, str(CLIENT_DIR))
 
 from avcars.connectors.simconnect_client import (
     SimConnectConnector,
-    HAS_FSTELEMETRY,
     SimConnectNotAvailable,
 )
+
+# fstelemetry ya no se importa desde el conector: pasó a ser una herramienta
+# de línea de órdenes aparte (ver la cabecera de `simconnect_client.py`), y con
+# ella se fue el `HAS_FSTELEMETRY` que este fichero importaba. Se detecta aquí
+# para que la suite se pueda recolectar aunque no esté instalada; sin esto, un
+# ImportError tumbaba la recolección de TODAS las pruebas del proyecto.
+HAS_FSTELEMETRY = importlib.util.find_spec("fstelemetry") is not None
 
 
 class TestHybridArchitecture:

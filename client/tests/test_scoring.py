@@ -146,6 +146,12 @@ def test_warnings_and_config_are_evaluated_with_data():
         point.overspeed_warning = False
         point.qnh_inhg = 29.92
         point.gear_down = True
+    # El tren se recoge en crucero. Sin esto todas las muestras dirían "abajo",
+    # que es la huella de un avión de tren fijo: el motor da la regla por no
+    # aplicable y `gear_on_touchdown` se quedaría sin evaluar.
+    for point in flight.track:
+        if not point.on_ground and (point.alt_agl_ft or 0) > 1000:
+            point.gear_down = False
     touchdown = next(e for e in flight.events if e.type == "touchdown")
     # El fixture muestrea cada ~60 s; añade un punto justo en el touchdown
     # con el tren abajo para que la regla tenga datos.
@@ -318,19 +324,61 @@ def test_good_flight_has_no_bank_or_light_penalties():
 
 
 def test_excessive_bank_angle_is_fail():
+    """Pasarse del `fail_deg` del perfil tumba el vuelo, mire la puntuación.
+
+    La escora se pone aquí y no en el fixture: `sample_flight_fail.json` lo
+    comparten dieciséis pruebas y su alabeo máximo es de 15°, así que meterle
+    un viraje extremo cambiaría el resultado de todas las demás.
+    """
     flight = _load("sample_flight_fail.json")
     profile = get_profile("normal", PROFILES)
+    limite = profile["bank_angle"]["fail_deg"]
+
+    en_vuelo = [p for p in flight.track if not p.on_ground]
+    assert en_vuelo, "el fixture debería tener tramo en vuelo"
+    en_vuelo[len(en_vuelo) // 2].bank_deg = limite + 10
+
     verdict = evaluate_flight(flight, profile)
 
     assert "excessive_bank_angle" in verdict.failed_hard
+    assert not verdict.passed
 
 
 def test_light_violations_are_penalized():
+    """Volar sin estrobos se penaliza.
+
+    El motor sabe evaluar todas las luces; quien decide cuáles puntúan es la
+    aerolínea, al pasar `reglas_activas`. Aquí se comprueba lo primero.
+    """
     flight = _load("sample_flight_fail.json")
     profile = get_profile("normal", PROFILES)
+
+    # El fixture vuela con los estrobos puestos; se apagan aquí para provocar
+    # la infracción sin tocar un fichero que comparten dieciséis pruebas.
+    for punto in flight.track:
+        if not punto.on_ground:
+            punto.strobe_light = False
+
     verdict = evaluate_flight(flight, profile)
 
     by_rule = {item.rule: item for item in verdict.items}
-    assert by_rule["landing_light_takeoff"].passed is False
-    assert by_rule["taxi_light"].passed is False
     assert by_rule["strobe_airborne"].passed is False
+
+
+def test_de_las_luces_solo_puntua_el_estrobo():
+    """La decisión de la aerolínea del 2026-08-25, fijada.
+
+    Las demás luces dejaron de penalizar: el motor las sigue sabiendo evaluar,
+    pero EvA no las cuenta. Si alguien vuelve a puntuar la luz de rodaje sin
+    querer, salta aquí.
+    """
+    from avcars.evaluation import reglas_config
+
+    assert reglas_config.regla_activa("strobe_airborne", {})
+
+    for apagada in ("landing_light_takeoff", "landing_light_landing",
+                    "taxi_light", "beacon_airborne", "nav_light_airborne"):
+        assert not reglas_config.regla_activa(apagada, {}), f"{apagada} no debería puntuar"
+
+    # Y un administrador puede volver a encenderlas desde /gestion/reglas.
+    assert reglas_config.regla_activa("taxi_light", {"activo": {"taxi_light": True}})

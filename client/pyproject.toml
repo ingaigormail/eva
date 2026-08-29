@@ -37,3 +37,11 @@ include = ["avcars*"]
 
 [tool.setuptools.package-data]
 avcars = ["assets/*"]
+
+[tool.pytest.ini_options]
+# `integration` marca lo que necesita MSFS corriendo: no se puede pasar en un
+# equipo sin simulador. Declarada aquí para que pytest no avise de marca
+# desconocida en cada ejecución.
+markers = [
+    "integration: necesita el simulador en marcha; no corre en cualquier equipo",
+]

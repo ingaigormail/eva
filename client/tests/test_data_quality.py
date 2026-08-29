@@ -46,8 +46,21 @@ def test_el_vuelo_eva18l_no_aprueba_por_falta_de_pruebas():
 
 
 def test_el_vuelo_de_datos_congelados_no_es_evaluable():
-    """99 puntos, pero todos en la misma posición."""
-    flight = _load("vuelo_datos_congelados.json")
+    """Muchos puntos, pero todos en la misma posición.
+
+    Es la forma del fallo del 15 de agosto de 2026: SimConnect devolvía
+    siempre la lectura cacheada y el track salía con una sola posición
+    repetida. El vuelo se congela aquí en vez de cargar aquel fichero porque
+    `vuelo_datos_congelados.json` se perdió y no está en el historial de git;
+    lo que importa es que `check()` reconozca la forma, no aquel vuelo.
+    """
+    flight = _load("sample_flight_pass.json")
+    primero = flight.track[0]
+    for punto in flight.track:
+        punto.lat = primero.lat
+        punto.lon = primero.lon
+        punto.alt_msl_ft = primero.alt_msl_ft
+        punto.gs_kt = primero.gs_kt
 
     report = check(flight)
 

@@ -8,26 +8,21 @@ La grabación salió inservible por dos motivos que van juntos:
 2. **27 pausas inventadas.** Cada consulta tardaba 3,1 s, y el detector de
    pausas se disparaba solo con ver un hueco grande entre lecturas.
 
-El fichero de aquel vuelo está en `fixtures/vuelo_datos_congelados.json` y
-sirve para comprobar que sabemos reconocer el problema.
+El fichero de aquel vuelo (`fixtures/vuelo_datos_congelados.json`) se perdió
+y no está en el historial de git, así que las dos pruebas que solo describían
+su contenido —99 puntos iguales, 27 pausas de 3,1 s— se retiraron: sin el
+fichero afirmaban cosas sobre datos inventados, no sobre nuestro código.
+
+Lo que protege de verdad contra el fallo es lo que viene después de «que no
+vuelva a pasar», que no necesita ningún fichero. Que un track congelado no se
+pueda evaluar se comprueba en `test_data_quality.py`.
 """
-import json
 import time
-from pathlib import Path
 
 from avcars.connectors.base import SimState
 from avcars.connectors.sim_poller import Reading
 from avcars.recorder.flight_log_writer import FlightRecorder, _is_static
-from avcars.schema import FlightLog, FlightPlanInfo, PilotInfo
-
-FIXTURES = Path(__file__).parent / "fixtures"
-
-
-def _load_bad_flight() -> FlightLog:
-    data = json.loads(
-        (FIXTURES / "vuelo_datos_congelados.json").read_text(encoding="utf-8")
-    )
-    return FlightLog.model_validate(data)
+from avcars.schema import FlightPlanInfo, PilotInfo
 
 
 def _state(**overrides) -> SimState:
@@ -63,29 +58,6 @@ def _recorder(tmp_path, source) -> FlightRecorder:
         ),
         output_dir=tmp_path,
     )
-
-
-# -- el vuelo que salió mal --------------------------------------------
-
-
-def test_el_vuelo_real_tenia_todos_los_puntos_iguales():
-    """Documenta el fallo: 99 puntos, una sola posición."""
-    log = _load_bad_flight()
-
-    posiciones = {(p.lat, p.lon, p.alt_msl_ft, p.gs_kt) for p in log.track}
-
-    assert len(log.track) == 99
-    assert len(posiciones) == 1  # esto es lo que no puede volver a pasar
-
-
-def test_el_vuelo_real_tenia_pausas_inventadas():
-    log = _load_bad_flight()
-
-    pausas = [e for e in log.events if e.type == "pause"]
-
-    assert len(pausas) == 27
-    # Todas con la misma duración: era el tiempo que tardaba la consulta.
-    assert {p.duration_s for p in pausas} == {3.1}
 
 
 # -- que no vuelva a pasar ---------------------------------------------
