@@ -1311,6 +1311,32 @@ def gestion_regla_umbral_restaurar(regla_id: str):
     return redirect(url_for("gestion_regla_detalle", regla_id=regla_id))
 
 
+@app.route("/gestion/economia", methods=["POST"])
+@permiso_requerido(PERM_GESTIONAR_USUARIOS)
+def gestion_economia_guardar():
+    """Guarda cambios en los parámetros económicos."""
+    guardados = []
+    for clave, valor in request.form.items():
+        if clave == "csrf_token" or not valor.strip():
+            continue
+        # Clave: "seccion__parametro" → ruta: "seccion.parametro"
+        if "__" in clave:
+            ruta = clave.replace("__", ".")
+            try:
+                # Convertir a float para los valores numéricos
+                nuevo = float(valor)
+                reglas_config.guardar_valor_economia(ruta, nuevo)
+                guardados.append(ruta)
+            except (ValueError, TypeError):
+                continue
+
+    if guardados:
+        flash(f"Economía: {len(guardados)} valores actualizados.", "exito")
+    else:
+        flash("No hay cambios que guardar.", "info")
+    return redirect(url_for("gestion_reglas"))
+
+
 def verdict_summary(verdict: Verdict) -> dict:
     """Traduce el veredicto a lo que necesita la plantilla."""
     quality = verdict.quality
