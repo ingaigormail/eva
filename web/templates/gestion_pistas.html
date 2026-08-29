@@ -105,4 +105,24 @@
     <p style="color:var(--tenue);font-size:13px">Todos los aeropuertos con ICAO real tienen ya su pista.</p>
     {% endif %}
   </div>
+
+  {% if ya_existen %}
+  <div class="panel-alta">
+    <h2>Aeropuertos con pista registrada</h2>
+    <p class="pie">
+      Ya tienen pista registrada en el sistema. Para modificar, rellena el formulario con el ICAO.
+    </p>
+    <table class="tabla-eva">
+      <thead><tr><th>ICAO</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for a in ya_existen %}
+        <tr>
+          <td><strong>{{ a.icao }}</strong></td>
+          <td><span style="color: var(--verde); font-weight: 700;">✓ ICAO ya existe</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
 {% endblock %}

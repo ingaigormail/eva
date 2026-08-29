@@ -1121,6 +1121,7 @@ def gestion_pistas():
     el rumbo del avión al despegar o aterrizar.
     """
     faltan = []
+    ya_existen = []
     with cuentas.conexion() as con:
         try:
             # Intenta con la tabla completa de aeródromos españoles
@@ -1134,10 +1135,16 @@ def gestion_pistas():
                      AND icao NOT IN (SELECT DISTINCT icao FROM pistas_es)
                    ORDER BY icao"""
             ).fetchall()
+            ya_existen = con.execute(
+                """SELECT DISTINCT icao FROM pistas_es
+                   WHERE icao GLOB '[LG][ECG][A-Z][A-Z]'
+                   ORDER BY icao"""
+            ).fetchall()
         except Exception:  # noqa: BLE001 — tabla aerodromos_es/pistas_es no existen
-            # Fallback: mostrar solo los ICAO únicos de vuelos españoles realizados
+            # Fallback: usar vuelos realizados
             try:
-                filas = con.execute(
+                # Aeródromos sin pistas
+                filas_sin = con.execute(
                     """SELECT DISTINCT departure_icao as icao FROM vuelos_resumen
                        WHERE departure_icao GLOB '[LG][ECG][A-Z][A-Z]'
                        UNION
@@ -1145,14 +1152,21 @@ def gestion_pistas():
                        WHERE arrival_icao GLOB '[LG][ECG][A-Z][A-Z]'
                        ORDER BY icao"""
                 ).fetchall()
-                # Convertir a dict con estructura compatible
-                faltan = [{"icao": f["icao"], "name": f["icao"], "municipality": ""} for f in filas]
-            except Exception:  # noqa: BLE001 — si ni eso funciona, lista vacía
+                faltan = [{"icao": f["icao"], "name": f["icao"], "municipality": ""} for f in filas_sin]
+
+                # Aeródromos ya con pistas
+                filas_con = con.execute(
+                    """SELECT DISTINCT icao FROM pistas_es"""
+                ).fetchall()
+                ya_existen = filas_con
+            except Exception:  # noqa: BLE001 — si ni eso funciona, listas vacías
                 faltan = []
+                ya_existen = []
     icao_precargado = request.args.get("icao", "").strip().upper()
     return render_template(
         "gestion_pistas.html",
         faltan=[dict(f) for f in faltan],
+        ya_existen=[dict(e) if isinstance(e, dict) else {"icao": e[0]} for e in ya_existen],
         icao_precargado=icao_precargado,
     )
 
