@@ -627,6 +627,51 @@ def cambiar_estado(license_id: str, estado: str) -> None:
     _actualizar(license_id, "estado", estado)
 
 
+def normalizar_cid(cid: str) -> str:
+    """Un CID de VATSIM es un número de socio: solo dígitos.
+
+    Se limpia en vez de rechazar porque la gente lo copia con espacios o lo
+    escribe como «CID 1234567», y rechazarlo por eso sería tocar las narices
+    sin motivo. Vacío significa «este piloto no ha dado su CID».
+    """
+    return "".join(c for c in str(cid or "") if c.isdigit())[:9]
+
+
+def cid_libre(cid: str, excepto: str = "") -> bool:
+    """Si ese CID no lo tiene ya otro piloto.
+
+    Dos cuentas con el mismo CID romperían el mapa de vuelos en vivo **en
+    silencio**: el feed de VATSIM trae un CID y EvA no sabría a cuál de los
+    dos pilotos atribuirlo. Un CID vacío no cuenta como ocupado: puede haber
+    muchos pilotos que aún no lo hayan dado.
+    """
+    cid = normalizar_cid(cid)
+    if not cid:
+        return True
+    with conexion() as con:
+        fila = con.execute(
+            "SELECT license_id FROM usuarios WHERE vatsim_cid = ?", (cid,)
+        ).fetchone()
+    return fila is None or fila["license_id"] == excepto
+
+
+def cambiar_vatsim_cid(license_id: str, cid: str) -> None:
+    """Pone o quita el CID de VATSIM de un piloto ya dado de alta.
+
+    Hasta el 2026-08-29 el CID solo se podía indicar al solicitar el alta, así
+    que quien ya tenía cuenta no podía rellenarlo nunca. Con el mapa de vuelos
+    en vivo enseñando el indicativo de EvA en lugar del número de VATSIM, eso
+    dejaba a los pilotos veteranos fuera del mapa sin ninguna forma de
+    arreglarlo.
+
+    Cadena vacía lo borra: un piloto puede querer dejar de aparecer.
+    """
+    cid = normalizar_cid(cid)
+    if not cid_libre(cid, excepto=license_id):
+        raise ValueError("Ese CID de VATSIM ya lo tiene otro piloto")
+    _actualizar(license_id, "vatsim_cid", cid)
+
+
 # -- Clave del grabador ----------------------------------------------------
 # Con ella, EvA Airliner lee del servidor el plan de vuelo que el piloto ha
 # preparado en la web, sin tener que teclear origen y destino otra vez. Es de

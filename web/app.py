@@ -973,6 +973,17 @@ def gestion_accion(license_id: str):
             cuentas.cambiar_correo(license_id, request.form.get("correo", ""))
             flash(f"Correo de {license_id} actualizado.", "exito")
 
+        elif accion == "vatsim_cid":
+            # El CID solo se podía dar al solicitar el alta, así que los
+            # pilotos que ya tenían cuenta no podían rellenarlo nunca — y sin
+            # él no aparecen con su indicativo en el mapa de vuelos en vivo.
+            nuevo = cuentas.normalizar_cid(request.form.get("vatsim_cid", ""))
+            cuentas.cambiar_vatsim_cid(license_id, nuevo)
+            if nuevo:
+                flash(f"CID de VATSIM de {license_id}: {nuevo}.", "exito")
+            else:
+                flash(f"{license_id} se queda sin CID de VATSIM.", "exito")
+
         elif accion == "enlace":
             problema = _enviar_enlace_de_contraseña(license_id, alta=False)
             if problema:
@@ -2476,12 +2487,17 @@ def _fetch_vatsim_raw() -> tuple[dict | None, str | None]:
 def vatsim_live():
     """Mapa VATSIM simple filtrado por CID. Público, sin login."""
     cids = []
+    mapeo = {}
     try:
         usuarios = cuentas.listar_usuarios()
-        cids = [u["vatsim_cid"] for u in usuarios if u.get("vatsim_cid")]
+        for u in usuarios:
+            cid = u.get("vatsim_cid")
+            if cid:
+                cids.append(cid)
+                mapeo[cid] = u["license_id"]
     except Exception:
         pass
-    return render_template("vatsim_live.html", cids_aerolinea=cids)
+    return render_template("vatsim_live.html", cids_aerolinea=cids, mapeo_pilotos=mapeo)
 
 
 @app.route("/api/vatsim-data")

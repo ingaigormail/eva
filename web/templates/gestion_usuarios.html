@@ -252,6 +252,22 @@
               Sin CID de VATSIM
             {% endif %}
           </div>
+          {#
+            El CID solo se pedía al solicitar el alta, así que quien ya tenía
+            cuenta no podía rellenarlo nunca — y sin él no aparece con su
+            indicativo de EvA en el mapa de vuelos en vivo, solo con su número
+            de VATSIM. Vacío lo borra: un piloto puede querer no salir.
+          #}
+          <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="accion" value="vatsim_cid">
+            <input class="mini-input" type="text" name="vatsim_cid"
+                   value="{{ u.vatsim_cid }}" placeholder="CID VATSIM"
+                   inputmode="numeric" pattern="[0-9]*" maxlength="9"
+                   style="width: 9ch;"
+                   title="Número de socio de VATSIM. Vacío = no aparece en el mapa.">
+            <button class="mini" type="submit">Guardar</button>
+          </form>
         </td>
         <td>
           <form method="POST" action="{{ url_for('gestion_accion', license_id=u.license_id) }}">
