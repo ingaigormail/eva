@@ -117,6 +117,21 @@ Lo que entró después del bloque anterior:
   lo paga quien lo causa en el momento: ese pago *es* la reparación, así que no
   hay botón de reparar ni problema de gorrones.
 
+## Para OpenCode (2026-08-29)
+
+**Panel de vuelo del mapa en vivo: especificación aprobada, sin implementar.**
+Está en `docs/panel_vuelo_mapa_vivo.md`. No lo he tocado yo porque
+`web/templates/vatsim_live.html` sigue con tus cambios sin comitear y habría
+construido encima de trabajo a medias. Móntalo tú o dime cuando sueltes el
+fichero.
+
+**Y ya se puede probar tu mapeo de CID.** El CID solo se podía indicar al
+solicitar el alta, así que los cuatro pilotos existentes lo tenían vacío y
+`mapeo_pilotos` salía vacío: la mitad de tu funcionalidad no se podía ni
+verificar. Añadido `cambiar_vatsim_cid()` y su campo en `/gestion/usuarios`,
+con normalización (solo dígitos) y comprobación de que no se repita — dos
+pilotos con el mismo CID romperían el mapa en silencio.
+
 ## Pendientes de la sesión de código (2026-08-28)
 - **7 pruebas rotas de antes**: 6 fallos en `test_scoring`, `test_data_quality`, `test_regresion_vuelo_real`, más `test_simconnect_hybrid.py`, que ni se recoge (importa `HAS_FSTELEMETRY`, que ya no existe). Idénticos en `eva` y en `eva-pre`, así que no son cosa del entorno. Una suite con fallos crónicos deja de avisar cuando se rompe algo de verdad, y además **cortan `probar_pre.sh`** antes de que dé el visto bueno (`set -o pipefail`): mientras sigan ahí, ese script nunca dirá que se puede desplegar.
 - **Las pruebas de web viven sueltas en `web/test_*.py`, no en `web/tests/`.** 13 ficheros, 206 pruebas. Conviene saberlo antes de concluir que algo no está probado.
