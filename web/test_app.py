@@ -505,6 +505,8 @@ def test_vuelos_enlaza_cada_tipo_a_su_ficha():
             resumen=app_module._resumen_de_la_cartilla(
                 [fila("un_vuelo.avlog.json"), fila("20260816143000.csv")]
             ),
+            catalogo=[],
+            saldo=0,
         )
 
     assert 'href="/vuelo/un_vuelo.avlog.json"' in html
