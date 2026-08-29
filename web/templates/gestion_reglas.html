@@ -221,15 +221,18 @@
           <div class="valores-econ">
             <div class="valor-econ">
               <span class="label">Pasajero/NM</span>
-              <input type="number" step="0.01" name="ingresos__tarifa_pasajero_nm" value="{{ economia['ingresos'].get('tarifa_pasajero_nm', '') }}" class="input-econ" title="€ por pasajero-milla">
+              <span class="chip-estandar">{{ economia_base['ingresos'].get('tarifa_pasajero_nm', '—') }}€VAs</span>
+              <input type="number" step="0.01" name="ingresos__tarifa_pasajero_nm" value="{{ economia['ingresos'].get('tarifa_pasajero_nm', '') }}" class="input-econ" title="€VAs por pasajero-milla">
             </div>
             <div class="valor-econ">
               <span class="label">Kg/NM</span>
-              <input type="number" step="0.01" name="ingresos__tarifa_kg_nm" value="{{ economia['ingresos'].get('tarifa_kg_nm', '') }}" class="input-econ" title="€ por kilo-milla">
+              <span class="chip-estandar">{{ economia_base['ingresos'].get('tarifa_kg_nm', '—') }}€VAs</span>
+              <input type="number" step="0.01" name="ingresos__tarifa_kg_nm" value="{{ economia['ingresos'].get('tarifa_kg_nm', '') }}" class="input-econ" title="€VAs por kilo-milla">
             </div>
             <div class="valor-econ">
               <span class="label">Base/NM</span>
-              <input type="number" step="0.01" name="ingresos__base_nm" value="{{ economia['ingresos'].get('base_nm', '') }}" class="input-econ" title="€ base por milla">
+              <span class="chip-estandar">{{ economia_base['ingresos'].get('base_nm', '—') }}€VAs</span>
+              <input type="number" step="0.01" name="ingresos__base_nm" value="{{ economia['ingresos'].get('base_nm', '') }}" class="input-econ" title="€VAs base por milla">
             </div>
           </div>
         </div>
@@ -241,14 +244,17 @@
           <div class="valores-econ">
             <div class="valor-econ">
               <span class="label">Apto</span>
+              <span class="chip-estandar">{{ economia_base['calidad'].get('apto', '—') }}</span>
               <input type="number" step="0.1" name="calidad__apto" value="{{ economia['calidad'].get('apto', '') }}" class="input-econ" title="Multiplicador vuelo apto">
             </div>
             <div class="valor-econ">
               <span class="label">No apto</span>
+              <span class="chip-estandar">{{ economia_base['calidad'].get('no_apto', '—') }}</span>
               <input type="number" step="0.1" name="calidad__no_apto" value="{{ economia['calidad'].get('no_apto', '') }}" class="input-econ" title="Multiplicador vuelo no apto">
             </div>
             <div class="valor-econ">
               <span class="label">Fallo</span>
+              <span class="chip-estandar">{{ economia_base['calidad'].get('fail', '—') }}</span>
               <input type="number" step="0.1" name="calidad__fail" value="{{ economia['calidad'].get('fail', '') }}" class="input-econ" title="Multiplicador vuelo fallido">
             </div>
           </div>
@@ -261,14 +267,17 @@
           <div class="valores-econ">
             <div class="valor-econ">
               <span class="label">VATSIM</span>
+              <span class="chip-estandar">{{ economia_base['bonus'].get('vatsim', '—') }}</span>
               <input type="number" step="0.01" name="bonus__vatsim" value="{{ economia['bonus'].get('vatsim', '') }}" class="input-econ" title="Bonus vuelo en red">
             </div>
             <div class="valor-econ">
               <span class="label">ATC controlado</span>
+              <span class="chip-estandar">{{ economia_base['bonus'].get('atc_controlado', '—') }}</span>
               <input type="number" step="0.01" name="bonus__atc_controlado" value="{{ economia['bonus'].get('atc_controlado', '') }}" class="input-econ" title="Bonus con control ATC">
             </div>
             <div class="valor-econ">
               <span class="label">Tope</span>
+              <span class="chip-estandar">{{ economia_base['bonus'].get('tope', '—') }}</span>
               <input type="number" step="0.01" name="bonus__tope" value="{{ economia['bonus'].get('tope', '') }}" class="input-econ" title="Bonus máximo acumulado">
             </div>
           </div>
@@ -281,11 +290,13 @@
           <div class="valores-econ">
             <div class="valor-econ">
               <span class="label">Combustible/kg</span>
-              <input type="number" step="0.01" name="costes__combustible_kg" value="{{ economia['costes'].get('combustible_kg', '') }}" class="input-econ" title="€ por kg de combustible">
+              <span class="chip-estandar">{{ economia_base['costes'].get('combustible_kg', '—') }}€VAs</span>
+              <input type="number" step="0.01" name="costes__combustible_kg" value="{{ economia['costes'].get('combustible_kg', '') }}" class="input-econ" title="€VAs por kg de combustible">
             </div>
             <div class="valor-econ">
               <span class="label">Tasa/NM</span>
-              <input type="number" step="0.01" name="costes__tasa_nm" value="{{ economia['costes'].get('tasa_nm', '') }}" class="input-econ" title="€ por milla navegada">
+              <span class="chip-estandar">{{ economia_base['costes'].get('tasa_nm', '—') }}€VAs</span>
+              <input type="number" step="0.01" name="costes__tasa_nm" value="{{ economia['costes'].get('tasa_nm', '') }}" class="input-econ" title="€VAs por milla navegada">
             </div>
           </div>
         </div>
