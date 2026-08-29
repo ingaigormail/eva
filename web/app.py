@@ -2318,9 +2318,9 @@ def info_aeropuerto(icao: str) -> dict:
 RUTA_VUELTA_ESPANA = "vae-2026"
 
 
-@app.route("/vuelta-espana")
+@app.route("/eventos")
 @login_requerido
-def vuelta_espana():
+def eventos():
     """Las 21 etapas de la Vuelta a España y qué lleva hecho el piloto.
 
     Sin orden obligatorio: cada etapa se completa en el momento en que se
@@ -2349,7 +2349,7 @@ def vuelta_espana():
     distancia_hecha = sum(e["distance_nm"] or 0 for e in completadas)
 
     return render_template(
-        "vuelta_espana.html",
+        "eventos.html",
         etapas=etapas,
         total_etapas=len(etapas),
         completadas=len(completadas),

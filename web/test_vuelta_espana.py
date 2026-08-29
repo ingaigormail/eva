@@ -92,13 +92,13 @@ def _fixture_avlog(origen: str, destino: str, huella: str) -> bytes:
 
 
 def test_sin_sesion_no_se_ve(monkeypatch):
-    respuesta = app.test_client().get("/vuelta-espana")
+    respuesta = app.test_client().get("/eventos")
     assert respuesta.status_code == 302
     assert "/login" in respuesta.headers["Location"]
 
 
 def test_las_21_etapas_salen_pendientes_al_principio(piloto):
-    html = piloto.get("/vuelta-espana").get_data(as_text=True)
+    html = piloto.get("/eventos").get_data(as_text=True)
     assert "0<span" in html or "0 " in html  # 0 completadas
     assert html.count("pendiente</span>") == 21
     assert "LXGB" in html and "LEMG" in html  # etapa 1
@@ -111,7 +111,7 @@ def test_subir_una_etapa_la_marca_hecha_en_la_pagina(piloto, cartilla_aislada):
         data={"file": (BytesIO(_fixture_avlog("LXGB", "LEMG", "h-vae-1")), "e1.avlog.json")},
         content_type="multipart/form-data",
     )
-    html = piloto.get("/vuelta-espana").get_data(as_text=True)
+    html = piloto.get("/eventos").get_data(as_text=True)
     assert html.count("hecha</span>") == 1
     assert html.count("pendiente</span>") == 20
 
@@ -123,7 +123,7 @@ def test_una_etapa_cualquiera_cuenta_sin_haber_hecho_las_anteriores(piloto, cart
         data={"file": (BytesIO(_fixture_avlog("LECO", "LEVX", "h-vae-15")), "e15.avlog.json")},
         content_type="multipart/form-data",
     )
-    html = piloto.get("/vuelta-espana").get_data(as_text=True)
+    html = piloto.get("/eventos").get_data(as_text=True)
     assert html.count("hecha</span>") == 1
 
 
@@ -166,11 +166,11 @@ def test_completar_todas_las_etapas_se_celebra(piloto):
                 (ruta["id"], f"h-completa-{i}"),
             )
 
-    html = piloto.get("/vuelta-espana").get_data(as_text=True)
+    html = piloto.get("/eventos").get_data(as_text=True)
     assert "Vuelta completada" in html
     assert html.count("hecha</span>") == 21
 
 
 def test_menu_lleva_a_la_vuelta(piloto):
     html = piloto.get("/vuelos").get_data(as_text=True)
-    assert 'href="/vuelta-espana"' in html
+    assert 'href="/eventos"' in html
