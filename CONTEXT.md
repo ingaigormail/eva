@@ -6,6 +6,12 @@ estado: en_progreso
 
 # CONTEXT - EvA Airliner
 
+> **Lee `AGENTS.md` antes que esto.** Ahí están las reglas para cualquier IA que
+> trabaje en el proyecto, incluida la del 85 % de contexto: al llegar ahí se
+> cierra la ventana en orden y se deja este fichero al día. Este documento es el
+> estado; `AGENTS.md` son las reglas; `DOCUMENTACION_PROYECTO.md` es la
+> arquitectura.
+
 ## Reparto entre agentes (acordado 2026-08-28)
 
 Dos agentes trabajan sobre **el mismo árbol de ficheros**. No son dos máquinas
