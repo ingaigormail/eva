@@ -1120,17 +1120,21 @@ def gestion_pistas():
     evaluar en la mayoría de aeródromos pequeños: no hay con qué comparar
     el rumbo del avión al despegar o aterrizar.
     """
-    with cuentas.conexion() as con:
-        faltan = con.execute(
-            """SELECT icao, name, municipality FROM aerodromos_es
-               WHERE icao GLOB '[LG][ECG][A-Z][A-Z]' AND length(icao) = 4
-                 AND type NOT IN ('heliport', 'balloonport', 'closed', 'seaplane_base')
-                 AND type IS NOT NULL
-                 AND name NOT LIKE '%HOSPITAL%' AND name NOT LIKE '%HELIPORT%'
-                 AND name NOT LIKE '%HELIPAD%' AND name NOT LIKE '%HELIPUERTO%'
-                 AND icao NOT IN (SELECT DISTINCT icao FROM pistas_es)
-               ORDER BY icao"""
-        ).fetchall()
+    faltan = []
+    try:
+        with cuentas.conexion() as con:
+            faltan = con.execute(
+                """SELECT icao, name, municipality FROM aerodromos_es
+                   WHERE icao GLOB '[LG][ECG][A-Z][A-Z]' AND length(icao) = 4
+                     AND type NOT IN ('heliport', 'balloonport', 'closed', 'seaplane_base')
+                     AND type IS NOT NULL
+                     AND name NOT LIKE '%HOSPITAL%' AND name NOT LIKE '%HELIPORT%'
+                     AND name NOT LIKE '%HELIPAD%' AND name NOT LIKE '%HELIPUERTO%'
+                     AND icao NOT IN (SELECT DISTINCT icao FROM pistas_es)
+                   ORDER BY icao"""
+            ).fetchall()
+    except Exception:  # noqa: BLE001 — tabla aerodromos_es no existe aún
+        pass
     icao_precargado = request.args.get("icao", "").strip().upper()
     return render_template(
         "gestion_pistas.html",
