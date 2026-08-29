@@ -15,10 +15,30 @@ CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 DEFAULT_PROFILES_PATH = CONFIG_DIR / "profiles.yaml"
 DEFAULT_AIRCRAFT_PATH = CONFIG_DIR / "aircraft.yaml"
 DEFAULT_AIRPORTS_PATH = CONFIG_DIR / "airports.json"
+DEFAULT_ECONOMIA_PATH = CONFIG_DIR / "economia.yaml"
 
 
 def load_profiles(path: Path = DEFAULT_PROFILES_PATH) -> dict:
     """Lee el fichero de perfiles y devuelve el dict completo (easy/normal/hard)."""
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def load_economia(path: Path = DEFAULT_ECONOMIA_PATH) -> dict:
+    """Lee `economia.yaml`: tarifas, costes, daño, progresión y clasificación.
+
+    Es la **base versionada**. Lo que un administrador cambie en vivo desde
+    `/gestion/reglas` no se escribe aquí sino en el fichero de diferencias
+    (ver `evaluation/reglas_config.py`), por el mismo motivo que con los
+    perfiles: este fichero va en git y se despliega con el código, y
+    escribirlo en producción mezclaría lo que trae el código con lo que ha
+    tocado alguien a mano.
+
+    Para obtener los valores que de verdad se aplican:
+
+        economia = reglas_config.economia_efectiva(
+            load_economia(), reglas_config.cargar_overrides()
+        )
+    """
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 

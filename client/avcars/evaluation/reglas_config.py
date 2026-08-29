@@ -124,6 +124,47 @@ def perfil_efectivo(perfil_base: dict, overrides: dict) -> dict:
     return resultado
 
 
+#: Prefijo de las rutas de la economía dentro del mismo fichero de
+#: diferencias. Sin él, `tarifa_pasajero_nm` y un umbral de puntuación
+#: podrían chocar el día que a alguien se le ocurra el mismo nombre.
+PREFIJO_ECONOMIA = "economia."
+
+
+def economia_efectiva(economia_base: dict, overrides: dict) -> dict:
+    """La economía que de verdad se aplica: `economia.yaml` + lo pisado en vivo.
+
+    Mismo mecanismo que `perfil_efectivo`, y por el mismo motivo: la base va
+    versionada en git y las diferencias se guardan aparte, para no acabar con
+    un fichero del repositorio editado a mano en producción.
+
+    Los overrides de economía se distinguen por el prefijo `economia.`, así
+    que conviven en el mismo fichero que los umbrales de puntuación sin
+    pisarse. `economia.costes.hora_avion.C172` pisa esa hora y nada más.
+
+    Nunca muta `economia_base`.
+    """
+    resultado = copy.deepcopy(economia_base)
+    for ruta, valor in overrides.get("umbral", {}).items():
+        if ruta.startswith(PREFIJO_ECONOMIA):
+            _escribir(resultado, ruta[len(PREFIJO_ECONOMIA):], valor)
+    return resultado
+
+
+def guardar_valor_economia(
+    ruta: str, valor: Any, path: Path = RUNTIME_CONFIG_PATH
+) -> dict:
+    """Pisa un valor de la economía en vivo. `ruta` SIN el prefijo.
+
+    Ejemplo: `guardar_valor_economia("calidad.no_apto", 0.5)`.
+    """
+    return guardar_umbral(PREFIJO_ECONOMIA + ruta, valor, path)
+
+
+def quitar_valor_economia(ruta: str, path: Path = RUNTIME_CONFIG_PATH) -> dict:
+    """Devuelve un valor de la economía a lo que diga `economia.yaml`."""
+    return quitar_override_umbral(PREFIJO_ECONOMIA + ruta, path)
+
+
 def reglas_activas_dict(overrides: dict) -> dict:
     """El `{regla_id: bool}` que espera `scoring.evaluate_flight(reglas_activas=...)`.
 

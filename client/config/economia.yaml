@@ -1,0 +1,226 @@
+# Parametros de la economia de EvA.
+#
+# ─────────────────────────────────────────────────────────────────────────
+#  PARA QUE EXISTE ESTA ECONOMIA
+#
+#  No es un negocio: la aerolinea no gana dinero con los pilotos. El dinero
+#  es un INCENTIVO -- que la gente vuele mas -- y un MARCADOR para que se
+#  piquen entre ellos.
+#
+#  De ahi salen las tres reglas de diseno de este fichero:
+#
+#  1. Los costes existen para crear TENSION (que un vuelo malo duela y uno
+#     bueno se sienta ganado), no para que cuadren unos libros. En cuanto
+#     cumplen eso, mas realismo no aporta nada: solo hace los numeros mas
+#     grandes y mas dificiles de comparar de cabeza.
+#  2. La clasificacion es MENSUAL. Con saldo acumulado, quien entro antes va
+#     siempre por delante y la competicion muere en cuanto hay dos
+#     generaciones de pilotos.
+#  3. Se compite POR CATEGORIA. Un P0 con un C172 no puede medirse con un P1
+#     con un Caravan de nueve plazas.
+# ─────────────────────────────────────────────────────────────────────────
+#
+# Todo lo de aqui se puede pisar en vivo desde /gestion/reglas, igual que los
+# umbrales de puntuacion: este fichero es la BASE versionada y las
+# diferencias se guardan aparte, fuera de git (ver reglas_config.py).
+#
+# Los valores llevan el prefijo `economia.` en las rutas de override, para no
+# chocar con los de los perfiles de dificultad.
+
+# -- INGRESOS ---------------------------------------------------------
+#
+# Se cobra por pasajero-milla y por kilo-milla, que es como funciona el
+# transporte de verdad. Asi la CAPACIDAD del avion es lo que le hace ganar,
+# sin ningun multiplicador artificial: el Caravan gana mas que el DA62
+# porque lleva nueve plazas y media tonelada, no porque le pongamos un
+# numero mas alto.
+#
+# La tarifa NO depende del tipo de avion a proposito. Si el avion grande
+# cobrase mas por milla ademas de recorrer mas millas por hora, se le estaria
+# pagando dos veces lo mismo, y la clasificacion mediria quien tiene
+# desbloqueado el avion caro en vez de quien vuela mas y mejor.
+ingresos:
+  # Por cada pasajero y cada milla nautica recorrida.
+  tarifa_pasajero_nm: 2.0
+
+  # Por cada kilo de carga y milla. Un pasajero pesa 85 kg y paga 2 EUR/NM,
+  # o sea 0,024 EUR por kilo-milla: la carga va a menos de la mitad, que es
+  # la proporcion real entre pasaje y mercancia.
+  tarifa_kg_nm: 0.01
+
+  # Base por milla, independiente de lo que se lleve. Sin esto un traslado
+  # de posicion o un vuelo en solitario ganan CERO, y hay motivos legitimos
+  # para volar vacio. Pequena a proposito: que no sea gratis, pero tampoco
+  # negocio.
+  base_nm: 1.0
+
+  # Distancia minima facturable. Evita que una serie de saltos de 5 NM entre
+  # dos aerodromos pegados sea rentable por acumulacion de bases.
+  distancia_minima_nm: 20
+
+# -- CALIDAD ----------------------------------------------------------
+#
+# Multiplica el ingreso segun el veredicto del motor de evaluacion. Es lo
+# que impide que la economia sea un contador de horas: volar mucho paga,
+# pero volar bien paga mas por vuelo.
+#
+# OJO con `no_apto`: es el mando que decide si la competicion premia la
+# CANTIDAD o la CALIDAD.
+#   - A 0.5, quien vuela mucho y regular puede ganar la clasificacion
+#     mensual a quien vuela poco y bien.
+#   - A 0.2, un vuelo malo no cubre ni el combustible y machacar vuelos
+#     regulares deja de compensar.
+# Pendiente de decision del usuario (2026-08-28): se deja en 0.2, que es lo
+# recomendado, pero es el primer numero que revisar si la gente se queja.
+calidad:
+  apto: 1.0
+  no_apto: 0.2
+  fail: 0.0
+  # Un vuelo que no se puede evaluar (CSV sin datos, traza incompleta) no
+  # mueve dinero: ni ingreso ni coste. No es un abuso, es un problema
+  # tecnico, y no se cobra por algo que no se ha podido juzgar.
+  no_evaluable: 0.0
+
+# -- BONIFICACIONES ---------------------------------------------------
+#
+# Se suman entre si sobre el ingreso base, con tope. El tope existe para que
+# la suma de extras no acabe pesando mas que volar bien.
+bonus:
+  vatsim: 0.10          # vuelo en red, no offline
+  atc_controlado: 0.05  # hubo control real
+  perfil_dificil: 0.05  # evaluado con el perfil `hard`
+  tope: 0.20
+
+# -- COSTES -----------------------------------------------------------
+#
+# Existen para crear tension, no para modelar una contabilidad. Son tres y
+# se acabo: combustible, tasas y hora de avion.
+costes:
+  # Por kilo de combustible gastado. Unifica AVGAS y JET-A a proposito: la
+  # diferencia real no cambia ninguna decision del piloto.
+  precio_combustible_kg: 2.0
+
+  # Si el vuelo no trae `fuel_used_kg` (CSV, o simulador que no lo expone),
+  # se estima con el consumo del avion y la duracion en vez de cobrar cero.
+  estimar_combustible_si_falta: true
+
+  # Tasas por aerodromo, segun su tamano en `aerodromos_es`. Se cobran las
+  # dos, salida y llegada.
+  tasas:
+    large: 120
+    medium: 60
+    small: 25
+    desconocido: 40
+
+  # Manejo en tierra, fijo por vuelo.
+  handling: 30
+
+  # Hora de avion, por designador. Incluye TODO lo que no es combustible ni
+  # tasas: hangar, seguro, mantenimiento programado y reserva de overhaul.
+  #
+  # Se cobra en una sola linea y no en varias porque el objetivo es que el
+  # piloto entienda de un vistazo cuanto le cuesta volar, no que aprenda
+  # contabilidad aeronautica. La forma correcta de calcular estos numeros
+  # (fijos anuales / horas + variables por hora + 10% de imprevistos) esta
+  # en docs/economia_v1_decisiones.md por si hay que recalibrarlos.
+  hora_avion:
+    C172: 200
+    DA62: 350
+    BE58: 380
+    C208: 900
+    # Aparcados hasta que exista IFR (categoria P2).
+    TBM9: 1100
+    B350: 1400
+    DHC6: 1200
+    C25C: 2200
+
+# -- DANO -------------------------------------------------------------
+#
+# Lo paga quien lo causa, en el momento del vuelo, y ese pago ES la
+# reparacion. Sin boton de reparar no hay gorrones: si arreglar beneficiara
+# a todos y lo pagara uno, no lo pagaria nadie.
+#
+# Detalle y justificacion en docs/desgaste_y_mantenimiento_tabla.md
+dano:
+  # A partir de cuantos fpm de regimen de toma empieza a cobrarse. Coincide
+  # con el techo de la banda `normal` de profiles.yaml: el dano empieza justo
+  # donde el motor ya dice "hard".
+  umbral_toma_fpm: 300
+
+  # Inspeccion fija por aterrizaje duro, por designador.
+  inspeccion_toma_dura:
+    C172: 220
+    DA62: 280
+    BE58: 320
+    C208: 320
+    TBM9: 350
+    B350: 420
+    DHC6: 380
+    C25C: 500
+
+  # Ademas de la inspeccion, EUR por cada fpm por encima del umbral. Lineal y
+  # no cuadratica: la cuadratica se llevaba casi el beneficio entero del
+  # vuelo por una primera vez. Y que la lineal se aplane en lo extremo no
+  # importa, porque por encima de 600 fpm el motor declara FAIL y el ingreso
+  # ya es cero: puntuacion y taller se reparten el trabajo.
+  euros_por_fpm:
+    C172: 0.15
+    DA62: 0.35
+    BE58: 0.45
+    C208: 0.30
+    TBM9: 0.40
+    B350: 0.60
+    DHC6: 0.50
+    C25C: 0.75
+
+# -- PROGRESION -------------------------------------------------------
+#
+# Subir de categoria necesita DOS cosas: el examen de la escuela (humano,
+# fuera del sistema) y un minimo de vuelos APTO. EvA solo cuenta los vuelos
+# y marca "listo para examen"; aprobar es lo que sube de categoria, y lo
+# hace un administrador. Asi el sistema nunca contradice a un humano que ya
+# ha aprobado a alguien.
+progresion:
+  # Vuelos APTO necesarios para poder examinarse de la categoria siguiente.
+  # Hoy solo existe un escalon (P0 -> P1) y tiene que aguantar solo todo el
+  # juego temprano, por eso son 10 y no 4: son unos dos meses a dos vuelos
+  # por semana.
+  vuelos_para_examen:
+    P0_a_P1: 10
+    # P1 -> P2 (IFR) cuando exista.
+    P1_a_P2: 15
+
+  # Que cuenta como vuelo valido para el contador. Sin esto, veinte
+  # circuitos en el aerodromo de casa cumplen el requisito en una tarde.
+  vuelo_valido:
+    solo_apto: true
+    minutos_minimos: 30
+    distancia_minima_nm: 25
+    origen_distinto_a_destino: true
+
+# -- CLASIFICACION ----------------------------------------------------
+clasificacion:
+  # Mensual, no acumulada. El saldo acumulado es otra cosa -- lo que gastas,
+  # tu historia -- pero no la carrera.
+  periodo: mensual
+
+  # Se compite dentro de la categoria. Un P0 con un C172 de tres plazas no
+  # puede medirse con un P1 con un Caravan de nueve.
+  por_categoria: true
+
+  # Pero con pocos pilotos, cada liga tendria una persona y ganaria por
+  # incomparecencia, que es peor que no tener clasificacion. Por debajo de
+  # este numero en una categoria, se usa una general unica.
+  minimo_pilotos_por_categoria: 4
+
+# -- SALDO ------------------------------------------------------------
+saldo:
+  inicial: 5000
+
+  # Un piloto en numeros rojos SIGUE VOLANDO. No se bloquea a nadie: lo
+  # primero que hace abandonar una aerolinea virtual es no poder volar.
+  bloquear_en_negativo: false
+
+  # Se avisa al responsable al cruzar a negativo, una sola vez, y otra al
+  # recuperarse. Avisar en cada vuelo haria que dejara de leer los avisos.
+  avisar_responsable_en_negativo: true
