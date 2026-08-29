@@ -53,6 +53,7 @@ from avcars.evaluation.data_quality import Quality  # noqa: E402
 from avcars.evaluation.scoring import Verdict, evaluate_flight  # noqa: E402
 from avcars.evaluation import espacio_aereo, reglas_config, reglas_info  # noqa: E402
 from avcars.prefile import PrefileExtras, icao_fpl, vatsim_prefile_url  # noqa: E402
+from avcars import ubicacion  # noqa: E402  (distancia entre coordenadas)
 from avcars.schema import FlightLog, FlightPlanInfo, PilotInfo  # noqa: E402
 from avcars import (  # noqa: E402
     correo as correo_eva,
@@ -169,6 +170,10 @@ def exigir_sesion():
         "restablecer_password",
         "vatsim_live",
         "vatsim_data",
+        # El panel de un vuelo del mapa, que es público. Devuelve solo lo que
+        # VATSIM ya publica; la ficha interna del piloto la añade la propia
+        # vista, y solo si hay sesión (ver `vuelo_vivo`).
+        "vuelo_vivo",
         # EvA Airliner no tiene sesión de navegador: entra una vez con sus
         # credenciales (`grabador_login`) y a partir de ahí se identifica
         # con la clave del grabador en una cabecera (`grabador_plan`).
@@ -2459,6 +2464,18 @@ def _ruta_libre(path: Path) -> Path:
 import time as _vatsim_time
 import urllib.request as _vatsim_req
 
+# En equipos con antivirus que intercepta TLS (el del desarrollo, sin ir más
+# lejos) la verificación del certificado de data.vatsim.net falla y el mapa se
+# queda en 502 sin explicación. `truststore` usa el almacén de certificados
+# del sistema, que sí conoce la CA que inyecta el antivirus. En un servidor
+# limpio no cambia nada, y si el paquete no está se sigue como antes.
+try:
+    import truststore as _truststore
+
+    _truststore.inject_into_ssl()
+except ImportError:  # pragma: no cover - depende de la máquina
+    pass
+
 _VATSIM_URL = "https://data.vatsim.net/v3/vatsim-data.json"
 _VATSIM_CACHE: dict = {"ts": 0.0, "data": None, "error": None}
 
@@ -2498,6 +2515,141 @@ def vatsim_live():
     except Exception:
         pass
     return render_template("vatsim_live.html", cids_aerolinea=cids, mapeo_pilotos=mapeo)
+
+
+def _distancia_nm(a: dict, b: dict) -> Optional[float]:
+    """Distancia entre dos aeropuertos, o None si falta alguna coordenada."""
+    if not a or not b:
+        return None
+    try:
+        lat1, lon1 = float(a["lat"]), float(a["lon"])
+        lat2, lon2 = float(b["lat"]), float(b["lon"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return ubicacion.distancia_nm(lat1, lon1, lat2, lon2)
+
+
+@app.route("/api/vuelo-vivo/<cid>")
+def vuelo_vivo(cid: str):
+    """Lo que hace falta para el panel de un vuelo del mapa en vivo.
+
+    Se pide **al pinchar un avión**, no en cada refresco: el feed de VATSIM
+    trae unos mil pilotos y enriquecerlos todos con coordenadas de aeropuerto
+    sería mandar 30 KB de más para pintar uno. Ver
+    `docs/panel_vuelo_mapa_vivo.md`.
+
+    Devuelve dos bloques. El básico —ruta, progreso, aeropuertos— para
+    cualquiera, porque son datos que VATSIM ya publica. El de EvA —matrícula,
+    categoría, actividad— **solo con sesión**: que el indicativo sea público
+    no obliga a publicar la ficha interna del piloto.
+    """
+    datos, error = _fetch_vatsim_raw()
+    if datos is None:
+        return jsonify({"error": error or "sin datos de VATSIM"}), 502
+
+    piloto = next(
+        (p for p in datos.get("pilots", []) if str(p.get("cid")) == str(cid)),
+        None,
+    )
+    if piloto is None:
+        # No es un error: ha aterrizado o se ha desconectado entre el refresco
+        # del mapa y el clic. La página debe cerrar el panel, no dar un fallo.
+        return jsonify({"volando": False}), 404
+
+    plan = piloto.get("flight_plan") or {}
+    salida = info_aeropuerto(plan.get("departure") or "")
+    llegada = info_aeropuerto(plan.get("arrival") or "")
+
+    total = _distancia_nm(salida, llegada)
+    restante = _distancia_nm(
+        {"lat": piloto.get("latitude"), "lon": piloto.get("longitude")}, llegada
+    )
+    recorrido = None if total is None or restante is None else max(0.0, total - restante)
+
+    # Minutos que faltan, solo si la cuenta significa algo. Un avión en espera
+    # dando vueltas, o parado en plataforma, da cifras absurdas: mejor no
+    # decir nada que decir "en 14 horas".
+    minutos = None
+    velocidad = piloto.get("groundspeed") or 0
+    if restante is not None and velocidad >= 40:
+        horas = restante / velocidad
+        if horas <= 3:
+            minutos = round(horas * 60)
+
+    respuesta = {
+        "volando": True,
+        "callsign": piloto.get("callsign"),
+        "altitud_ft": piloto.get("altitude"),
+        "velocidad_kt": piloto.get("groundspeed"),
+        "rumbo": piloto.get("heading"),
+        "avion": plan.get("aircraft_short") or plan.get("aircraft"),
+        "salida": {
+            "icao": plan.get("departure"),
+            "nombre": salida.get("name") or salida.get("nombre"),
+        },
+        "llegada": {
+            "icao": plan.get("arrival"),
+            "nombre": llegada.get("name") or llegada.get("nombre"),
+        },
+        "distancia_total_nm": None if total is None else round(total),
+        "distancia_hecha_nm": None if recorrido is None else round(recorrido),
+        "distancia_restante_nm": None if restante is None else round(restante),
+        "minutos_restantes": minutos,
+        "plan": {
+            "reglas": plan.get("flight_rules"),
+            "nivel": plan.get("altitude"),
+            "alterno": plan.get("alternate"),
+            "salida_utc": plan.get("deptime"),
+            "tiempo_ruta": plan.get("enroute_time"),
+            "squawk_asignado": plan.get("assigned_transponder"),
+            "ruta": plan.get("route"),
+        },
+    }
+
+    piloto_eva = _piloto_de_eva(str(cid)) if piloto_actual() else None
+    if piloto_eva:
+        respuesta["eva"] = piloto_eva
+    return jsonify(respuesta)
+
+
+def _piloto_de_eva(cid: str) -> Optional[dict]:
+    """La ficha interna del piloto dueño de ese CID, si es de la casa.
+
+    Es lo que el mapa puede enseñar y FlightRadar24 no: la matrícula del avión
+    que se le asignó y su actividad en la aerolínea.
+    """
+    try:
+        usuarios = cuentas.listar_usuarios()
+    except Exception:  # noqa: BLE001 — el panel no puede tumbar el mapa
+        return None
+
+    ficha = next((u for u in usuarios if u.get("vatsim_cid") == cid), None)
+    if ficha is None:
+        return None
+
+    actividad = {}
+    try:
+        actividad = estadisticas.actividad_reciente_por_piloto(30).get(
+            ficha["license_id"], {}
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+    categoria = ficha.get("categoria") or ""
+    info = cuentas.CATEGORIA_INFO.get(categoria, {})
+    origen = actividad.get("ultimo_origen")
+    destino = actividad.get("ultimo_destino")
+    return {
+        "license_id": ficha["license_id"],
+        "categoria": categoria,
+        # `siglas` es lo que se enseña (PPL, IR…): más corto y más reconocible
+        # para un piloto que "Private Pilot".
+        "categoria_siglas": info.get("siglas", categoria),
+        "vuelos_30d": actividad.get("vuelos_recientes"),
+        "ultimo_vuelo": (
+            f"{origen} → {destino}" if origen and destino else None
+        ),
+    }
 
 
 @app.route("/api/vatsim-data")

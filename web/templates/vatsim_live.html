@@ -25,6 +25,41 @@
 .item{padding:8px;border:1px solid var(--borde);border-radius:10px;margin-bottom:8px;background:white}
 .item small{color:#64748b}
 .muted{color:#64748b;font-size:13px}
+
+/* Panel de vuelo, al estilo FlightRadar24: lo importante sin desplegar nada
+   y el resto escondido. Ver docs/panel_vuelo_mapa_vivo.md */
+#panel-vuelo{
+  position:absolute;top:12px;left:12px;z-index:1000;width:290px;max-width:calc(100% - 24px);
+  background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.25);
+  font-size:13px;overflow:hidden;display:none;
+}
+#panel-vuelo .pv-cab{background:#0f172a;color:#fff;padding:10px 12px;position:relative}
+#panel-vuelo .pv-ind{font-size:17px;font-weight:700;letter-spacing:.5px}
+#panel-vuelo .pv-sub{color:#94a3b8;font-size:12px;margin-top:2px}
+#panel-vuelo .pv-cerrar{position:absolute;top:8px;right:8px;background:none;border:0;color:#94a3b8;font-size:18px;cursor:pointer;line-height:1}
+#panel-vuelo .pv-cerrar:hover{color:#fff}
+#panel-vuelo .pv-ruta{display:flex;justify-content:space-between;padding:12px;gap:8px}
+#panel-vuelo .pv-apt{text-align:center;flex:1;min-width:0}
+#panel-vuelo .pv-icao{font-size:20px;font-weight:700;line-height:1}
+#panel-vuelo .pv-ciudad{color:#64748b;font-size:11px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#panel-vuelo .pv-avion{align-self:center;color:#94a3b8;font-size:18px}
+#panel-vuelo .pv-barra{padding:0 12px 10px}
+#panel-vuelo .pv-riel{height:4px;background:#e2e8f0;border-radius:2px;position:relative}
+#panel-vuelo .pv-hecho{height:4px;background:#2563eb;border-radius:2px}
+#panel-vuelo .pv-cifras{display:flex;justify-content:space-between;color:#64748b;font-size:11px;margin-top:5px}
+#panel-vuelo .pv-datos{display:flex;border-top:1px solid #e2e8f0}
+#panel-vuelo .pv-dato{flex:1;padding:9px 4px;text-align:center;border-right:1px solid #e2e8f0}
+#panel-vuelo .pv-dato:last-child{border-right:0}
+#panel-vuelo .pv-etq{color:#94a3b8;font-size:9.5px;letter-spacing:.6px}
+#panel-vuelo .pv-val{font-weight:700;font-size:14px;margin-top:2px}
+#panel-vuelo details{border-top:1px solid #e2e8f0}
+#panel-vuelo summary{padding:9px 12px;cursor:pointer;font-weight:600;color:#334155;font-size:12px}
+#panel-vuelo summary:hover{background:#f8fafc}
+#panel-vuelo .pv-lista{padding:0 12px 10px;color:#475569;font-size:12px}
+#panel-vuelo .pv-lista div{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
+#panel-vuelo .pv-lista span:last-child{color:#0f172a;font-weight:600;text-align:right;
+  overflow-wrap:anywhere}
+#panel-vuelo .pv-eva summary{color:#1d4ed8}
 </style>
 
 <h2 style="margin:4px 0 8px">Vuelos ahora</h2>
@@ -49,7 +84,10 @@
   </div>
   <div>
     <div id="barra" class="barra-online"><span class="dot" id="dot-estado" style="background:#64748b"></span> <b id="titulo-barra">Vuelos online en estos momentos: —</b> <span id="sub-barra" class="muted" style="color:#cbd5e1"></span> <span style="margin-left:auto;display:flex;gap:10px;align-items:center"><span><span class="dot dot-atc"></span> ATC</span> <span><span class="dot dot-unicom"></span> UNICOM 122.800</span></span></div>
-    <div id="map"></div>
+    <div style="position:relative">
+      <div id="map"></div>
+      <div id="panel-vuelo"></div>
+    </div>
     <div id="tabla-vuelos" style="margin-top:10px"></div>
     <p class="muted" style="margin-top:6px">Tiles © OpenStreetMap. Fuente: <a href="https://vatsim.dev/api/data-api/get-network-data" target="_blank" rel="noopener">VATSIM Data API</a> — sin API key.</p>
   </div>
@@ -71,6 +109,103 @@ const $dotEstado = document.getElementById('dot-estado');
 const $tabla = document.getElementById('tabla-vuelos');
 
 // Mapa Leaflet simple
+// -- Panel de vuelo (docs/panel_vuelo_mapa_vivo.md) --------------------
+// Se pide al pinchar, no en cada refresco: el feed trae ~1000 pilotos y
+// enriquecerlos todos con coordenadas de aeropuerto seria mandar de mas
+// para pintar uno.
+const $panel = document.getElementById('panel-vuelo');
+let cidAbierto = null;
+
+function esc(t){
+  const d = document.createElement('div');
+  d.textContent = (t === null || t === undefined || t === '') ? '—' : String(t);
+  return d.innerHTML;
+}
+
+function fila(etiqueta, valor){
+  if(valor === null || valor === undefined || valor === '') return '';
+  return '<div><span>' + esc(etiqueta) + '</span><span>' + esc(valor) + '</span></div>';
+}
+
+function cerrarPanel(){ $panel.style.display='none'; cidAbierto = null; }
+
+async function abrirPanel(cid){
+  cidAbierto = String(cid);
+  $panel.style.display = 'block';
+  $panel.innerHTML = '<div class="pv-cab"><div class="pv-ind">…</div></div>';
+  let d;
+  try{
+    const r = await fetch('/api/vuelo-vivo/' + encodeURIComponent(cid));
+    if(!r.ok){ cerrarPanel(); return; }   // aterrizo o se desconecto
+    d = await r.json();
+  }catch(e){ cerrarPanel(); return; }
+  if(cidAbierto !== String(cid)) return;  // se pincho otro mientras llegaba
+  pintarPanel(d);
+}
+
+function pintarPanel(d){
+  const eva = d.eva;
+  const total = d.distancia_total_nm;
+  const hecho = d.distancia_hecha_nm;
+  const pct = (total && hecho !== null && total > 0)
+    ? Math.max(0, Math.min(100, Math.round(100 * hecho / total))) : 0;
+
+  // El tiempo restante puede venir vacio a proposito: un avion en espera
+  // dando vueltas daria cifras que nadie se cree, y el servidor prefiere no
+  // decir nada a decir "en 14 horas".
+  const restante = (d.distancia_restante_nm !== null)
+    ? esc(d.distancia_restante_nm) + ' NM' + (d.minutos_restantes !== null ? ' · ' + d.minutos_restantes + ' min' : '')
+    : '';
+
+  let html = ''
+    + '<div class="pv-cab">'
+    +   '<button class="pv-cerrar" id="pv-cerrar" aria-label="Cerrar">&times;</button>'
+    +   '<div class="pv-ind">' + esc(d.callsign) + '</div>'
+    +   '<div class="pv-sub">' + esc(d.avion)
+    +     (eva ? ' · Escuela Virtual Aérea · ' + esc(eva.license_id) : '') + '</div>'
+    + '</div>'
+    + '<div class="pv-ruta">'
+    +   '<div class="pv-apt"><div class="pv-icao">' + esc(d.salida.icao) + '</div>'
+    +     '<div class="pv-ciudad">' + esc(d.salida.nombre) + '</div></div>'
+    +   '<div class="pv-avion">✈</div>'
+    +   '<div class="pv-apt"><div class="pv-icao">' + esc(d.llegada.icao) + '</div>'
+    +     '<div class="pv-ciudad">' + esc(d.llegada.nombre) + '</div></div>'
+    + '</div>';
+
+  if(total){
+    html += '<div class="pv-barra">'
+      + '<div class="pv-riel"><div class="pv-hecho" style="width:' + pct + '%"></div></div>'
+      + '<div class="pv-cifras"><span>' + esc(hecho) + ' NM hechas</span><span>' + restante + '</span></div>'
+      + '</div>';
+  }
+
+  html += '<div class="pv-datos">'
+    + '<div class="pv-dato"><div class="pv-etq">ALTITUD</div><div class="pv-val">' + esc(d.altitud_ft) + ' ft</div></div>'
+    + '<div class="pv-dato"><div class="pv-etq">VELOCIDAD</div><div class="pv-val">' + esc(d.velocidad_kt) + ' kt</div></div>'
+    + '<div class="pv-dato"><div class="pv-etq">RUMBO</div><div class="pv-val">' + esc(d.rumbo) + '°</div></div>'
+    + '</div>';
+
+  const p = d.plan || {};
+  const detalle = fila('Reglas', p.reglas === 'I' ? 'IFR' : (p.reglas === 'V' ? 'VFR' : p.reglas))
+    + fila('Nivel', p.nivel) + fila('Alterno', p.alterno)
+    + fila('Salida UTC', p.salida_utc) + fila('Tiempo en ruta', p.tiempo_ruta)
+    + fila('Squawk asignado', p.squawk_asignado) + fila('Ruta', p.ruta);
+  if(detalle){
+    html += '<details><summary>Plan de vuelo</summary><div class="pv-lista">' + detalle + '</div></details>';
+  }
+
+  if(eva){
+    const suyo = fila('Categoría', eva.categoria_siglas)
+      + fila('Vuelos EvA (30 d)', eva.vuelos_30d)
+      + fila('Último vuelo', eva.ultimo_vuelo);
+    html += '<details class="pv-eva" open><summary>Piloto de EvA</summary>'
+      + '<div class="pv-lista">' + (suyo || '<div><span>Sin actividad todavía</span></div>') + '</div></details>';
+  }
+
+  $panel.innerHTML = html;
+  document.getElementById('pv-cerrar').onclick = cerrarPanel;
+}
+
 const map = L.map('map', {worldCopyJump:true}).setView([40.4, -3.7], 5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:18, attribution:'&copy; OpenStreetMap'}).addTo(map);
 const layer = L.layerGroup().addTo(map);
@@ -180,7 +315,7 @@ async function actualizar(manual=false){
       html += '</tbody></table></div>';
       $tabla.innerHTML = html;
       $tabla.querySelectorAll('tr[data-cid]').forEach(tr=>{
-        tr.onclick = ()=>{ const id=tr.dataset.cid; if(markers.has(id)){ const m=markers.get(id); map.setView(m.getLatLng(), Math.max(map.getZoom(),6)); m.openPopup(); } };
+        tr.onclick = ()=>{ const id=tr.dataset.cid; if(markers.has(id)){ const m=markers.get(id); map.setView(m.getLatLng(), Math.max(map.getZoom(),6)); } abrirPanel(id); };
       });
     }
     for(const p of filtrados){
@@ -198,7 +333,7 @@ async function actualizar(manual=false){
         + '<div><small>CID ' + p.cid + ' · ' + ruta + '</small></div>'
         + '<div><small><span class="dot ' + (withAtc ? 'dot-atc' : 'dot-unicom') + '"></span> ' + atcTxt + '</small></div>';
       div.style.cursor='pointer';
-      div.onclick = ()=>{ if(markers.has(String(p.cid))) { const m=markers.get(String(p.cid)); map.setView(m.getLatLng(), Math.max(map.getZoom(),6)); m.openPopup(); } };
+      div.onclick = ()=>{ if(markers.has(String(p.cid))) { const m=markers.get(String(p.cid)); map.setView(m.getLatLng(), Math.max(map.getZoom(),6)); } abrirPanel(p.cid); };
       $lista.appendChild(div);
     }
     if(noVuelan.length){
@@ -227,6 +362,9 @@ async function actualizar(manual=false){
       if(!m){
         const icon = L.divIcon({html:'<div style="background:'+color+';width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', className:'', iconSize:[14,14]});
         m = L.marker([p.latitude, p.longitude], {icon:icon}).addTo(layer).bindPopup(popup);
+        // Pinchar el avion abre el panel; el popup de Leaflet se queda
+        // como resumen rapido al pasar por encima.
+        m.on('click', ()=> abrirPanel(p.cid));
         // flecha heading
         m._heading = p.heading;
         markers.set(id, m);
