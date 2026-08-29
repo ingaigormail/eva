@@ -73,10 +73,23 @@
     font-weight: 600; cursor: pointer; margin-left: auto;
   }
   tr.fila-oculta { display: none; }
-  /* La tabla ya no cabe siempre en el ancho del panel (Valor estándar +
-     Valor de evaluación la ensancharon) — que se salga con scroll propio,
-     nunca por fuera del recuadro blanco. */
-  .tabla-scroll { overflow-x: auto; border-radius: 12px; }
+  .tabla-eva th, .tabla-eva td { font-size: 12px; padding: 6px 8px; }
+  .tabla-eva .campo-log, .tabla-eva .referencia { font-size: 11px; }
+  .economia-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px; margin-top: 16px;
+  }
+  .param-economia {
+    background: var(--panel-alto); border: 1px solid var(--borde);
+    border-radius: 8px; padding: 12px;
+  }
+  .param-economia .nombre { font-weight: 700; font-size: 12.5px; margin-bottom: 6px; }
+  .param-economia .valores-econ { display: flex; gap: 8px; flex-wrap: wrap; }
+  .valor-econ {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .valor-econ .label { font-size: 10px; color: var(--tenue); text-transform: uppercase; }
+  .valor-econ .valor { font-family: ui-monospace, Consolas, monospace; font-weight: 700; }
 {% endblock %}
 
 {% block contenido %}
@@ -110,14 +123,11 @@
       </label>
     </div>
 
-    <div class="tabla-scroll">
     <table class="tabla-eva" id="tabla-reglas">
       <thead>
         <tr>
           <th>Estado</th>
           <th>Regla</th>
-          <th>Alcance</th>
-          <th>Campo del log</th>
           <th>Referencia</th>
           <th>Valor estándar</th>
           <th>Valor de evaluación</th>
@@ -137,9 +147,7 @@
             </a>
             <div class="campo-mono">{{ r.id }}</div>
           </td>
-          <td><span class="alcance">{{ r.alcance }}</span></td>
-          <td><span class="campo-mono">{{ r.campo_log }}</span></td>
-          <td><span class="campo-mono">{{ r.referencia }}</span></td>
+          <td><span class="campo-mono referencia">{{ r.referencia }}</span></td>
           <td>
             {% if r.valores %}
             <div class="valores-fila">
@@ -172,8 +180,95 @@
         {% endfor %}
       </tbody>
     </table>
+  </div>
+
+  {% if economia %}
+  <div class="panel-alta">
+    <h2>Parámetros económicos</h2>
+    <p class="pie">
+      Valores que controlan la economía: ingresos, costes, bonificaciones y
+      cómo se penalizan los vuelos según su calidad.
+    </p>
+
+    <div class="economia-grid">
+      {% if economia.get('ingresos') %}
+      <div class="param-economia">
+        <div class="nombre">Ingresos</div>
+        <div class="valores-econ">
+          <div class="valor-econ">
+            <span class="label">Pasajero/NM</span>
+            <span class="valor">{{ economia['ingresos'].get('tarifa_pasajero_nm', '—') }} €</span>
+          </div>
+          <div class="valor-econ">
+            <span class="label">Kg/NM</span>
+            <span class="valor">{{ economia['ingresos'].get('tarifa_kg_nm', '—') }} €</span>
+          </div>
+          <div class="valor-econ">
+            <span class="label">Base/NM</span>
+            <span class="valor">{{ economia['ingresos'].get('base_nm', '—') }} €</span>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if economia.get('calidad') %}
+      <div class="param-economia">
+        <div class="nombre">Calidad</div>
+        <div class="valores-econ">
+          <div class="valor-econ">
+            <span class="label">Apto</span>
+            <span class="valor">{{ economia['calidad'].get('apto', '—') }}</span>
+          </div>
+          <div class="valor-econ">
+            <span class="label">No apto</span>
+            <span class="valor">{{ economia['calidad'].get('no_apto', '—') }}</span>
+          </div>
+          <div class="valor-econ">
+            <span class="label">Fallo</span>
+            <span class="valor">{{ economia['calidad'].get('fail', '—') }}</span>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if economia.get('bonus') %}
+      <div class="param-economia">
+        <div class="nombre">Bonificaciones</div>
+        <div class="valores-econ">
+          <div class="valor-econ">
+            <span class="label">VATSIM</span>
+            <span class="valor">{{ economia['bonus'].get('vatsim', '—') }}</span>
+          </div>
+          <div class="valor-econ">
+            <span class="label">ATC controlado</span>
+            <span class="valor">{{ economia['bonus'].get('atc_controlado', '—') }}</span>
+          </div>
+          <div class="valor-econ">
+            <span class="label">Tope</span>
+            <span class="valor">{{ economia['bonus'].get('tope', '—') }}</span>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if economia.get('costes') %}
+      <div class="param-economia">
+        <div class="nombre">Costes</div>
+        <div class="valores-econ">
+          <div class="valor-econ">
+            <span class="label">Combustible/kg</span>
+            <span class="valor">{{ economia['costes'].get('combustible_kg', '—') }} €</span>
+          </div>
+          <div class="valor-econ">
+            <span class="label">Tasa/NM</span>
+            <span class="valor">{{ economia['costes'].get('tasa_nm', '—') }} €</span>
+          </div>
+        </div>
+      </div>
+      {% endif %}
     </div>
   </div>
+  {% endif %}
 
   <script nonce="{{ csp_nonce }}">
     document.getElementById('solo-activas').addEventListener('change', function () {

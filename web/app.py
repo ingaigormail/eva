@@ -1210,7 +1210,8 @@ def gestion_reglas():
     (umbrales) y `reglas_config.py` (activo/inactivo y los umbrales que un
     admin haya pisado). Nada de esto se copia a mano aquí.
     """
-    return render_template("gestion_reglas.html", reglas=reglas_info.listar())
+    economia_efectiva = reglas_config.economia_efectiva(ECONOMIA, reglas_config.cargar_overrides())
+    return render_template("gestion_reglas.html", reglas=reglas_info.listar(), economia=economia_efectiva)
 
 
 @app.route("/gestion/reglas/<regla_id>")
