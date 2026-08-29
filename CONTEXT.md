@@ -1,6 +1,6 @@
 ---
-fecha: 2026-08-28
-ultima_sesion: IDOR parcheado 55eece5 re-verificado + plan economía V1 15 secciones en thoughts/plans/2026-08-28 + reparto entre agentes
+fecha: 2026-08-29
+ultima_sesion: Despliegue en producción 4e44fc7 (mapa vivo, controladores ATC, economía V1 con ingresos por pasajero-milla)
 estado: en_progreso
 ---
 
@@ -60,13 +60,21 @@ Decisiones de diseño de esa sesión, por si hay que discutirlas:
 - El muestreo de la traza **se queda como está** (1 Hz bajo 1.500 ft AGL, 1/10 s en crucero). Consecuencia asumida: la validación de zonas es indicio, no prueba.
 - La economía **no tiene caja de aerolínea**: el dinero solo paga el taller. Con eso, la V1 es un marcador de cuánto cuida el piloto los aviones, no una economía cerrada.
 
+## Despliegue 2026-08-29 (4e44fc7)
+
+Incluye:
+- Mapa en vivo con controladores ATC y zona pintada
+- Economía V1 con ranking mensual por categoría e ingresos pasajero-milla/kilo-milla
+- Espacio aéreo oficial ENAIRE integrado
+- Regla de invasión de zonas P/R/D
+
+Estado: ✅ en producción, respondiendo en `https://7c0cdce9-a46a-4339-9df6-50a26f00f11c.clouding.host`
+
 ## Trabajo pendiente
-- Confirmar en Clouding: arranque por `wsgi:app` (no `python web/app.py` con debug), cuenta `pruebas` bloqueada.
 - Decidir si desplegar `/vatsim` o dejarlo solo local.
 - X-Plane `poll()` sigue sin cerrar.
-- Comprobar URL Clouding si el host cambia.
-- Monitor VPS (opcional): Netdata en localhost + túnel SSH; OpenCode no sustituye gráficos.
 - Economía V1 F1 pendiente de visto humano (no programar hasta aprobar `thoughts/plans/2026-08-28-economia-v1-15-secciones.md`).
+- Confirmación: `calidad.no_apto` en 0,2 (¿premia cantidad o calidad?).
 
 ## Decisiones importantes
 - Números de la guía = perfil `normal` (`profiles.yaml`); easy/hard solo relectura.
