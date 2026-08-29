@@ -6,11 +6,10 @@ estado: en_progreso
 
 # CONTEXT - EvA Airliner
 
-> **Lee `AGENTS.md` antes que esto.** Ahí están las reglas para cualquier IA que
-> trabaje en el proyecto, incluida la del 85 % de contexto: al llegar ahí se
-> cierra la ventana en orden y se deja este fichero al día. Este documento es el
-> estado; `AGENTS.md` son las reglas; `DOCUMENTACION_PROYECTO.md` es la
-> arquitectura.
+> **LOAD ORDER**: `plantilla-estandar-ia/AI_DEVELOPMENT_STANDARD.md` (metodología
+> universal, incluida la **regla del 85 %** de ventana de contexto) →
+> `AGENTS.md` (reglas de EvA) → este fichero (el estado de hoy).
+> Arquitectura, si hace falta: `DOCUMENTACION_PROYECTO.md`.
 
 ## Reparto entre agentes (acordado 2026-08-28)
 

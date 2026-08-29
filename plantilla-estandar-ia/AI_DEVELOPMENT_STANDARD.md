@@ -441,6 +441,34 @@ Reglas de CONTEXT.md:
 - No borrar secciones; actualizarlas.
 - No sesduplicar con el historial de git; es Estado actual, no historial.
 
+## Cierre por ventana de contexto (regla del 85 %)
+
+Al llegar al **85 % de la ventana de contexto**, se cierra la sesion en orden.
+A partir de ahi **no se empieza nada nuevo**.
+
+Cerrar en orden, en este orden:
+
+1. **Dejar en punto estable** lo que este a medias. Nunca dejar el arbol de
+   trabajo con algo que no compile o no pase las pruebas.
+2. **Actualizar `CONTEXT.md`**: que se hizo, **que se decidio y por que**, que
+   queda pendiente y cual es el siguiente paso. Las decisiones son lo mas
+   importante de los cuatro: un commit se lee, pero el motivo de una decision no
+   esta en ninguna parte si no se escribe.
+3. **Comitear y subir** lo que corresponda segun las reglas del proyecto.
+4. **Decirselo al usuario en claro**: se acaba la ventana, esto queda hecho,
+   esto pendiente, se retoma leyendo `CONTEXT.md`.
+
+**Por que al 85 % y no al 100 %:** cerrar bien cuesta contexto. Si se espera a
+quedarse sin sitio, no queda para escribir el traspaso, y la sesion siguiente
+empieza a ciegas reconstruyendo lo que ya se sabia. Es un coste que se paga
+entero y que se evita con un 15 % de margen.
+
+**Para retomar en una ventana nueva** no hace falta releer el historial de
+commits ni volver a explorar el repositorio: basta `CONTEXT.md`. Si no basta, es
+que el cierre anterior se hizo mal.
+
+---
+
 ## SESSION_CONTEXT.md (backup de sesion - opcional)
 
 Opcionalmente, si se quiere un registro cronologico auditable, se puede
