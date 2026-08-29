@@ -25,6 +25,9 @@
 .item{padding:8px;border:1px solid var(--borde);border-radius:10px;margin-bottom:8px;background:white}
 .item small{color:#64748b}
 .muted{color:#64748b;font-size:13px}
+.cab-lista{font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
+  color:#64748b;margin:14px 0 6px;padding-top:10px;border-top:1px solid var(--borde)}
+.item .frec{font-family:ui-monospace,Consolas,monospace;font-weight:700;font-size:13px}
 
 /* Panel de vuelo, al estilo FlightRadar24: lo importante sin desplegar nada
    y el resto escondido. Ver docs/panel_vuelo_mapa_vivo.md */
@@ -63,7 +66,7 @@
 </style>
 
 <h2 style="margin:4px 0 8px">Vuelos ahora</h2>
-<p class="muted">Pilotos de <b>EvA</b> volando ahora en VATSIM y las posiciones ATC activas en España, Canarias, Ceuta y Melilla. Pincha un avión para ver su ficha.</p>
+<p class="muted">Pilotos de <b>EvA</b> volando ahora en VATSIM y las posiciones ATC activas en España y Portugal, con Canarias, Ceuta y Melilla. Pincha un avión para ver su ficha.</p>
 
 <div class="vatsim-wrap">
   <div class="panel">
@@ -213,6 +216,39 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:18, a
 const layer = L.layerGroup().addTo(map);
 let markers = new Map();
 
+// -- Zonas de los controladores de area -------------------------------
+// Un LECM_CTR no es un punto sino la FIR de Madrid entera. Los limites salen
+// del vatspy-data-project de VATSIM (CC-BY-SA), recortados a Iberia por
+// web/tools/extraer_fir_iberia.py: 9 regiones, 15 KB.
+const capaFIR = L.layerGroup().addTo(map);
+const firsPintadas = new Map();
+let FIR_GEO = null;
+
+fetch("{{ url_for('static', filename='fir_iberia.geojson') }}")
+  .then(r => r.json())
+  .then(g => { FIR_GEO = g; })
+  .catch(() => { FIR_GEO = {features: []}; });  // sin limites, solo puntos
+
+function pintarFIR(c, id, popup){
+  if(!FIR_GEO) return;                    // aun no ha llegado el fichero
+  if(firsPintadas.has(id)){               // ya esta pintada, solo el texto
+    firsPintadas.get(id).setPopupContent(popup);
+    return;
+  }
+  const region = FIR_GEO.features.find(f => f.properties.id === c.fir);
+  if(!region) return;                     // FIR fuera de Iberia: no se pinta
+  const capa = L.geoJSON(region, {
+    style: {color: c.color, weight: 2, opacity: .8, fillColor: c.color, fillOpacity: .08}
+  }).addTo(capaFIR).bindPopup(popup);
+  firsPintadas.set(id, capa);
+}
+
+function limpiarFIRs(activas){
+  for(const [id, capa] of firsPintadas){
+    if(!activas.has(id)){ capaFIR.removeLayer(capa); firsPintadas.delete(id); }
+  }
+}
+
 const cidsAerolinea = {{ cids_aerolinea|tojson or [] }};
 const mapeoPilotos = {{ mapeo_pilotos|tojson or {} }};
 
@@ -311,6 +347,34 @@ async function actualizar(manual=false){
       $lista.appendChild(div);
     }
 
+    // Los controladores, debajo de los pilotos y en el mismo listado: lo que
+    // el piloto quiere saber es a quien puede llamar y en que frecuencia.
+    if(controllers.length){
+      const cab = document.createElement('div');
+      cab.className = 'cab-lista';
+      cab.textContent = 'ATC activo (' + controllers.length + ')';
+      $lista.appendChild(cab);
+    }
+    for(const c of controllers){
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.style.borderLeft = '4px solid ' + c.color;
+      div.style.cursor = 'pointer';
+      div.innerHTML =
+          '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">'
+        +   '<b>' + c.callsign + '</b>'
+        +   '<span class="frec">' + (c.frequency || '—') + '</span>'
+        + '</div>'
+        + '<div><small>' + c.tipo + (c.aeropuerto ? ' · ' + c.aeropuerto : ' · FIR ' + c.fir) + '</small></div>';
+      div.onclick = ()=>{
+        const capa = firsPintadas.get('atc_' + c.callsign);
+        if(capa){ map.fitBounds(capa.getBounds()); capa.openPopup(); return; }
+        const m = markers.get('atc_' + c.callsign);
+        if(m){ map.setView(m.getLatLng(), Math.max(map.getZoom(), 8)); m.openPopup(); }
+      };
+      $lista.appendChild(div);
+    }
+
     // Mapa: upsert marcadores de pilotos
     const visibles = new Set();
     for(const p of filtrados){
@@ -343,24 +407,31 @@ async function actualizar(manual=false){
       }
     }
 
-    // Mapa: upsert marcadores de controladores ATC
+    // Mapa: controladores. Los de torre, rodadura y aproximacion se pintan
+    // como un punto en su aeropuerto; los de control de area y FSS son una
+    // REGION, y se pintan con el poligono de su FIR.
     const atcVisibles = new Set();
     for(const c of controllers){
-      if(c.latitude === undefined || c.longitude === undefined || c.latitude === null || c.longitude === null) continue;
       const id = 'atc_' + c.callsign;
       atcVisibles.add(id);
-      
-      const popup = '<b>Controlador ATC: ' + c.callsign + '</b><br>'
-        + 'Frecuencia: ' + (c.frequency || 'N/A') + ' MHz<br>'
-        + 'Nombre: ' + (c.name || 'N/A') + '<br>'
-        + 'Rango Visual: ' + (c.visual_range || 'N/A') + ' NM';
-        
+
+      const popup = '<b>' + c.callsign + '</b><br>'
+        + c.tipo + '<br>'
+        + '<b>' + (c.frequency || '—') + '</b> MHz<br>'
+        + (c.aeropuerto ? c.aeropuerto + '<br>' : '')
+        + '<small>' + (c.name || '') + '</small>';
+
+      if(c.fir){
+        pintarFIR(c, id, popup);
+        continue;
+      }
+
       let m = markers.get(id);
       if(!m){
         const icon = L.divIcon({
-          html: '<div style="background:#2563eb;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center"><div style="background:white;width:4px;height:4px;border-radius:50%"></div></div>', 
-          className:'', 
-          iconSize:[16,16]
+          html: '<div style="background:' + c.color + ';width:14px;height:14px;border-radius:3px;'
+              + 'border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
+          className:'', iconSize:[16,16]
         });
         m = L.marker([c.latitude, c.longitude], {icon:icon}).addTo(layer).bindPopup(popup);
         markers.set(id, m);
@@ -369,6 +440,8 @@ async function actualizar(manual=false){
         m.setPopupContent(popup);
       }
     }
+
+    limpiarFIRs(atcVisibles);
 
     // borrar los que dejaron de volar o estar activos
     for(const [id,m] of markers){ 

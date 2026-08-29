@@ -149,13 +149,66 @@ def test_los_observadores_no_son_controladores():
     assert app_module._controladores_situados(entrada) == []
 
 
-def test_un_sector_de_ruta_se_queda_fuera_en_vez_de_inventarle_sitio():
-    """LECM no es un aeropuerto sino un área: necesita polígonos de FIR."""
+def test_un_sector_de_ruta_se_pinta_como_region_y_no_como_punto():
+    """LECM no es un aeropuerto sino un área: se pinta con su polígono de FIR.
+
+    Antes se descartaba por no encontrarlo en `airports.json`. Desde que hay
+    límites de FIR (`web/static/fir_iberia.geojson`) sale como región, sin
+    coordenadas: inventarle un punto sería peor que no pintarlo.
+    """
     import app as app_module
 
-    entrada = [{"callsign": "LECM_CTR", "frequency": "132.400", "name": "Madrid"}]
+    c = app_module._controladores_situados(
+        [{"callsign": "LECM_CTR", "frequency": "132.400", "name": "Madrid"}]
+    )[0]
 
-    assert app_module._controladores_situados(entrada) == []
+    assert c["fir"] == "LECM"
+    assert c["latitude"] is None and c["longitude"] is None
+    assert c["tipo"] == "Control de área"
+
+
+def test_cada_posicion_dice_de_que_tipo_es():
+    """Es lo que el piloto necesita para saber a quién llama."""
+    import app as app_module
+
+    entrada = [
+        {"callsign": "LEBL_TWR", "frequency": "118.325", "name": "x"},
+        {"callsign": "LEMD_APP", "frequency": "119.800", "name": "x"},
+        {"callsign": "LEBL_GND", "frequency": "121.650", "name": "x"},
+        {"callsign": "LECM_CTR", "frequency": "132.400", "name": "x"},
+    ]
+
+    tipos = {c["callsign"]: c["tipo"] for c in app_module._controladores_situados(entrada)}
+
+    assert tipos["LEBL_TWR"] == "Torre"
+    assert tipos["LEMD_APP"] == "Aproximación"
+    assert tipos["LEBL_GND"] == "Rodadura"
+    assert tipos["LECM_CTR"] == "Control de área"
+
+
+def test_el_tipo_sale_del_ultimo_trozo_del_indicativo():
+    """Hay indicativos con parte intermedia: LEMH_A_TWR, EGLL_1_GND."""
+    import app as app_module
+
+    c = app_module._controladores_situados(
+        [{"callsign": "LEMH_A_TWR", "frequency": "119.655", "name": "x"}]
+    )[0]
+
+    assert c["tipo"] == "Torre"
+
+
+def test_las_torres_van_delante_de_las_areas():
+    """Si no, una torre queda tapada por el polígono de su control de área."""
+    import app as app_module
+
+    entrada = [
+        {"callsign": "LECM_CTR", "frequency": "132.400", "name": "x"},
+        {"callsign": "LEBL_TWR", "frequency": "118.325", "name": "x"},
+    ]
+
+    orden = [c["callsign"] for c in app_module._controladores_situados(entrada)]
+
+    assert orden == ["LEBL_TWR", "LECM_CTR"]
 
 
 def test_el_controlador_lleva_lo_que_hace_falta_para_llamarle():

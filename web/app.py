@@ -2681,6 +2681,32 @@ PREFIJOS_IBERIA = ("LE", "GC", "GE", "LP")
 #: posiciones que no atienden). No son controladores que sirvan de nada.
 FRECUENCIA_SIN_SERVICIO = "199.998"
 
+#: Tipo de posición según el sufijo del indicativo, que es como VATSIM las
+#: nombra. El orden importa: se pinta el más "alto" delante, para que una
+#: torre no quede tapada por su área de control.
+TIPOS_ATC = {
+    "DEL": {"nombre": "Autorizaciones", "orden": 1, "color": "#94a3b8"},
+    "GND": {"nombre": "Rodadura", "orden": 2, "color": "#0891b2"},
+    "TWR": {"nombre": "Torre", "orden": 3, "color": "#16a34a"},
+    "APP": {"nombre": "Aproximación", "orden": 4, "color": "#ea580c"},
+    "DEP": {"nombre": "Salidas", "orden": 4, "color": "#ea580c"},
+    "CTR": {"nombre": "Control de área", "orden": 5, "color": "#7c3aed"},
+    "FSS": {"nombre": "Información de vuelo", "orden": 6, "color": "#7c3aed"},
+}
+
+
+def _tipo_atc(callsign: str) -> dict:
+    """Qué clase de posición es, a partir del sufijo del indicativo.
+
+    `LEBL_TWR` es torre, `LEMD_APP` aproximación, `LECM_CTR` control de área.
+    Hay indicativos con parte intermedia (`LEMH_A_TWR`, `EGLL_1_GND`), así que
+    se mira el último trozo y no el segundo.
+    """
+    sufijo = (callsign or "").upper().rsplit("_", 1)[-1]
+    return TIPOS_ATC.get(
+        sufijo, {"nombre": sufijo or "ATC", "orden": 0, "color": "#64748b"}
+    )
+
 
 def _controladores_situados(controllers: list) -> list:
     """Los controladores españoles activos, con su posición en el mapa.
@@ -2705,23 +2731,41 @@ def _controladores_situados(controllers: list) -> list:
         icao = (c.get("callsign") or "").split("_")[0].upper()
         if not icao.startswith(PREFIJOS_IBERIA):
             continue
-        aeropuerto = AIRPORTS.get(icao)
-        if not aeropuerto:
-            continue
-        lat, lon = aeropuerto.get("lat"), aeropuerto.get("lon")
-        if lat is None or lon is None:
-            continue
-        salida.append(
-            {
-                "callsign": c.get("callsign"),
-                "frequency": c.get("frequency"),
-                "name": c.get("name"),
-                "visual_range": c.get("visual_range"),
-                "latitude": lat,
-                "longitude": lon,
-                "aeropuerto": aeropuerto.get("name") or icao,
-            }
-        )
+        tipo = _tipo_atc(c.get("callsign"))
+        ficha = {
+            "callsign": c.get("callsign"),
+            "frequency": c.get("frequency"),
+            "name": c.get("name"),
+            "visual_range": c.get("visual_range"),
+            "tipo": tipo["nombre"],
+            "orden": tipo["orden"],
+            "color": tipo["color"],
+            "fir": None,
+            "latitude": None,
+            "longitude": None,
+            "aeropuerto": None,
+        }
+
+        # Un control de área o un FSS no son un punto sino una región: se
+        # pintan con el polígono de su FIR (web/static/fir_iberia.geojson).
+        # Los demás se sitúan en su aeropuerto.
+        if tipo["nombre"] in ("Control de área", "Información de vuelo"):
+            ficha["fir"] = icao
+        else:
+            aeropuerto = AIRPORTS.get(icao)
+            if not aeropuerto:
+                continue
+            lat, lon = aeropuerto.get("lat"), aeropuerto.get("lon")
+            if lat is None or lon is None:
+                continue
+            ficha["latitude"] = lat
+            ficha["longitude"] = lon
+            ficha["aeropuerto"] = aeropuerto.get("name") or icao
+
+        salida.append(ficha)
+
+    # Lo más alto delante, para que una torre no quede tapada por su área.
+    salida.sort(key=lambda c: c["orden"])
     return salida
 
 
