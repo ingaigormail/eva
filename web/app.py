@@ -1121,8 +1121,9 @@ def gestion_pistas():
     el rumbo del avión al despegar o aterrizar.
     """
     faltan = []
-    try:
-        with cuentas.conexion() as con:
+    with cuentas.conexion() as con:
+        try:
+            # Intenta con la tabla completa de aeródromos españoles
             faltan = con.execute(
                 """SELECT icao, name, municipality FROM aerodromos_es
                    WHERE icao GLOB '[LG][ECG][A-Z][A-Z]' AND length(icao) = 4
@@ -1133,33 +1134,21 @@ def gestion_pistas():
                      AND icao NOT IN (SELECT DISTINCT icao FROM pistas_es)
                    ORDER BY icao"""
             ).fetchall()
-    except Exception:  # noqa: BLE001 — tabla aerodromos_es no existe
-        # Fallback: mostrar aeródromos usados en vuelos sin pistas registradas
-        with cuentas.conexion() as con:
-            faltan = con.execute(
-                """SELECT DISTINCT
-                     json_extract(json_each.value, '$.icao') as icao,
-                     json_extract(json_each.value, '$.icao') as name,
-                     '' as municipality
-                   FROM vuelos_resumen
-                   CROSS JOIN json_each(vuelos_resumen.departures)
-                   WHERE json_extract(json_each.value, '$.icao') NOT IN (
-                       SELECT DISTINCT icao FROM pistas_es
-                   )
-                   AND json_extract(json_each.value, '$.icao') GLOB '[LG][ECG][A-Z][A-Z]'
-                   UNION
-                   SELECT DISTINCT
-                     json_extract(json_each.value, '$.icao') as icao,
-                     json_extract(json_each.value, '$.icao') as name,
-                     '' as municipality
-                   FROM vuelos_resumen
-                   CROSS JOIN json_each(vuelos_resumen.arrivals)
-                   WHERE json_extract(json_each.value, '$.icao') NOT IN (
-                       SELECT DISTINCT icao FROM pistas_es
-                   )
-                   AND json_extract(json_each.value, '$.icao') GLOB '[LG][ECG][A-Z][A-Z]'
-                   ORDER BY icao"""
-            ).fetchall()
+        except Exception:  # noqa: BLE001 — tabla aerodromos_es/pistas_es no existen
+            # Fallback: mostrar solo los ICAO únicos de vuelos españoles realizados
+            try:
+                filas = con.execute(
+                    """SELECT DISTINCT departure_icao as icao FROM vuelos_resumen
+                       WHERE departure_icao GLOB '[LG][ECG][A-Z][A-Z]'
+                       UNION
+                       SELECT DISTINCT arrival_icao as icao FROM vuelos_resumen
+                       WHERE arrival_icao GLOB '[LG][ECG][A-Z][A-Z]'
+                       ORDER BY icao"""
+                ).fetchall()
+                # Convertir a dict con estructura compatible
+                faltan = [{"icao": f["icao"], "name": f["icao"], "municipality": ""} for f in filas]
+            except Exception:  # noqa: BLE001 — si ni eso funciona, lista vacía
+                faltan = []
     icao_precargado = request.args.get("icao", "").strip().upper()
     return render_template(
         "gestion_pistas.html",
