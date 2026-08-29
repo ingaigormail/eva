@@ -117,6 +117,52 @@ Lo que entró después del bloque anterior:
   lo paga quien lo causa en el momento: ese pago *es* la reparación, así que no
   hay botón de reparar ni problema de gorrones.
 
+## Cierre del 2026-08-29 (`511a786` en GitHub; producción en `054b8fc`)
+
+Todo subido a `origin/main`. **Producción va dos commits por detrás**: lo del
+listado de ATC y las zonas de FIR (`511a786`) está sin desplegar.
+
+    ssh -i ~/.ssh/clouding_eva.pem eva@7c0cdce9-a46a-4339-9df6-50a26f00f11c.clouding.host "./desplegar.sh"
+
+### Lo que entró hoy
+
+- **Panel de vuelo** al pinchar un avión (`docs/panel_vuelo_mapa_vivo.md`) y
+  endpoint `/api/vuelo-vivo/<cid>`. El bloque de EvA solo con sesión.
+- **CID de VATSIM editable** en `/gestion/usuarios`. Antes solo se podía dar al
+  solicitar el alta, así que los pilotos existentes no podían rellenarlo nunca
+  y el mapeo salía vacío.
+- **`/plan` filtra los aviones por categoría** y enseña la célula asignada con
+  matrícula y salud. Matrícula y `categoria_minima` viven en `aircraft.yaml`,
+  bloque `flota`.
+- **`economia.yaml`**: todos los parámetros de la economía, ajustables en vivo
+  con el mismo mecanismo que los umbrales de puntuación (prefijo `economia.`).
+- **Mapa acotado a la Península Ibérica**, controladores situados por prefijo
+  OACI, con tipo de posición, listado lateral y zonas de FIR pintadas.
+- **`truststore` en `app.py`**: el mapa no funcionaba en local con antivirus
+  que intercepta TLS.
+
+### Decisiones nuevas
+
+- **La economía es un incentivo, no un negocio.** No se trata de que la
+  aerolínea gane dinero: se trata de que la gente vuele y se pique. De ahí:
+  clasificación **mensual** (con saldo acumulado quien entró antes gana
+  siempre) y **por categoría**.
+- **Ingresos por pasajero-milla (2 €) y kilo-milla (0,01)**, más 1 €/NM de
+  base. Así la **capacidad** del avión es lo que le hace ganar, sin
+  multiplicadores inventados: el Caravan gana más porque lleva nueve plazas.
+- **Categorías VFR reducidas**: P0 = C172; P1 = DA62, Baron, Caravan; P2 = IFR,
+  aparcado. **10 vuelos APTO** para pasar de P0 a P1.
+- La flota son ocho células `EC-EVA`…`EC-EVH`, **sin exclusiva**: si dos eligen
+  el mismo avión vuelan los dos y el desgaste se suma.
+
+### Dos cosas que decidir
+
+1. **`EVA` es el código OACI de EVA Air**, la aerolínea taiwanesa. Un piloto
+   volando como `EVA18L` es indistinguible de sus 777 para un controlador de
+   VATSIM. El mapa ya no se confunde (filtra por CID), pero el nombre choca.
+2. **`calidad.no_apto` está en 0,2** por recomendación mía, sin decisión tuya.
+   Es el mando que decide si la competición premia cantidad o calidad.
+
 ## Para OpenCode (2026-08-29)
 
 **Panel de vuelo del mapa en vivo: especificación aprobada, sin implementar.**
