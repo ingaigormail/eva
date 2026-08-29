@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block titulo %}VATSIM Live — EvA{% endblock %}
+{% block titulo %}Vuelos ahora — EvA{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
 <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
@@ -27,8 +27,8 @@
 .muted{color:#64748b;font-size:13px}
 </style>
 
-<h2 style="margin:4px 0 8px">VATSIM Live — Seguimiento por CID</h2>
-<p class="muted">Escribe los <b>CID de VATSIM</b> (uno por línea o separados por comas). Solo se pintan los que estén <b>volando ahora</b>. Datos de <code>data.vatsim.net/v3/vatsim-data.json</code> cada 15s. ATC se infiere de <code>controllers[]</code> del mismo feed (ver nota abajo).</p>
+<h2 style="margin:4px 0 8px">Vuelos ahora</h2>
+<p class="muted">Por defecto se muestran todos los pilotos de la aerolínea <b>EvA</b> y vuelos con indicativo <b>EVA</b> que estén volando ahora en VATSIM, junto con las posiciones ATC activas. Si lo deseas, puedes buscar/filtrar por CIDs específicos abajo.</p>
 
 <div class="vatsim-wrap">
   <div class="panel">
@@ -77,6 +77,7 @@ const layer = L.layerGroup().addTo(map);
 let markers = new Map();
 
 const cidsAerolinea = {{ cids_aerolinea|tojson or [] }};
+const mapeoPilotos = {{ mapeo_pilotos|tojson or {} }};
 
 function parseCids(raw){
   return [...new Set(raw.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{6,10}$/.test(s)) )];
@@ -170,8 +171,9 @@ async function actualizar(manual=false){
         const atc = atcPara(p, controllers);
         const withAtc = atc.length>0;
         const fp = p.flight_plan||{};
+        const pilotName = mapeoPilotos[String(p.cid)] ? ' (' + mapeoPilotos[String(p.cid)] + ')' : '';
         html += '<tr style="border-top:1px solid var(--borde);cursor:pointer" data-cid="'+p.cid+'">'
-          + '<td style="padding:8px"><b>' + p.callsign + '</b><br><small style="color:#64748b">CID ' + p.cid + '</small></td>'
+          + '<td style="padding:8px"><b>' + p.callsign + pilotName + '</b><br><small style="color:#64748b">CID ' + p.cid + '</small></td>'
           + '<td style="padding:8px">' + (fp.departure||'?') + ' → ' + (fp.arrival||'?') + '<br><small style="color:#64748b">' + (fp.aircraft_short||'') + ' · ' + p.altitude + ' ft</small></td>'
           + '<td style="padding:8px">' + (withAtc ? '<span class="badge badge-atc">SÍ</span> <small>' + atc.map(c=>c.callsign).join(', ') + '</small>' : '<span class="badge badge-unicom">NO</span> <small>122.800</small>') + '</td></tr>';
       }
@@ -188,10 +190,11 @@ async function actualizar(manual=false){
       const atcTxt = withAtc ? atc.map(c=> c.callsign + ' ' + (c.frequency||'')).join(', ') : 'UNICOM 122.800';
       const fp = p.flight_plan || {};
       const ruta = (fp.departure||'?') + ' → ' + (fp.arrival||'?') + ' · ' + (fp.aircraft_short|| fp.aircraft||'');
+      const pilotName = mapeoPilotos[String(p.cid)] ? ' (' + mapeoPilotos[String(p.cid)] + ')' : '';
       const div = document.createElement('div');
       div.className = 'item';
       div.style.borderLeft = '4px solid ' + (withAtc ? '#22c55e' : '#ef4444');
-      div.innerHTML = '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>' + p.callsign + '</b> ' + badge + '</div>'
+      div.innerHTML = '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>' + p.callsign + pilotName + '</b> ' + badge + '</div>'
         + '<div><small>CID ' + p.cid + ' · ' + ruta + '</small></div>'
         + '<div><small><span class="dot ' + (withAtc ? 'dot-atc' : 'dot-unicom') + '"></span> ' + atcTxt + '</small></div>';
       div.style.cursor='pointer';
@@ -206,7 +209,7 @@ async function actualizar(manual=false){
       $lista.appendChild(div);
     }
 
-    // Mapa: upsert marcadores
+    // Mapa: upsert marcadores de pilotos
     const visibles = new Set();
     for(const p of filtrados){
       const id = String(p.cid);
@@ -215,7 +218,8 @@ async function actualizar(manual=false){
       const withAtc = atc.length>0;
       const color = withAtc ? '#22c55e' : '#ef4444';
       const fp = p.flight_plan||{};
-      const popup = '<b>' + p.callsign + '</b> (CID ' + p.cid + ')<br>'
+      const pilotName = mapeoPilotos[String(p.cid)] ? ' [Piloto EvA: ' + mapeoPilotos[String(p.cid)] + ']' : '';
+      const popup = '<b>' + p.callsign + pilotName + '</b> (CID ' + p.cid + ')<br>'
         + (fp.departure||'?') + ' → ' + (fp.arrival||'?') + ' · ' + (fp.aircraft_short||'') + '<br>'
         + 'ALT ' + p.altitude + ' ft · GS ' + p.groundspeed + ' kt · HDG ' + p.heading + '°<br>'
         + (withAtc ? '<span class="badge badge-atc">CON ATC</span> ' + atc.map(c=>c.callsign+' '+ (c.frequency||'')).join(', ') : '<span class="badge badge-unicom">UNICOM 122.800</span>');
@@ -233,10 +237,48 @@ async function actualizar(manual=false){
         m.setIcon(icon);
       }
     }
-    // borrar los que dejaron de volar
-    for(const [id,m] of markers){ if(!visibles.has(id)){ layer.removeLayer(m); markers.delete(id);} }
-    if(filtrados.length){
-      const g = L.featureGroup([...markers.values()]);
+
+    // Mapa: upsert marcadores de controladores ATC
+    const atcVisibles = new Set();
+    for(const c of controllers){
+      if(c.latitude === undefined || c.longitude === undefined || c.latitude === null || c.longitude === null) continue;
+      const id = 'atc_' + c.callsign;
+      atcVisibles.add(id);
+      
+      const popup = '<b>Controlador ATC: ' + c.callsign + '</b><br>'
+        + 'Frecuencia: ' + (c.frequency || 'N/A') + ' MHz<br>'
+        + 'Nombre: ' + (c.name || 'N/A') + '<br>'
+        + 'Rango Visual: ' + (c.visual_range || 'N/A') + ' NM';
+        
+      let m = markers.get(id);
+      if(!m){
+        const icon = L.divIcon({
+          html: '<div style="background:#2563eb;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center"><div style="background:white;width:4px;height:4px;border-radius:50%"></div></div>', 
+          className:'', 
+          iconSize:[16,16]
+        });
+        m = L.marker([c.latitude, c.longitude], {icon:icon}).addTo(layer).bindPopup(popup);
+        markers.set(id, m);
+      } else {
+        m.setLatLng([c.latitude, c.longitude]);
+        m.setPopupContent(popup);
+      }
+    }
+
+    // borrar los que dejaron de volar o estar activos
+    for(const [id,m] of markers){ 
+      if(!visibles.has(id) && !atcVisibles.has(id)){ 
+        layer.removeLayer(m); 
+        markers.delete(id);
+      } 
+    }
+
+    const pilotMarkers = [...markers.entries()]
+      .filter(([id]) => !id.startsWith('atc_'))
+      .map(([,m]) => m);
+
+    if(pilotMarkers.length){
+      const g = L.featureGroup(pilotMarkers);
       try{ map.fitBounds(g.getBounds().pad(0.35), {maxZoom:8}); }catch(e){}
     }
   }catch(e){
