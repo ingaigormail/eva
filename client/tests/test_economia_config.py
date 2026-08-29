@@ -34,6 +34,14 @@ def test_los_ocho_aviones_tienen_hora_y_dano():
     assert len(flota) == 8
 
 
+def test_se_venden_todos_los_aviones_menos_el_c172():
+    """El C172 es el de entrada y va siempre alquilado; el resto se compran."""
+    e = load_economia()
+    precios = set(e["compra_aviones"]["precio"])
+
+    assert precios == set(e["costes"]["hora_avion"]) - {"C172"}
+
+
 def test_sin_overrides_la_economia_es_la_del_fichero():
     base = load_economia()
 
@@ -97,4 +105,4 @@ def test_no_muta_la_base(config_tmp):
 
     reglas_config.economia_efectiva(base, reglas_config.cargar_overrides(config_tmp))
 
-    assert base["calidad"]["no_apto"] == 0.2
+    assert base["calidad"]["no_apto"] == load_economia()["calidad"]["no_apto"]

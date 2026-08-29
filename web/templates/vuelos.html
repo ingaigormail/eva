@@ -87,7 +87,56 @@
             <div class="valor">{{ resumen.evolocutor_vAs }}</div>
             <div class="etiqueta">💰 €vAs conseguidos</div>
           </div>
+          <div class="kpi {{ 'apto' if saldo > 0 else '' }}">
+            <div class="valor">{{ saldo }}</div>
+            <div class="etiqueta">🏦 Saldo disponible</div>
+          </div>
         </div>
+
+        {% if catalogo %}
+        <h3 style="font-size:14px;margin:22px 0 4px">Mis aviones</h3>
+        <p class="pie" style="margin:0 0 12px">
+          Un avión comprado deja de pagar alquiler y pasa a pagar solo
+          mantenimiento. El Cessna 172 no se vende: es el avión de entrada y
+          va siempre alquilado.
+        </p>
+        <table class="tabla-eva">
+          <thead>
+            <tr>
+              <th>Avión</th>
+              <th>Plazas</th>
+              <th>Alquiler</th>
+              <th>Mantenimiento</th>
+              <th>Precio</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in catalogo %}
+            <tr>
+              <td>{{ a.nombre }}</td>
+              <td>{{ a.plazas or '—' }}</td>
+              <td>{{ a.alquiler_hora }} €vAs/h</td>
+              <td>{{ a.mantenimiento_hora }} €vAs/h</td>
+              <td>{{ a.precio }} €vAs</td>
+              <td>
+                {% if a.es_mio %}
+                <span class="etiqueta activa">✓ TUYO</span>
+                {% elif saldo >= a.precio %}
+                <form method="POST" action="{{ url_for('comprar_avion', icao=a.icao) }}"
+                      data-confirmar="¿Comprar el {{ a.nombre }} por {{ a.precio }} €vAs?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="mini" type="submit">Comprar</button>
+                </form>
+                {% else %}
+                <span class="etiqueta" title="Te faltan {{ (a.precio - saldo) | round(2) }} €vAs">Sin saldo</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
       </section>
 
       <section class="tarjeta">

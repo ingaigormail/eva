@@ -1713,12 +1713,9 @@ def _estado_del_vuelo(path: Path) -> str:
     return estadisticas.APTO if verdict.passed else estadisticas.NO_APTO
 
 
-@app.route("/vuelos")
-@login_requerido
-def vuelos():
-    """Los vuelos grabados de este piloto (CSV + AVLOG)."""
+def _vuelos_del_piloto(piloto: str) -> list[dict]:
+    """Los vuelos grabados de ese piloto (CSV + AVLOG), más recientes primero."""
     vuelos = []
-    piloto = piloto_actual()
 
     # Buscar archivos CSV y AVLOG en directorios
     for directory in SEARCH_DIRS:
@@ -1768,13 +1765,72 @@ def vuelos():
 
     # Ordenar por fecha (más recientes primero)
     vuelos.sort(key=lambda v: v["fecha"], reverse=True)
+    return vuelos
 
+
+@app.route("/vuelos")
+@login_requerido
+def vuelos():
+    """La cartilla del piloto: sus vuelos, su marca y su economía."""
+    piloto = piloto_actual()
+    vuelos = _vuelos_del_piloto(piloto)
+    economia_viva = reglas_config.economia_efectiva(
+        ECONOMIA, reglas_config.cargar_overrides()
+    )
+    resumen = _resumen_de_la_cartilla(vuelos)
     return render_template(
         "vuelos.html",
         vuelos=vuelos,
         total=len(vuelos),
-        resumen=_resumen_de_la_cartilla(vuelos),
+        resumen=resumen,
+        catalogo=flota_eva.catalogo_de_compra(
+            cuentas.categoria_de(piloto), piloto, AIRCRAFT, economia_viva
+        ),
+        saldo=_saldo_del_piloto(piloto, resumen["evolocutor_vAs"]),
     )
+
+
+def _saldo_del_piloto(license_id: str, ganado: float) -> float:
+    """Lo ganado volando menos lo gastado en aviones.
+
+    Sin saldo inicial: el dinero que hay es el que se ha volado. Ponerlo de
+    regalo haría que el primer avión no costara ningún vuelo.
+    """
+    with cuentas.conexion() as con:
+        fila = con.execute(
+            "SELECT COALESCE(SUM(coste_pagado), 0) AS g FROM aviones_comprados"
+            " WHERE license_id = ? COLLATE NOCASE",
+            (license_id,),
+        ).fetchone()
+    return round(ganado - float(fila["g"] or 0), 2)
+
+
+@app.route("/economia/comprar/<icao>", methods=["POST"])
+@login_requerido
+def comprar_avion(icao: str):
+    piloto = piloto_actual()
+    economia_viva = reglas_config.economia_efectiva(
+        ECONOMIA, reglas_config.cargar_overrides()
+    )
+    ficha = AIRCRAFT.get(icao)
+    precio = flota_eva.precio_de_compra(icao, economia_viva)
+
+    if precio is None or not isinstance(ficha, dict):
+        flash("Ese avión no está a la venta.", "error")
+    elif not flota_eva.puede_volar(cuentas.categoria_de(piloto), ficha):
+        flash("Tu categoría todavía no habilita ese avión.", "error")
+    elif cuentas.tiene_avion(piloto, icao):
+        flash("Ya tienes ese avión.", "error")
+    else:
+        vuelos = _vuelos_del_piloto(piloto)
+        ganado = _resumen_de_la_cartilla(vuelos)["evolocutor_vAs"]
+        if _saldo_del_piloto(piloto, ganado) < precio:
+            flash("No tienes €vAs suficientes para comprarlo.", "error")
+        else:
+            cuentas.comprar_avion(piloto, icao, precio)
+            flash(f"{ficha.get('nombre', icao)} comprado. Ya es tuyo.", "exito")
+
+    return redirect(url_for("vuelos"))
 
 
 def _resumen_de_la_cartilla(vuelos: list[dict]) -> dict:

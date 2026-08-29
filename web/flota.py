@@ -126,6 +126,52 @@ def _estado(porcentaje: int) -> str:
     return "gastada"
 
 
+def catalogo_de_compra(categoria_piloto: str, license_id: str,
+                       flota: dict, economia: dict) -> list[dict]:
+    """Los aviones que ese piloto puede comprar, con precio y si ya es suyo.
+
+    Solo salen los de su categoría (o inferior) que tengan precio. El C172 no
+    lleva precio a propósito: es el avión de entrada y va siempre alquilado.
+    """
+    compra = economia.get("compra_aviones") or {}
+    precios = compra.get("precio") or {}
+    horas = economia.get("costes", {}).get("hora_avion") or {}
+    pct = float(compra.get("mantenimiento_pct", 0.25))
+    mios = set(cuentas.aviones_de(license_id))
+
+    salida = []
+    for icao, ficha in flota.items():
+        if not isinstance(ficha, dict) or icao not in precios:
+            continue
+        if not puede_volar(categoria_piloto, ficha):
+            continue
+        alquiler = float(horas.get(icao, 0))
+        datos = ficha.get("flota") or {}
+        salida.append(
+            {
+                "icao": icao,
+                "nombre": ficha.get("nombre", icao),
+                "matricula": datos.get("matricula", ""),
+                "categoria_minima": datos.get("categoria_minima", ""),
+                "plazas": (ficha.get("despacho") or {}).get("plazas"),
+                "precio": float(precios[icao]),
+                "alquiler_hora": alquiler,
+                "mantenimiento_hora": round(alquiler * pct, 2),
+                "es_mio": icao in mios,
+            }
+        )
+    salida.sort(key=lambda a: a["precio"])
+    return salida
+
+
+def precio_de_compra(icao: str, economia: dict) -> Optional[float]:
+    """Lo que cuesta ese avión, o None si no está a la venta."""
+    precios = (economia.get("compra_aviones") or {}).get("precio") or {}
+    if icao not in precios:
+        return None
+    return float(precios[icao])
+
+
 def ficha_de(icao: str, flota: dict, economia: dict) -> Optional[dict]:
     """Matrícula y salud de la célula de ese tipo, para enseñarla en `/plan`."""
     ficha = flota.get(icao)

@@ -133,6 +133,37 @@ costes:
     DHC6: 1200
     C25C: 2200
 
+# -- COMPRA DE AVIONES ------------------------------------------------
+#
+# Un piloto puede comprar los aviones de su categoria. Comprado, deja de
+# pagar `hora_avion` y pasa a pagar `mantenimiento_hora`, que es una
+# fraccion de aquella: la compra se amortiza volando.
+#
+# El C172 NO aparece a proposito: es el avion de entrada, va siempre
+# alquilado y no se compra. Si se pudiera comprar, un P0 gastaria en el
+# avion que va a dejar atras el dinero que necesita para el siguiente.
+#
+# El precio es 60 horas de alquiler (unos tres meses a 20 h/mes). Sale de
+# ahi y no de un catalogo real porque lo que tiene que estar equilibrado es
+# el TIEMPO de juego que cuesta, no el precio de mercado del avion.
+compra_aviones:
+  # Que fraccion de `hora_avion` se paga cuando el avion es propio. Al 25 %
+  # la compra se recupera en unos 80 vuelos de una hora: se nota pronto sin
+  # volver irrelevante el coste de volar.
+  mantenimiento_pct: 0.25
+
+  # Horas de alquiler equivalentes al precio de compra.
+  horas_equivalentes: 60
+
+  precio:
+    DA62: 21000
+    BE58: 22800
+    C208: 54000
+    TBM9: 66000
+    B350: 84000
+    DHC6: 72000
+    C25C: 132000
+
 # -- DANO -------------------------------------------------------------
 #
 # Lo paga quien lo causa, en el momento del vuelo, y ese pago ES la

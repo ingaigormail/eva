@@ -224,6 +224,17 @@ CREATE TABLE IF NOT EXISTS vuelos_resumen (
 
 CREATE INDEX IF NOT EXISTS vuelos_resumen_piloto ON vuelos_resumen (license_id);
 CREATE INDEX IF NOT EXISTS vuelos_resumen_fecha ON vuelos_resumen (fecha);
+
+-- Aviones que el piloto ha comprado. Mientras no compre uno, vuela alquilado
+-- y paga la hora de `costes.hora_avion`; comprado, paga solo mantenimiento.
+-- El C172 no se compra: es el avión de entrada y siempre va alquilado.
+CREATE TABLE IF NOT EXISTS aviones_comprados (
+    license_id   TEXT NOT NULL,
+    designador   TEXT NOT NULL,   -- 'DA62', 'C208'...
+    coste_pagado REAL NOT NULL,
+    fecha        TEXT NOT NULL,
+    PRIMARY KEY (license_id, designador)
+);
 """
 
 
@@ -764,8 +775,44 @@ def eliminar_usuario(license_id: str) -> None:
             "DELETE FROM testigos WHERE license_id = ? COLLATE NOCASE",
             (license_id,),
         )
+        con.execute(
+            "DELETE FROM aviones_comprados WHERE license_id = ? COLLATE NOCASE",
+            (license_id,),
+        )
     if not borradas:
         raise ValueError(f"El piloto {license_id} no está dado de alta")
+
+
+# -- Aviones comprados -----------------------------------------------------
+
+
+def aviones_de(license_id: str) -> list[str]:
+    """Designadores de los aviones que el piloto ha comprado."""
+    with conexion() as con:
+        filas = con.execute(
+            "SELECT designador FROM aviones_comprados"
+            " WHERE license_id = ? COLLATE NOCASE",
+            (license_id,),
+        ).fetchall()
+    return [str(f["designador"]) for f in filas]
+
+
+def tiene_avion(license_id: str, designador: str) -> bool:
+    return designador in aviones_de(license_id)
+
+
+def comprar_avion(license_id: str, designador: str, coste: float) -> None:
+    """Anota la compra. Falla si ya lo tenía."""
+    with conexion() as con:
+        try:
+            con.execute(
+                "INSERT INTO aviones_comprados"
+                " (license_id, designador, coste_pagado, fecha)"
+                " VALUES (?, ?, ?, ?)",
+                (license_id, designador, coste, _ahora()),
+            )
+        except sqlite3.IntegrityError:
+            raise ValueError(f"{license_id} ya tiene un {designador}")
 
 
 # -- Autenticación ---------------------------------------------------------
