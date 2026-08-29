@@ -1133,8 +1133,33 @@ def gestion_pistas():
                      AND icao NOT IN (SELECT DISTINCT icao FROM pistas_es)
                    ORDER BY icao"""
             ).fetchall()
-    except Exception:  # noqa: BLE001 — tabla aerodromos_es no existe aún
-        pass
+    except Exception:  # noqa: BLE001 — tabla aerodromos_es no existe
+        # Fallback: mostrar aeródromos usados en vuelos sin pistas registradas
+        with cuentas.conexion() as con:
+            faltan = con.execute(
+                """SELECT DISTINCT
+                     json_extract(json_each.value, '$.icao') as icao,
+                     json_extract(json_each.value, '$.icao') as name,
+                     '' as municipality
+                   FROM vuelos_resumen
+                   CROSS JOIN json_each(vuelos_resumen.departures)
+                   WHERE json_extract(json_each.value, '$.icao') NOT IN (
+                       SELECT DISTINCT icao FROM pistas_es
+                   )
+                   AND json_extract(json_each.value, '$.icao') GLOB '[LG][ECG][A-Z][A-Z]'
+                   UNION
+                   SELECT DISTINCT
+                     json_extract(json_each.value, '$.icao') as icao,
+                     json_extract(json_each.value, '$.icao') as name,
+                     '' as municipality
+                   FROM vuelos_resumen
+                   CROSS JOIN json_each(vuelos_resumen.arrivals)
+                   WHERE json_extract(json_each.value, '$.icao') NOT IN (
+                       SELECT DISTINCT icao FROM pistas_es
+                   )
+                   AND json_extract(json_each.value, '$.icao') GLOB '[LG][ECG][A-Z][A-Z]'
+                   ORDER BY icao"""
+            ).fetchall()
     icao_precargado = request.args.get("icao", "").strip().upper()
     return render_template(
         "gestion_pistas.html",
