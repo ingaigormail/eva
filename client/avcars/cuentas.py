@@ -441,6 +441,17 @@ def rol_de(license_id: str) -> str:
     return ficha["rol"] if ficha else ""
 
 
+def categoria_de(license_id: str) -> str:
+    """La categoría del piloto (P0…P4), o cadena vacía si no se sabe.
+
+    Decide qué aviones puede elegir en `/plan`. Devolver vacío para un piloto
+    desconocido es lo prudente: sin categoría no se le ofrece ningún avión, en
+    vez de ofrecerle el reactor por un dato que falta.
+    """
+    ficha = _ficha(license_id)
+    return (ficha["categoria"] if ficha else "") or ""
+
+
 def esta_activa(license_id: str) -> bool:
     return estado_de(license_id) == ESTADO_ACTIVA
 

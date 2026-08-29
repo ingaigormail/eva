@@ -173,6 +173,20 @@ dano:
     DHC6: 0.50
     C25C: 0.75
 
+# -- DESGASTE ---------------------------------------------------------
+#
+# La salud de una celula baja con las horas y vuelve a 100 en cada revision,
+# que ya va pagada por la provision que aporta cada vuelo. Es un diente de
+# sierra y **no bloquea nada**: con una celula por tipo, dejar el C172 en
+# tierra dejaria a todo el club sin C172. Se ve, para que a cada uno le
+# importe como vuela el resto.
+desgaste:
+  horas_entre_revisiones: 100
+
+  # Cuanta salud cuesta una hora de vuelo. Al 0.2 %, una celula llega a la
+  # revision de las 100 h con un 80 % de salud: se nota sin ser alarmante.
+  por_hora_pct: 0.2
+
 # -- PROGRESION -------------------------------------------------------
 #
 # Subir de categoria necesita DOS cosas: el examen de la escuela (humano,

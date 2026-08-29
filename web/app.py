@@ -54,6 +54,7 @@ from avcars.evaluation.scoring import Verdict, evaluate_flight  # noqa: E402
 from avcars.evaluation import espacio_aereo, reglas_config, reglas_info  # noqa: E402
 from avcars.prefile import PrefileExtras, icao_fpl, vatsim_prefile_url  # noqa: E402
 from avcars import ubicacion  # noqa: E402  (distancia entre coordenadas)
+from avcars.config import load_economia  # noqa: E402
 from avcars.schema import FlightLog, FlightPlanInfo, PilotInfo  # noqa: E402
 from avcars import (  # noqa: E402
     correo as correo_eva,
@@ -103,6 +104,7 @@ from auth import (  # noqa: E402
     login_requerido,
     permiso_requerido,
 )
+import flota as flota_eva  # noqa: E402
 import importacion  # noqa: E402
 from despacho_pesos import datos_para_plantilla  # noqa: E402
 from security import setup_security_headers, sanitize_input  # noqa: E402
@@ -207,6 +209,9 @@ PROFILES = load_profiles()
 DEFAULT_PROFILE = "normal"
 AIRCRAFT = load_aircraft()
 AIRPORTS = load_airports()
+#: Base versionada de la economía; lo que un administrador pise en vivo se
+#: aplica encima con `reglas_config.economia_efectiva()`.
+ECONOMIA = load_economia()
 
 #: Espacio aéreo oficial de ENAIRE, para la regla de invasión de zonas. Se
 #: genera con `web/tools/descargar_enaire.py` y no está en git: si falta, la
@@ -1417,10 +1422,19 @@ def crudo(nombre: str):
 
 @app.route("/plan")
 def plan():
-    flota = [
-        {"icao": icao, "nombre": data.get("nombre", icao)}
-        for icao, data in AIRCRAFT.items()
-    ]
+    # El desplegable solo ofrece lo que ese piloto puede volar: filtrar en vez
+    # de dejarle elegir un avión y devolverle un error después. Un P0 solo ve
+    # el C172, y eso es correcto — es el único avión de su categoría.
+    categoria = cuentas.categoria_de(piloto_actual())
+    flota = flota_eva.aviones_de(categoria, AIRCRAFT)
+    economia_viva = reglas_config.economia_efectiva(
+        ECONOMIA, reglas_config.cargar_overrides()
+    )
+    # Matrícula y salud de cada célula, para el bloque de aeronave de /plan.
+    celulas = {
+        a["icao"]: flota_eva.ficha_de(a["icao"], AIRCRAFT, economia_viva)
+        for a in flota
+    }
     estelas = {
         icao: data["referencia_atc"]["estela"]
         for icao, data in AIRCRAFT.items()
@@ -1446,6 +1460,7 @@ def plan():
         estelas=estelas,
         pesos=pesos,
         despacho=despacho,
+        celulas=celulas,
         plan_guardado=plan_guardado,
     )
 

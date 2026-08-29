@@ -86,6 +86,15 @@ C172:
     vr: null
     vx: null
     vy: null
+  flota:
+    # Matricula de la celula de EvA y categoria minima de piloto que puede
+    # volarla. La ultima letra de la matricula sigue el orden de la escalera:
+    # la A es el avion de entrada y la H el reactor.
+    #
+    # `categoria_minima` filtra el desplegable de /plan: un piloto solo ve los
+    # aviones que puede volar, en vez de elegir uno y recibir un error.
+    matricula: EC-EVA
+    categoria_minima: P0
   despacho:
     # Peso y combustible del propio simulador: `asobo-aircraft-c172sp-as1000`,
     # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
@@ -162,6 +171,15 @@ C208:
     vr: null
     vx: null
     vy: null
+  flota:
+    # Matricula de la celula de EvA y categoria minima de piloto que puede
+    # volarla. La ultima letra de la matricula sigue el orden de la escalera:
+    # la A es el avion de entrada y la H el reactor.
+    #
+    # `categoria_minima` filtra el desplegable de /plan: un piloto solo ve los
+    # aviones que puede volar, en vez de elegir uno y recibir un error.
+    matricula: EC-EVD
+    categoria_minima: P1
   despacho:
     # Peso y combustible del propio simulador: `asobo-aircraft-208b-grand-caravan-ex`,
     # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
@@ -273,6 +291,15 @@ DA62:
     vne: 205                # max_indicated_speed (redline)
     vno: 162                # normal_operating_speed
     vfe: 119                # max_flaps_extended
+  flota:
+    # Matricula de la celula de EvA y categoria minima de piloto que puede
+    # volarla. La ultima letra de la matricula sigue el orden de la escalera:
+    # la A es el avion de entrada y la H el reactor.
+    #
+    # `categoria_minima` filtra el desplegable de /plan: un piloto solo ve los
+    # aviones que puede volar, en vez de elegir uno y recibir un error.
+    matricula: EC-EVB
+    categoria_minima: P1
   despacho:
     # Peso y combustible del propio simulador: `asobo-aircraft-da62`,
     # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
@@ -335,6 +362,15 @@ BE58:
     vr: null
     vx: null
     vy: null
+  flota:
+    # Matricula de la celula de EvA y categoria minima de piloto que puede
+    # volarla. La ultima letra de la matricula sigue el orden de la escalera:
+    # la A es el avion de entrada y la H el reactor.
+    #
+    # `categoria_minima` filtra el desplegable de /plan: un piloto solo ve los
+    # aviones que puede volar, en vez de elegir uno y recibir un error.
+    matricula: EC-EVC
+    categoria_minima: P1
   despacho:
     # Peso y combustible del propio simulador: `asobo-aircraft-baron-g58`,
     # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
@@ -424,6 +460,15 @@ TBM9:
     mtow_kg: 3354
     max_aterrizaje_kg: 3186
     max_sin_combustible_kg: 2736
+  flota:
+    # Matricula de la celula de EvA y categoria minima de piloto que puede
+    # volarla. La ultima letra de la matricula sigue el orden de la escalera:
+    # la A es el avion de entrada y la H el reactor.
+    #
+    # `categoria_minima` filtra el desplegable de /plan: un piloto solo ve los
+    # aviones que puede volar, en vez de elegir uno y recibir un error.
+    matricula: EC-EVE
+    categoria_minima: P2
   despacho:
     # Peso y combustible del propio simulador: `asobo-aircraft-tbm930`,
     # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
@@ -516,6 +561,15 @@ B350:
     vr: null
     vx: 125
     vy: 140
+  flota:
+    # Matricula de la celula de EvA y categoria minima de piloto que puede
+    # volarla. La ultima letra de la matricula sigue el orden de la escalera:
+    # la A es el avion de entrada y la H el reactor.
+    #
+    # `categoria_minima` filtra el desplegable de /plan: un piloto solo ve los
+    # aviones que puede volar, en vez de elegir uno y recibir un error.
+    matricula: EC-EVF
+    categoria_minima: P2
   despacho:
     # Peso y combustible del propio simulador: `asobo-aircraft-kingair350`,
     # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con
@@ -600,6 +654,15 @@ DHC6:
       vne_kt: 178          # IAS, del nivel del mar a 10.000 ft
       vne_reduccion: "restar 4 kt por cada 1.000 ft por encima de 10.000 ft"
       nota: "tambien cambian los limites de centrado"
+  flota:
+    # Matricula de la celula de EvA y categoria minima de piloto que puede
+    # volarla. La ultima letra de la matricula sigue el orden de la escalera:
+    # la A es el avion de entrada y la H el reactor.
+    #
+    # `categoria_minima` filtra el desplegable de /plan: un piloto solo ve los
+    # aviones que puede volar, en vez de elegir uno y recibir un error.
+    matricula: EC-EVG
+    categoria_minima: P2
   despacho:
     # UNICO avion de la flota sin cifras del simulador: el Twin Otter no
     # viene con MSFS y aqui no hay ningun anadido instalado. Estos numeros
@@ -678,6 +741,15 @@ C25C:
   viento:
     max_viento_cola_aterrizaje_kt: 10
     max_viento_cruzado_demostrado_kt: 25
+  flota:
+    # Matricula de la celula de EvA y categoria minima de piloto que puede
+    # volarla. La ultima letra de la matricula sigue el orden de la escalera:
+    # la A es el avion de entrada y la H el reactor.
+    #
+    # `categoria_minima` filtra el desplegable de /plan: un piloto solo ve los
+    # aviones que puede volar, en vez de elegir uno y recibir un error.
+    matricula: EC-EVH
+    categoria_minima: P2
   despacho:
     # Peso y combustible del propio simulador: `asobo-aircraft-cj4`,
     # bloques [WEIGHT_AND_BALANCE] y [FUEL] de flight_model.cfg. Leido con

@@ -281,9 +281,11 @@ def test_la_pantalla_de_plan_responde_y_lista_la_flota_real(cliente):
 
     assert respuesta.status_code == 200
     html = respuesta.get_data(as_text=True)
-    # Los ocho aviones de aircraft.yaml, ninguno inventado en la plantilla.
+    # Solo los aviones que el piloto puede volar: desde el 2026-08-29 el
+    # desplegable se filtra por categoria, en vez de ofrecerle todo y
+    # devolverle un error al elegir. `pruebas` es P0, asi que solo el C172.
     assert "Cessna 172 Skyhawk" in html
-    assert "Daher TBM 930" in html
+    assert "Daher TBM 930" not in html
 
 
 def test_la_api_de_aeropuerto_devuelve_coordenadas_reales(cliente):
@@ -402,7 +404,6 @@ def test_la_pantalla_de_plan_pasa_los_datos_de_peso_mtow(cliente):
     """El semáforo de peso necesita MTOW + estimación de despacho."""
     html = cliente.get("/plan").get_data(as_text=True)
     assert "C172" in html
-    assert "Daher TBM 930" in html
     assert 'id="semaforo-peso"' in html
     assert "DESPACHO" in html
     assert "PESO_COMBUSTIBLE_VACIO" not in html

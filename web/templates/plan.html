@@ -65,6 +65,27 @@
   .aviso { font-size: 11.5px; color: var(--tenue); margin-top: 10px; }
   .aviso.error { color: var(--rojo); }
 
+  /* -- ficha de la célula asignada -- */
+  .ficha-celula{
+    display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+    border:1px solid var(--borde);border-radius:10px;padding:10px 12px;
+    background:var(--panel-alto);margin-bottom:10px;
+  }
+  .celula-id{min-width:150px}
+  .ficha-celula .matricula{
+    font-family:ui-monospace,Consolas,monospace;font-size:19px;font-weight:700;
+    letter-spacing:1px;display:block;
+  }
+  .celula-nombre{color:var(--tenue);font-size:12px}
+  .celula-salud{flex:1;min-width:190px}
+  .salud-cab{display:flex;justify-content:space-between;font-size:12px;color:var(--tenue)}
+  .salud-cab b{font-size:14px;color:var(--texto)}
+  .salud-riel{height:6px;background:var(--borde);border-radius:3px;margin-top:4px;overflow:hidden}
+  .salud-barra{height:6px;border-radius:3px;background:var(--verde);width:0}
+  .salud-barra.usada{background:var(--ambar)}
+  .salud-barra.gastada{background:var(--rojo)}
+  .celula-horas{color:var(--tenue);font-size:11px;margin-top:4px}
+
   /* -- semáforo de peso -- */
   .semaforo {
     display: flex; align-items: center; gap: 10px; margin-top: 16px;
@@ -263,6 +284,29 @@
             <input id="carga-kg" class="mono" inputmode="numeric" value="0" min="0">
           </div>
         </div>
+        {#
+          La célula de EvA que corresponde al tipo elegido arriba, con su
+          matrícula y su salud. No bloquea nada: con una célula por tipo,
+          dejar el C172 en tierra dejaría a todo el club sin C172. Se ve para
+          que a cada uno le importe cómo vuela el resto.
+          Ver docs/desgaste_y_mantenimiento_tabla.md
+        #}
+        <div class="grupo-titulo">Aeronave asignada</div>
+        <div class="ficha-celula" id="ficha-celula">
+          <div class="celula-id">
+            <span class="matricula" id="celula-matricula">—</span>
+            <span class="celula-nombre" id="celula-nombre"></span>
+          </div>
+          <div class="celula-salud">
+            <div class="salud-cab">
+              <span>Salud</span>
+              <b id="celula-pct">—</b>
+            </div>
+            <div class="salud-riel"><div class="salud-barra" id="celula-barra"></div></div>
+            <div class="celula-horas" id="celula-horas"></div>
+          </div>
+        </div>
+
         <p class="aviso" id="nota-combustible">
           El combustible se calcula con el plan (EET + 30 min de reserva VFR, o la autonomía si la rellenas). No es un % de tanque inventado.
         </p>
@@ -575,6 +619,10 @@ $("btn-vatsim").addEventListener("click", async () => {
 
 // -- carga y pasajeros: combustible del plan + semáforo. --
 const DESPACHO = {{ despacho | default({}) | tojson }};
+// Matricula y salud de la celula de cada tipo. Se manda entera y no se pide
+// al cambiar de avion: son ocho fichas de cuatro numeros, no justifica una
+// llamada al servidor por cada clic en el desplegable.
+const CELULAS = {{ celulas | default({}) | tojson }};
 const PESO_PERSONA_KG = 85;
 const RESERVA_VFR_MIN = 30;
 const MARGEN_JUSTO_FRACCION = 0.02;
@@ -692,6 +740,28 @@ function actualizarPesoTotal() {
       `${Math.round(tow)} kg de ${mtow} kg (margen: ${Math.round(margen)} kg).` + extra;
   }
 }
+
+function actualizarCelula(){
+  const c = CELULAS[$("aeronave").value];
+  const barra = $("celula-barra");
+  if(!c){
+    $("celula-matricula").textContent = "—";
+    $("celula-nombre").textContent = "Sin célula asignada a este tipo";
+    $("celula-pct").textContent = "—";
+    $("celula-horas").textContent = "";
+    barra.style.width = "0";
+    return;
+  }
+  $("celula-matricula").textContent = c.matricula;
+  $("celula-nombre").textContent = c.nombre;
+  $("celula-pct").textContent = c.salud_pct + "%";
+  barra.style.width = c.salud_pct + "%";
+  barra.className = "salud-barra " + c.estado;
+  $("celula-horas").textContent =
+    c.horas.toFixed(1) + " h voladas · revisión en " + c.horas_para_revision.toFixed(0) + " h";
+}
+$("aeronave").addEventListener("change", actualizarCelula);
+actualizarCelula();
 
 $("pasajeros").addEventListener("input", actualizarPesoTotal);
 $("carga-kg").addEventListener("input", actualizarPesoTotal);
