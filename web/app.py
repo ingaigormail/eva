@@ -2667,6 +2667,60 @@ def _piloto_de_eva(cid: str) -> Optional[dict]:
     }
 
 
+#: Caja de Europa y África. Cubre Canarias (−18°), Ceuta y Melilla, Azores
+#: (−31°) y llega hasta el Cáucaso y Sudáfrica. Se filtra aquí y no en el
+#: navegador para no mandar los controladores de América y Asia, que no se van
+#: a pintar.
+CAJA_EUROPA_AFRICA = {"lat_min": -36.0, "lat_max": 72.0, "lon_min": -32.0, "lon_max": 45.0}
+
+#: Frecuencia que usa VATSIM para "sin frecuencia real" (observadores y
+#: posiciones que no atienden). No son controladores que sirvan de nada.
+FRECUENCIA_SIN_SERVICIO = "199.998"
+
+
+def _controladores_situados(controllers: list) -> list:
+    """Añade coordenadas a cada controlador y deja solo Europa y África.
+
+    **El feed de VATSIM no da posición de los controladores**: sus campos son
+    `cid, name, callsign, frequency, facility, rating, server, visual_range,
+    text_atis, last_updated, logon_time`. Por eso el mapa no pintaba ninguno.
+
+    Se sitúan por el prefijo del indicativo: `HECA_APP` → `HECA` → El Cairo.
+    Con `airports.json` se colocan unos tres de cada cuatro. Los que faltan son
+    sectores de ruta y FSS (`LECM_CTR`, `NAT_FSS`…), que no son un punto sino
+    un área y necesitan los polígonos de FIR del `vatspy-data-project`. Esos se
+    quedan fuera del mapa por ahora, en vez de inventarles una posición.
+    """
+    salida = []
+    caja = CAJA_EUROPA_AFRICA
+    for c in controllers:
+        if (c.get("frequency") or FRECUENCIA_SIN_SERVICIO) == FRECUENCIA_SIN_SERVICIO:
+            continue
+        icao = (c.get("callsign") or "").split("_")[0].upper()
+        aeropuerto = AIRPORTS.get(icao)
+        if not aeropuerto:
+            continue
+        lat, lon = aeropuerto.get("lat"), aeropuerto.get("lon")
+        if lat is None or lon is None:
+            continue
+        if not (caja["lat_min"] <= lat <= caja["lat_max"]):
+            continue
+        if not (caja["lon_min"] <= lon <= caja["lon_max"]):
+            continue
+        salida.append(
+            {
+                "callsign": c.get("callsign"),
+                "frequency": c.get("frequency"),
+                "name": c.get("name"),
+                "visual_range": c.get("visual_range"),
+                "latitude": lat,
+                "longitude": lon,
+                "aeropuerto": aeropuerto.get("name") or icao,
+            }
+        )
+    return salida
+
+
 @app.route("/api/vatsim-data")
 def vatsim_data():
     """Proxy ligero a data.vatsim.net con caché 12 s (el feed es 15 s)."""
@@ -2677,6 +2731,7 @@ def vatsim_data():
     pilots = data.get("pilots") or []
     controllers = data.get("controllers") or []
     general = data.get("general") or {}
+    controllers = _controladores_situados(controllers)
     # Limitar tamaño: no mandar facilities/ratings/prefiles
     resp = jsonify({"general": general, "pilots": pilots, "controllers": controllers})
     resp.headers["Cache-Control"] = "public, max-age=12"

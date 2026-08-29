@@ -63,24 +63,16 @@
 </style>
 
 <h2 style="margin:4px 0 8px">Vuelos ahora</h2>
-<p class="muted">Por defecto se muestran todos los pilotos de la aerolínea <b>EvA</b> y vuelos con indicativo <b>EVA</b> que estén volando ahora en VATSIM, junto con las posiciones ATC activas. Si lo deseas, puedes buscar/filtrar por CIDs específicos abajo.</p>
+<p class="muted">Pilotos de <b>EvA</b> volando ahora en VATSIM y las posiciones ATC activas en Europa y África. Pincha un avión para ver su ficha.</p>
 
 <div class="vatsim-wrap">
   <div class="panel">
-    <label for="cids" style="font-weight:700">CIDs a seguir</label>
-    <textarea id="cids" class="cid-input" placeholder="Ej:&#10;1234567&#10;8765432, 1122334"></textarea>
-    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-      <button id="btn-buscar" class="btn btn-primary">Buscar</button>
-      <button id="btn-limpiar" class="btn">Limpiar</button>
-      <button id="btn-compartir" class="btn" title="Copia URL con los CIDs">Copiar enlace</button>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="auto" checked> auto 15s</label>
-    </div>
-    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="auto" checked> Actualizar cada 15 s</label>
       <span id="estado" class="muted">—</span>
       <span id="contador" class="muted"></span>
     </div>
     <div id="lista" class="lista"></div>
-    <p class="muted" style="margin-top:10px">ATC = hay un <code>controller</code> cuyo <code>callsign</code> empieza por tu DEP/ARR o FIR (ej. <code>LEBB_TWR</code>, <code>LECM_CTR</code>). Sin match → <b>UNICOM 122.800</b>. Para CTR en ruta es aproximado (sin polígonos de sectores).</p>
   </div>
   <div>
     <div id="barra" class="barra-online"><span class="dot" id="dot-estado" style="background:#64748b"></span> <b id="titulo-barra">Vuelos online en estos momentos: —</b> <span id="sub-barra" class="muted" style="color:#cbd5e1"></span> <span style="margin-left:auto;display:flex;gap:10px;align-items:center"><span><span class="dot dot-atc"></span> ATC</span> <span><span class="dot dot-unicom"></span> UNICOM 122.800</span></span></div>
@@ -94,10 +86,6 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-const $cids = document.getElementById('cids');
-const $btnBuscar = document.getElementById('btn-buscar');
-const $btnLimpiar = document.getElementById('btn-limpiar');
-const $btnCompartir = document.getElementById('btn-compartir');
 const $auto = document.getElementById('auto');
 const $estado = document.getElementById('estado');
 const $contador = document.getElementById('contador');
@@ -214,19 +202,6 @@ let markers = new Map();
 const cidsAerolinea = {{ cids_aerolinea|tojson or [] }};
 const mapeoPilotos = {{ mapeo_pilotos|tojson or {} }};
 
-function parseCids(raw){
-  return [...new Set(raw.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{6,10}$/.test(s)) )];
-}
-function cidsEnURL(){
-  const p = new URLSearchParams(location.search);
-  return p.get('cids') || p.get('cid') || '';
-}
-function setURL(cids){
-  const u = new URL(location.href);
-  if(cids.length) u.searchParams.set('cids', cids.join(','));
-  else u.searchParams.delete('cids');
-  history.replaceState(null,'',u);
-}
 function atcPara(piloto, controllers){
   const dep = (piloto.flight_plan && piloto.flight_plan.departure || '').toUpperCase();
   const arr = (piloto.flight_plan && piloto.flight_plan.arrival || '').toUpperCase();
@@ -257,48 +232,33 @@ async function fetchData(){
 }
 
 async function actualizar(manual=false){
-  const cids = parseCids($cids.value);
-  setURL(cids);
-  localStorage.setItem('vatsim_cids', cids.join(','));
-  
   $estado.textContent = 'Consultando VATSIM…';
   try{
     const data = await fetchData();
     const pilots = data.pilots || [];
     const controllers = data.controllers || [];
     
-    let filtrados = [];
-    if(cids.length){
-      const wanted = new Set(cids);
-      filtrados = pilots.filter(p => wanted.has(String(p.cid)));
-    } else {
-      // Autofiltro por indicativo EVA o CIDs de pilotos de la aerolínea
-      filtrados = pilots.filter(p => {
-        const isCIDAerolinea = cidsAerolinea.includes(String(p.cid));
-        const isCallsignEVA = (p.callsign || "").toUpperCase().startsWith("EVA");
-        return isCIDAerolinea || isCallsignEVA;
-      });
-    }
-    
+    // Solo por CID declarado. NO por indicativo: `EVA` es el codigo OACI de
+    // EVA Air, la aerolinea taiwanesa, y filtrar por ese prefijo llenaba el
+    // mapa de sus 777 camino de Taipei. El CID es exacto.
+    const filtrados = pilots.filter(p => cidsAerolinea.includes(String(p.cid)));
+
     const upd = data.general && data.general.update_timestamp ? new Date(data.general.update_timestamp) : new Date();
     $estado.textContent = 'Actualizado ' + upd.toLocaleTimeString() + ' — ' + (data.general.connected_clients||'') + ' conectados VATSIM';
-    if(cids.length) {
-      $contador.textContent = filtrados.length + '/' + cids.length + ' en vuelo';
-    } else {
-      $contador.textContent = filtrados.length + ' en vuelo (Flota)';
-    }
-    
+    $contador.textContent = filtrados.length + ' en vuelo';
+
     // Barra superior sobre el mapa: vuelos online en estos momentos
     const conATC = filtrados.filter(p=> atcPara(p, controllers).length>0).length;
     const sinATC = filtrados.length - conATC;
-    $tituloBarra.textContent = 'Vuelos online en estos momentos: ' + filtrados.length + (cids.length ? ' / ' + cids.length + ' seguidos' : ' (Flota EvA)');
-    $subBarra.textContent = filtrados.length ? ('· ' + conATC + ' CON ATC · ' + sinATC + ' UNICOM') : 'sin pilotos online de la aerolínea ahora';
+    $tituloBarra.textContent = 'Vuelos de EvA en el aire: ' + filtrados.length;
+    $subBarra.textContent = filtrados.length ? ('· ' + conATC + ' CON ATC · ' + sinATC + ' UNICOM')
+      : (cidsAerolinea.length ? 'ningún piloto de EvA está volando ahora'
+                              : 'ningún piloto tiene su CID de VATSIM puesto todavía');
     $dotEstado.style.background = filtrados.length ? (conATC ? '#22c55e' : '#ef4444') : '#64748b';
 
     // Lista lateral + tabla debajo del mapa (piloto | origen → destino | ATC verde/rojo)
     $lista.innerHTML = '';
     $tabla.innerHTML = '';
-    const noVuelan = cids.length ? cids.filter(id => !filtrados.some(p=>String(p.cid)===id)) : [];
     // tabla compacta debajo del mapa
     if(filtrados.length){
       let html = '<div class="panel" style="padding:0;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8fafc;text-align:left"><th style="padding:8px">Piloto</th><th style="padding:8px">Origen → Destino</th><th style="padding:8px">ATC</th></tr></thead><tbody>';
@@ -334,13 +294,6 @@ async function actualizar(manual=false){
         + '<div><small><span class="dot ' + (withAtc ? 'dot-atc' : 'dot-unicom') + '"></span> ' + atcTxt + '</small></div>';
       div.style.cursor='pointer';
       div.onclick = ()=>{ if(markers.has(String(p.cid))) { const m=markers.get(String(p.cid)); map.setView(m.getLatLng(), Math.max(map.getZoom(),6)); } abrirPanel(p.cid); };
-      $lista.appendChild(div);
-    }
-    if(noVuelan.length){
-      const div = document.createElement('div');
-      div.className='muted';
-      div.style.marginTop='8px';
-      div.textContent = 'No volando ahora: ' + noVuelan.join(', ');
       $lista.appendChild(div);
     }
 
@@ -424,22 +377,8 @@ async function actualizar(manual=false){
   }
 }
 
-// init: URL ?cids= o localStorage
-(function init(){
-  const fromURL = cidsEnURL();
-  const fromLS = localStorage.getItem('vatsim_cids') || '';
-  $cids.value = (fromURL || fromLS).replace(/,/g, '\n');
-  actualizar();
-})();
-
-$btnBuscar.onclick = ()=> actualizar(true);
-$btnLimpiar.onclick = ()=>{ $cids.value=''; localStorage.removeItem('vatsim_cids'); setURL([]); layer.clearLayers(); markers.clear(); $lista.innerHTML=''; $estado.textContent='—'; $contador.textContent=''; };
-$btnCompartir.onclick = async ()=>{
-  const cids = parseCids($cids.value);
-  setURL(cids);
-  try{ await navigator.clipboard.writeText(location.href); $estado.textContent='Enlace copiado'; }catch(e){ $estado.textContent=location.href; }
-};
-$cids.addEventListener('keydown', e=>{ if(e.key==='Enter' && (e.ctrlKey||e.metaKey)) actualizar(true); });
+// Arranque: la flota de EvA se pinta sola, sin nada que teclear.
+actualizar();
 
 let timer=null;
 function armTimer(){
