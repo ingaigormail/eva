@@ -1795,6 +1795,12 @@ def _resumen_de_la_cartilla(vuelos: list[dict]) -> dict:
     millas_ok = sum(v["distancia_nm"] for v in aprobados)
     evaluados = len(aprobados) + len(suspendidos)
 
+    # Cálculo de €vAs: solo los vuelos aprobados generan ingresos
+    economia = reglas_config.economia_efectiva(ECONOMIA, reglas_config.cargar_overrides())
+    tarifa_base = economia.get("ingresos", {}).get("base_nm", 1.0)
+    millas_totales = sum(v["distancia_nm"] for v in aprobados)
+    evolocutor_vAs = round(millas_totales * tarifa_base, 2)
+
     return {
         "total": len(vuelos),
         "aprobados": len(aprobados),
@@ -1808,7 +1814,7 @@ def _resumen_de_la_cartilla(vuelos: list[dict]) -> dict:
         "horas_aprobadas": round(minutos_ok / 60, 1),
         "millas_aprobadas": round(millas_ok),
         "vuelo_mas_largo_nm": round(max((v["distancia_nm"] for v in vuelos), default=0)),
-        "altitud_maxima_ft": max((v["alt_max_ft"] for v in vuelos), default=0),
+        "evolocutor_vAs": evolocutor_vAs,
     }
 
 

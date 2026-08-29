@@ -58,10 +58,6 @@
             <div class="valor">{{ resumen.vuelo_mas_largo_nm }}</div>
             <div class="etiqueta">➤ Vuelo más largo (NM)</div>
           </div>
-          <div class="kpi">
-            <div class="valor">{{ resumen.altitud_maxima_ft }}</div>
-            <div class="etiqueta">▲ Altitud máxima (ft)</div>
-          </div>
         </div>
 
         {% if resumen.sin_evaluar %}
@@ -75,6 +71,23 @@
         {# El hangar llegará cuando los puntos permitan comprar aviones. No se
            pinta todavía: una sección vacía prometiendo algo estorba más de lo
            que aporta. #}
+      </section>
+
+      <section class="tarjeta">
+        <div class="cabecera-tarjeta">
+          <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a4 4 0 0 0 0 8h5.5M7 19h10a4 4 0 0 0 0-8H9"/></svg></span>
+          <div>
+            <h2>Tu economía</h2>
+            <p>Los €vAs que has ganado volando. Solo cuentan los vuelos aprobados.</p>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <div class="valor">{{ resumen.evolocutor_vAs }}</div>
+            <div class="etiqueta">💰 €vAs conseguidos</div>
+          </div>
+        </div>
       </section>
 
       <section class="tarjeta">
