@@ -63,7 +63,7 @@
 </style>
 
 <h2 style="margin:4px 0 8px">Vuelos ahora</h2>
-<p class="muted">Pilotos de <b>EvA</b> volando ahora en VATSIM y las posiciones ATC activas en Europa y África. Pincha un avión para ver su ficha.</p>
+<p class="muted">Pilotos de <b>EvA</b> volando ahora en VATSIM y las posiciones ATC activas en España, Canarias, Ceuta y Melilla. Pincha un avión para ver su ficha.</p>
 
 <div class="vatsim-wrap">
   <div class="panel">
@@ -194,7 +194,21 @@ function pintarPanel(d){
   document.getElementById('pv-cerrar').onclick = cerrarPanel;
 }
 
-const map = L.map('map', {worldCopyJump:true}).setView([40.4, -3.7], 5);
+// El mapa no se sale de Espana. Los vuelos de EvA son aqui, y dejar
+// alejarse hasta ver medio mundo no aporta nada.
+//
+// Canarias esta a 1.800 km de la Peninsula, asi que una vista fija que
+// contuviera las dos dejaria la Peninsula diminuta -- por eso las cartas de
+// ENAIRE la ponen en un recuadro aparte. Aqui la solucion es acotar en vez
+// de congelar: no puedes salirte de la zona ni alejarte mas alla de ella,
+// pero si acercarte para ver un aeropuerto.
+const LIMITES_ESPANA = L.latLngBounds([26.5, -19.0], [44.5, 5.5]);
+const map = L.map('map', {
+  maxBounds: LIMITES_ESPANA,
+  maxBoundsViscosity: 1.0,   // rebota en el borde en vez de dejar arrastrar
+  minZoom: 4,   // a 5 no cabe Canarias con la Peninsula en la vista inicial
+  maxZoom: 11,
+}).fitBounds(LIMITES_ESPANA);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:18, attribution:'&copy; OpenStreetMap'}).addTo(map);
 const layer = L.layerGroup().addTo(map);
 let markers = new Map();
@@ -368,10 +382,9 @@ async function actualizar(manual=false){
       .filter(([id]) => !id.startsWith('atc_'))
       .map(([,m]) => m);
 
-    if(pilotMarkers.length){
-      const g = L.featureGroup(pilotMarkers);
-      try{ map.fitBounds(g.getBounds().pad(0.35), {maxZoom:8}); }catch(e){}
-    }
+    // No se reencuadra solo: el mapa esta acotado a Espana y mover la vista
+    // sin que el usuario lo pida es molesto cuando esta mirando otra cosa.
+    // Para ir a un vuelo concreto ya esta el clic en la lista.
   }catch(e){
     $estado.textContent = 'Error: ' + e.message;
   }

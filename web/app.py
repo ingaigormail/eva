@@ -2667,11 +2667,15 @@ def _piloto_de_eva(cid: str) -> Optional[dict]:
     }
 
 
-#: Caja de Europa y África. Cubre Canarias (−18°), Ceuta y Melilla, Azores
-#: (−31°) y llega hasta el Cáucaso y Sudáfrica. Se filtra aquí y no en el
-#: navegador para no mandar los controladores de América y Asia, que no se van
-#: a pintar.
-CAJA_EUROPA_AFRICA = {"lat_min": -36.0, "lat_max": 72.0, "lon_min": -32.0, "lon_max": 45.0}
+#: Prefijos OACI de la Península Ibérica: `LE` España peninsular y Baleares,
+#: `GC` Canarias, `GE` Ceuta y Melilla, `LP` Portugal (incluidas Madeira y
+#: Azores). Portugal entra porque para volar VFR desde España es la misma zona
+#: —la Vuelta a España ya tiene etapas portuguesas— y su ATC importa igual.
+#:
+#: Filtrar por prefijo y no por una caja de coordenadas es exacto: no deja
+#: fuera un aeródromo por estar en el borde ni cuela uno del sur de Francia
+#: por caer dentro del rectángulo.
+PREFIJOS_IBERIA = ("LE", "GC", "GE", "LP")
 
 #: Frecuencia que usa VATSIM para "sin frecuencia real" (observadores y
 #: posiciones que no atienden). No son controladores que sirvan de nada.
@@ -2679,33 +2683,33 @@ FRECUENCIA_SIN_SERVICIO = "199.998"
 
 
 def _controladores_situados(controllers: list) -> list:
-    """Añade coordenadas a cada controlador y deja solo Europa y África.
+    """Los controladores españoles activos, con su posición en el mapa.
 
     **El feed de VATSIM no da posición de los controladores**: sus campos son
     `cid, name, callsign, frequency, facility, rating, server, visual_range,
     text_atis, last_updated, logon_time`. Por eso el mapa no pintaba ninguno.
 
-    Se sitúan por el prefijo del indicativo: `HECA_APP` → `HECA` → El Cairo.
-    Con `airports.json` se colocan unos tres de cada cuatro. Los que faltan son
-    sectores de ruta y FSS (`LECM_CTR`, `NAT_FSS`…), que no son un punto sino
-    un área y necesitan los polígonos de FIR del `vatspy-data-project`. Esos se
-    quedan fuera del mapa por ahora, en vez de inventarles una posición.
+    Se sitúan por el prefijo del indicativo: `LEBL_TWR` → `LEBL` → Barcelona.
+    Los que no salen son los sectores de ruta y FSS (`LECM_CTR`…), que no son
+    un punto sino un área y necesitan los polígonos de FIR del
+    `vatspy-data-project`. Se quedan fuera en vez de inventarles una posición.
+
+    Solo la Península Ibérica y las islas: los vuelos de EvA son aquí, y
+    llenar el mapa de controladores de medio mundo no ayuda a nadie a decidir
+    en qué frecuencia llamar.
     """
     salida = []
-    caja = CAJA_EUROPA_AFRICA
     for c in controllers:
         if (c.get("frequency") or FRECUENCIA_SIN_SERVICIO) == FRECUENCIA_SIN_SERVICIO:
             continue
         icao = (c.get("callsign") or "").split("_")[0].upper()
+        if not icao.startswith(PREFIJOS_IBERIA):
+            continue
         aeropuerto = AIRPORTS.get(icao)
         if not aeropuerto:
             continue
         lat, lon = aeropuerto.get("lat"), aeropuerto.get("lon")
         if lat is None or lon is None:
-            continue
-        if not (caja["lat_min"] <= lat <= caja["lat_max"]):
-            continue
-        if not (caja["lon_min"] <= lon <= caja["lon_max"]):
             continue
         salida.append(
             {

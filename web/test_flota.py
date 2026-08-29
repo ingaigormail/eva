@@ -115,3 +115,56 @@ def test_la_ficha_trae_matricula_y_salud():
 
 def test_un_tipo_que_no_existe_no_tiene_ficha():
     assert flota_eva.ficha_de("XXXX", FLOTA, ECONOMIA) is None
+
+
+# -- controladores del mapa en vivo ------------------------------------
+
+def test_solo_salen_los_controladores_de_la_peninsula_iberica():
+    """El feed trae más de cien de todo el mundo; el mapa es de aquí.
+
+    Portugal entra: para volar VFR desde España es la misma zona, y la Vuelta
+    a España ya tiene etapas portuguesas.
+    """
+    import app as app_module
+
+    entrada = [
+        {"callsign": "LEBL_TWR", "frequency": "118.325", "name": "Barcelona"},
+        {"callsign": "LPPT_TWR", "frequency": "118.100", "name": "Lisboa"},
+        {"callsign": "GCLP_APP", "frequency": "120.300", "name": "Las Palmas"},
+        {"callsign": "LFPG_TWR", "frequency": "119.250", "name": "París"},
+        {"callsign": "KJFK_TWR", "frequency": "119.100", "name": "Nueva York"},
+    ]
+
+    salida = {c["callsign"] for c in app_module._controladores_situados(entrada)}
+
+    assert salida == {"LEBL_TWR", "LPPT_TWR", "GCLP_APP"}
+
+
+def test_los_observadores_no_son_controladores():
+    """199.998 es la frecuencia de "no atiendo": no sirve para llamar."""
+    import app as app_module
+
+    entrada = [{"callsign": "LEMD_OBS", "frequency": "199.998", "name": "Obs"}]
+
+    assert app_module._controladores_situados(entrada) == []
+
+
+def test_un_sector_de_ruta_se_queda_fuera_en_vez_de_inventarle_sitio():
+    """LECM no es un aeropuerto sino un área: necesita polígonos de FIR."""
+    import app as app_module
+
+    entrada = [{"callsign": "LECM_CTR", "frequency": "132.400", "name": "Madrid"}]
+
+    assert app_module._controladores_situados(entrada) == []
+
+
+def test_el_controlador_lleva_lo_que_hace_falta_para_llamarle():
+    import app as app_module
+
+    c = app_module._controladores_situados(
+        [{"callsign": "LEBL_TWR", "frequency": "118.325", "name": "Ana"}]
+    )[0]
+
+    assert c["frequency"] == "118.325"
+    assert c["latitude"] is not None and c["longitude"] is not None
+    assert "Barcelona" in c["aeropuerto"]
