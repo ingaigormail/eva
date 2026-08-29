@@ -362,64 +362,75 @@ class SimConnectConnector(SimConnector):
 
         return read_flight_plan(self._requests)
 
+    #: Lo que pesa un pasajero con su equipaje de mano. Es el mismo número que
+    #: usa `economia.yaml` para facturar por pasajero-milla: si aquí fuera otro,
+    #: el avión volaría con un peso distinto del que se le cobra al piloto.
+    KG_POR_PASAJERO = 85
+
     def set_payload(
-        self, passengers: int = 0, cargo_kg: int = 0, fuel_pct: int = 100
-    ) -> bool:
-        """Escribe carga, pasajeros y combustible en el simulador via estaciones de carga.
+        self,
+        passengers: int = 0,
+        cargo_kg: int = 0,
+        fuel_pct: int = 100,
+        *,
+        combustible_util_kg: Optional[float] = None,
+    ) -> dict:
+        """Escribe carga y combustible en el simulador. Devuelve qué entró.
 
-        Usa SimConnect para actualizar las estaciones de carga (payload stations) con los
-        valores especificados. Cada pasajero se estima en 80 kg.
+        **No promete nada.** Cada escritura se comprueba por separado y el
+        resultado dice cuál funcionó, porque el piloto tiene que saber si el
+        avión lleva de verdad lo que puso en el plan. La versión anterior
+        devolvía `True` aunque fallaran las dos escrituras: la hoja decía
+        «aplicado» y el avión salía vacío.
 
-        Args:
-            passengers: Número de pasajeros (default 0)
-            cargo_kg: Carga en kilogramos (default 0)
-            fuel_pct: Porcentaje de combustible (0-100, default 100)
+        `combustible_util_kg` es la capacidad del avión, de `aircraft.yaml`
+        (bloque `despacho`). Sin ella no se toca el combustible: antes se usaba
+        un `max_fuel_lb = 200` fijo que no es de ningún avión de la flota —
+        un C172 lleva 144 kg y un CJ4 2.613, así que el porcentaje se aplicaba
+        contra una cifra inventada.
 
-        Returns:
-            True si la operación fue exitosa, False si falló o SimConnect no está disponible.
-
-        Nota: Esta función es de mejor esfuerzo. Si el simulador no soporta las estaciones
-        de carga o si ya hay un vuelo en progreso, la operación puede fallar silenciosamente.
+        Devuelve `{"carga": bool, "combustible": bool|None, "carga_kg": float,
+        "combustible_kg": float|None, "motivo": str}`. `combustible` es None
+        cuando no se ha intentado.
         """
+        resultado = {
+            "carga": False,
+            "combustible": None,
+            "carga_kg": 0.0,
+            "combustible_kg": None,
+            "motivo": "",
+        }
+
         if self._requests is None:
-            return False
+            resultado["motivo"] = "sin conexión con el simulador"
+            return resultado
+
+        carga_total_kg = passengers * self.KG_POR_PASAJERO + cargo_kg
+        resultado["carga_kg"] = float(carga_total_kg)
 
         try:
-            # Pesos por pasajero/cargo
-            weight_per_passenger_kg = 80
-            total_payload_kg = (passengers * weight_per_passenger_kg) + cargo_kg
+            self._requests.set(
+                "PAYLOAD STATION WEIGHT:0", carga_total_kg / LB_TO_KG
+            )
+            resultado["carga"] = True
+        except Exception as exc:  # noqa: BLE001
+            resultado["motivo"] = f"no se pudo escribir la carga: {exc}"
 
-            # Convertir a libras (unidad estándar de SimConnect para peso)
-            total_payload_lb = total_payload_kg / LB_TO_KG
-
-            # Intentar escribir via SimConnect usando SetData
-            # NOTA: Los nombres exactos de variables pueden variar entre versiones de MSFS.
-            # Esta es una implementación optimista; si el simulador no soporta estas variables,
-            # fallará silenciosamente (el try/except lo captura).
-
-            # Combustible: escribir el porcentaje
+        # El combustible solo se toca si sabemos cuánto cabe en ESTE avión.
+        if combustible_util_kg:
+            kg = (max(0, min(100, fuel_pct)) / 100.0) * float(combustible_util_kg)
+            resultado["combustible_kg"] = round(kg, 1)
             try:
-                # Intentar establecer combustible total (en libras)
-                max_fuel_lb = 200  # Valor típico; el simulador debería tener el real
-                fuel_lb = (fuel_pct / 100) * max_fuel_lb
-                # Nota: Esta variable probablemente sea de solo-lectura en MSFS
-                # y la escritura no funcione. Se intenta de todas formas.
-                self._requests.set("FUEL_TOTAL_QUANTITY_WEIGHT", fuel_lb)
-            except Exception:
-                pass
+                self._requests.set("FUEL_TOTAL_QUANTITY_WEIGHT", kg / LB_TO_KG)
+                resultado["combustible"] = True
+            except Exception as exc:  # noqa: BLE001
+                # En MSFS esta variable suele ser de solo lectura. No es un
+                # fallo del piloto ni de EvA: se dice y se sigue.
+                resultado["combustible"] = False
+                if not resultado["motivo"]:
+                    resultado["motivo"] = f"el simulador no dejó fijar el combustible: {exc}"
 
-            # Carga útil: escribir estaciones de carga
-            # Estructura: estación 0 = piloto, 1 = copiloto, 2..N = pasajeros/cargo
-            try:
-                # Escribir peso total en la estación 0 (piloto) - esto es una aproximación
-                # Los simuladores estándar de MSFS usan PAYLOAD STATION WEIGHT
-                self._requests.set("PAYLOAD STATION WEIGHT:0", total_payload_lb)
-            except Exception:
-                pass
-
-            return True
-        except Exception:
-            return False
+        return resultado
 
     # -- lectura -------------------------------------------------------
 

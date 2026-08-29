@@ -71,14 +71,19 @@ class TestHybridArchitecture:
         not HAS_FSTELEMETRY, reason="fstelemetry no está instalado"
     )
     def test_set_payload_interface(self):
-        """Verifica que set_payload() tiene la interface correcta."""
+        """Sin conectar no revienta, y dice que no ha aplicado nada.
+
+        Devuelve un desglose y no un `bool`: el piloto necesita saber si la
+        carga entró de verdad. Ver `test_set_payload.py`.
+        """
         try:
             connector = SimConnectConnector()
-            # Sin conectar, debería devolver False pero no crash
             result = connector.set_payload(
                 passengers=8, cargo_kg=500, fuel_pct=75
             )
-            assert isinstance(result, bool), "set_payload debe devolver bool"
+            assert isinstance(result, dict), "set_payload debe devolver el desglose"
+            assert result["carga"] is False
+            assert result["motivo"], "tiene que decir por qué no se aplicó"
         except SimConnectNotAvailable:
             pytest.skip("MSFS no está disponible")
 
