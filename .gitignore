@@ -44,3 +44,6 @@ venv/
 # no tiene sentido en el servidor y no debe influir en el despliegue.
 /servidor_local.bat
 /servidor_local.pyw
+
+# Permisos/ajustes locales de Claude Code: son de cada máquina, no del repo.
+.claude/settings.local.json

@@ -1,0 +1,15 @@
+# Normaliza fin de línea a LF para todo lo que sea texto.
+# Sin esto, un checkout en Windows puede convertir archivos a CRLF y luego
+# git los ve como "modificados" en su totalidad aunque no haya cambiado
+# ni una palabra (pasó al traer este repo a esta máquina: 126 de 130
+# ficheros "modificados" eran solo fin de línea).
+* text=auto eol=lf
+
+# Binarios: nunca tocar fin de línea ni intentar diff de texto.
+*.png binary
+*.gif binary
+*.ico binary
+*.db binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
