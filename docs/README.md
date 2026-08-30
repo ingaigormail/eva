@@ -26,6 +26,8 @@ hay secciones nuevas.
 |---|---|---|
 | *(inicio)* | [`resumen_inicio.md`](resumen_inicio.md) | **Empezar aquí:** qué es EvA Airliner, flujo y URLs |
 | `manual_piloto.md` | [`manual_piloto.md`](manual_piloto.md) | Uso del grabador y la cartilla |
+| *(ingreso piloto)* | [`proceso_ingreso_y_vuelos.md`](proceso_ingreso_y_vuelos.md) | Guía corta: alta, plan, grabar, subir |
+| *(primer vuelo)* | [`proceso_piloto_primer_vuelo.md`](proceso_piloto_primer_vuelo.md) | Mismo flujo con citas de código y huecos `[PEND]` |
 | `arquitectura_eva.md` | [`arquitectura_eva.md`](arquitectura_eva.md) | Componentes y flujos |
 | `especificacion_funcional.md` | [`especificacion_funcional.md`](especificacion_funcional.md) | Qué hace el producto, con marcas |
 | `motor_evaluacion_v2.md` | [`motor_evaluacion_v2.md`](motor_evaluacion_v2.md) | Motor `evaluate_flight` |

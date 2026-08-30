@@ -1,6 +1,6 @@
 ---
 fecha: 2026-08-29
-ultima_sesion: Despliegue en producción 4e44fc7 (mapa vivo, controladores ATC, economía V1 con ingresos por pasajero-milla)
+ultima_sesion: Cierre para otra máquina — guía piloto + traspaso en origin/main
 estado: en_progreso
 ---
 
@@ -10,6 +10,20 @@ estado: en_progreso
 > universal, incluida la **regla del 85 %** de ventana de contexto) →
 > `AGENTS.md` (reglas de EvA) → este fichero (el estado de hoy).
 > Arquitectura, si hace falta: `DOCUMENTACION_PROYECTO.md`.
+
+## Cómo retomar mañana en otro PC
+
+1. Clonar o `git pull` de `https://github.com/ingaigormail/eva.git` (rama `main`).
+2. Lo que **no** está en git: lista en `docs/traspaso_a_otra_maquina.md` (`web/data/` sin `aeronautica.db`, `C:\Users\<usuario>\EvA\`, clave SSH, backups).
+3. Tras el pull, HEAD esperado: el commit de este cierre (mensaje *Cierre: guía de ingreso…*). `origin/main` alineado.
+4. Había un **`git revert` a medias y podrido** (quería revertir `0064f77`, que ni es ancestro de `main`). Abortado el 2026-08-29. Si en el otro PC aparece «Revert currently in progress», `git revert --abort`.
+
+## Cierre 2026-08-29 (noche, Cursor)
+
+- Guía detallada ya en git: `docs/proceso_piloto_primer_vuelo.md` (alta → primer vuelo, con citas de código; huecos marcados como pendiente de confirmar).
+- Guía corta para piloto, sin referencias a líneas: `docs/proceso_ingreso_y_vuelos.md` (esta sesión; se sube ahora).
+- Índice: `docs/README.md`.
+- Código de esta noche: **sin cambios**. Pendiente de código sigue siendo el de `docs/traspaso_a_otra_maquina.md` (aplicar peso a MSFS, pasajeros en el log, borrar `vuelta_espana.html` huérfana).
 
 ## Reparto entre agentes (acordado 2026-08-28)
 
@@ -71,9 +85,10 @@ Incluye:
 Estado: ✅ en producción, respondiendo en `https://7c0cdce9-a46a-4339-9df6-50a26f00f11c.clouding.host`
 
 ## Trabajo pendiente
+- **Siguiente código (necesita MSFS):** aplicar el peso del plan al simulador desde «aplicar al simulador» (`/api/plan/apply-payload` hoy 503). Luego capturar peso/pasajeros en el grabador y cobrar pasaje de verdad.
 - Decidir si desplegar `/vatsim` o dejarlo solo local.
 - X-Plane `poll()` sigue sin cerrar.
-- Economía V1 F1 pendiente de visto humano (no programar hasta aprobar `thoughts/plans/2026-08-28-economia-v1-15-secciones.md`).
+- Economía V1 F1: el diseño posterior (compra de aviones, €vAs) ya está en producción; el plan de 15 secciones puede estar desfasado — no usarlo como lista de tareas sin releer `docs/traspaso_a_otra_maquina.md`.
 
 ## Decisiones importantes
 - Números de la guía = perfil `normal` (`profiles.yaml`); easy/hard solo relectura.
@@ -213,4 +228,4 @@ pilotos con el mismo CID romperían el mapa en silencio.
 - Al mes de rodaje del aviso de aeródromo de salida: mirar `debuglog` y decidir si se convierte en bloqueo.
 
 ## Proximo paso recomendado
-- Esperar visto humano del plan `thoughts/plans/2026-08-28-economia-v1-15-secciones.md:1` antes de F1 (BD + `web/economia.py` + hook `estadisticas.py:63`).
+- En la máquina nueva: `git pull`, copiar `web/data/` según `docs/traspaso_a_otra_maquina.md`, y si se toca código: aplicar payload a MSFS (punto 1 de ese documento).
