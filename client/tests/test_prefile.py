@@ -251,6 +251,26 @@ def test_dof_com_y_remarks_conviven_en_la_misma_casilla():
     assert linea.endswith(")")
 
 
+def test_observaciones_sin_etiqueta_se_marcan_como_rmk():
+    """Reportado en vivo 2026-08-31: texto libre en "Observaciones" se veía
+    en VATSIM dentro de COM/, porque sin una palabra clave propia (RMK/,
+    PBN/, ...) que lo delimite, se pega al dato anterior. Debe quedar
+    marcado como RMK/ para que aparezca en su propio campo."""
+    texto = icao_fpl(
+        _plan(), PILOTO,
+        PrefileExtras(voice_capability="V", remarks="vuelo de entrenamiento, sin incidencias"),
+    )
+    linea = [l for l in texto.splitlines() if "COM/" in l][0]
+    assert "COM/V RMK/vuelo de entrenamiento, sin incidencias" in linea
+
+
+def test_observaciones_ya_etiquetadas_no_se_tocan():
+    """Si el piloto ya puso RMK/ (o PBN/, etc.) él mismo, no se duplica."""
+    texto = icao_fpl(_plan(), PILOTO, PrefileExtras(remarks="RMK/ver NOTAM"))
+    assert "RMK/RMK/" not in texto
+    assert "RMK/ver NOTAM" in texto
+
+
 def test_la_estela_sale_del_perfil_de_aeronave_si_se_pasa():
     texto = icao_fpl(_plan(), PILOTO, PrefileExtras(wake_turbulence="M"))
     assert "-C172/M-" in texto

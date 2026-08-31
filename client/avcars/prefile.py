@@ -186,6 +186,29 @@ def ivao_prefile_url(
     return f"{IVAO_PREFILE_URL}?{urlencode({'flightPlan': encoded})}"
 
 
+#: Palabras clave reconocidas en la casilla 18 (OACI, doc 4444 apéndice 2).
+#: Si lo que escribe el piloto en "Observaciones" no empieza por ninguna de
+#: estas, no es un dato con su propia etiqueta -- es texto libre, y sin una
+#: palabra clave que lo delimite se pega al dato anterior (COM/, DOF/...)
+#: en formularios que parsean la casilla 18 por palabra clave. Así se vio en
+#: VATSIM: lo escrito en "Observaciones" aparecía dentro de COM/ en vez de
+#: en su propio campo. Por eso, si el piloto no etiquetó su texto, se
+#: antepone RMK/ automáticamente.
+_PALABRAS_CLAVE_CASILLA_18 = (
+    "STS", "PBN", "NAV", "COM", "DAT", "SUR", "DEP", "DEST", "DOF", "REG",
+    "EET", "SEL", "TYP", "CODE", "DLE", "OPR", "ORGN", "PER", "ALTN",
+    "RALT", "TALT", "RIF", "RMK",
+)
+
+
+def _observaciones_casilla_18(texto: str) -> str:
+    """Antepone RMK/ si el piloto no etiquetó ya su texto en la casilla 18."""
+    primera = texto.split("/", 1)[0].strip().upper()
+    if primera in _PALABRAS_CLAVE_CASILLA_18:
+        return texto
+    return f"RMK/{texto}"
+
+
 def icao_fpl(
     flight_plan: FlightPlanInfo,
     pilot: PilotInfo,
@@ -282,7 +305,7 @@ def icao_fpl(
     if extras.voice_capability:
         otros.append(f"COM/{extras.voice_capability.upper()}")
     if extras.remarks:
-        otros.append(extras.remarks)
+        otros.append(_observaciones_casilla_18(extras.remarks))
     lineas.append(f"-{' '.join(otros) or '0'})")
 
     # Casilla 19: información suplementaria. Va fuera del paréntesis.
