@@ -7,7 +7,10 @@ Especificación OC-05 §2.3. Segunda fuente de aeropuertos: complementa
 import sqlite3
 from pathlib import Path
 
-SRC = Path(r"D:\proyectos\31_07_2026\data_aerodromos\aerodromos_es.db")
+# Fichero de trabajo local (no viaja al repo, ver /data/ en .gitignore):
+# antes vivía en una ruta fija de una máquina concreta; ahora es relativo
+# al repo para que funcione en cualquier equipo/entorno.
+SRC = Path(__file__).resolve().parent.parent / "data" / "databases" / "aerodromos_es.db"
 # La base real está en web/data/eva.db (avcars/cuentas.py: `parents[2] / web / data`).
 DST = Path(__file__).resolve().parent / "data" / "eva.db"
 
