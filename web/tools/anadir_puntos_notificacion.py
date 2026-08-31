@@ -37,6 +37,15 @@ PUNTOS: dict[str, list[dict]] = {
         {"letter": "S", "name": "INVERNADEROS", "lat": 38.425000, "lon": -0.516667},
         {"letter": "E1", "name": "NAVE INDUSTRIAL", "lat": 38.430556, "lon": -0.450000},
     ],
+    # Verificado el 2026-08-31: coordenadas pasadas por el piloto desde la
+    # VAC de Requena - El Rebollar, coinciden exactamente con PUNTO_VFR de
+    # ENAIRE (mismo criterio que LEMU).
+    "LERE": [
+        {"letter": "N", "name": "CHERA", "lat": 39.597317, "lon": -0.965556},
+        {"letter": "E", "name": "SIETE AGUAS", "lat": 39.472653, "lon": -0.916389},
+        {"letter": "S", "name": "LA PORTERA", "lat": 39.403333, "lon": -1.086944},
+        {"letter": "W", "name": "SAN ANTONIO", "lat": 39.524417, "lon": -1.136389},
+    ],
 }
 
 
