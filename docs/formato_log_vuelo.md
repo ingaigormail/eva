@@ -114,9 +114,33 @@ Cliente grabador: `CLIENT_NAME = "EvA"`, `CLIENT_VERSION = "0.1.0"`,
     "hash_algorithm": "SHA-256",
     "track_hash": "…"
   },
+  "payload": {
+    "requested_passengers": 4,
+    "requested_cargo_kg": 100,
+    "requested_fuel_pct": 0,
+    "aircraft_icao_type": "C172",
+    "cargo_written_ok": true,
+    "applied_cargo_kg": 440,
+    "fuel_written_ok": null,
+    "applied_fuel_kg": null,
+    "applied_at_utc": "2026-08-30T18:05:11Z",
+    "note": null
+  },
   "evaluation": null
 }
 ```
+
+`payload` es `null` en casi todos los vuelos: solo se rellena si el piloto
+usó "Aplicar al simulador" en `/plan` durante este vuelo. No confundir con
+un intento fallido — ahí el bloque existe, pero `cargo_written_ok` es
+`false` y `note` trae el motivo (p. ej. `"sin conexión con el simulador"`).
+`requested_*` es lo que el piloto pidió; `applied_*` es lo que `set_payload()`
+confirmó que entró de verdad, que puede no coincidir si algo falló a medias.
+
+`fuel_written_ok`/`applied_fuel_kg` quedan siempre en `null` por ahora:
+`/plan` no tiene todavía un selector de combustible real, y aplicar un
+`requested_fuel_pct=0` de fábrica vaciaría el depósito sin que nadie lo
+pidiera. Se activa el día que exista ese control. `[CONF]`
 
 Los tipos de `Event.type` los escribe el grabador (takeoff, touchdown, gear,
 flaps, pause, aceleración de tiempo, etc.). Cualquier string es válido en

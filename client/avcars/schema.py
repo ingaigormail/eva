@@ -173,6 +173,33 @@ class EvaluationInfo(BaseModel):
     evaluated_at_utc: Optional[datetime] = None
 
 
+class PayloadInfo(BaseModel):
+    """Peso pedido desde el plan web y lo que de verdad entró en el simulador.
+
+    Se rellena solo si el piloto usó "Aplicar al simulador" en `/plan` y el
+    grabador llegó a intentarlo. Si no se usó el botón en este vuelo, el
+    bloque entero es `None` — no se confunde con "cero pasajeros aplicados",
+    que sí sería un valor real.
+
+    El combustible se valida pero **no se aplica todavía**: `/plan` no tiene
+    hoy un selector de combustible real, y aplicar un `requested_fuel_pct=0`
+    de fábrica vaciaría el depósito sin que el piloto lo haya pedido. Por eso
+    `fuel_written_ok` queda en `None` ("no intentado") hasta que exista ese
+    control en la interfaz.
+    """
+
+    requested_passengers: int
+    requested_cargo_kg: float
+    requested_fuel_pct: int
+    aircraft_icao_type: str
+    cargo_written_ok: bool
+    applied_cargo_kg: Optional[float] = None
+    fuel_written_ok: Optional[bool] = None
+    applied_fuel_kg: Optional[float] = None
+    applied_at_utc: Optional[datetime] = None
+    note: Optional[str] = None
+
+
 class FlightLog(BaseModel):
     schema_version: str
     client: ClientInfo
@@ -184,6 +211,8 @@ class FlightLog(BaseModel):
     summary: Optional[SummaryInfo] = None
     diagnostics: Optional[DiagnosticsInfo] = None
     integrity: Optional[IntegrityInfo] = None
+    #: Se rellena si el piloto aplicó peso desde /plan durante este vuelo.
+    payload: Optional[PayloadInfo] = None
     #: Se rellena al evaluar, no al grabar. No afecta a `integrity.track_hash`,
     #: que solo cubre la traza.
     evaluation: Optional[EvaluationInfo] = None

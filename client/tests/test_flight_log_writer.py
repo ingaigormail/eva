@@ -180,6 +180,71 @@ def test_written_log_validates_against_schema(tmp_path):
     assert len(log.track) == 2
 
 
+def test_un_vuelo_sin_aplicar_payload_no_lleva_ese_bloque(tmp_path):
+    """La mayoría de vuelos: nadie pulsó 'Aplicar al simulador'. `payload` es None."""
+    rec = _recorder([_state()], tmp_path)
+    rec._process(_state(), t=0.0, gap=1.0)
+
+    path = rec._write_log()
+    log = FlightLog.model_validate(json.loads(path.read_text(encoding="utf-8")))
+    assert log.payload is None
+
+
+def test_payload_aplicado_queda_en_el_log_con_lo_que_de_verdad_entro(tmp_path):
+    """Lo que devuelve `set_payload()` se traslada tal cual, no se reinterpreta."""
+    rec = _recorder([_state()], tmp_path)
+    rec._process(_state(), t=0.0, gap=1.0)
+
+    rec.registrar_payload_aplicado(
+        requested_passengers=4,
+        requested_cargo_kg=100.0,
+        requested_fuel_pct=0,
+        aircraft_icao_type="C172",
+        resultado={
+            "carga": True,
+            "combustible": None,
+            "carga_kg": 440.0,
+            "combustible_kg": None,
+            "motivo": "",
+        },
+    )
+
+    path = rec._write_log()
+    log = FlightLog.model_validate(json.loads(path.read_text(encoding="utf-8")))
+    assert log.payload is not None
+    assert log.payload.requested_passengers == 4
+    assert log.payload.aircraft_icao_type == "C172"
+    assert log.payload.cargo_written_ok is True
+    assert log.payload.applied_cargo_kg == 440.0
+    assert log.payload.fuel_written_ok is None
+    assert log.payload.note is None
+
+
+def test_un_payload_fallido_queda_registrado_como_fallido_no_como_exito(tmp_path):
+    """El motivo del fallo viaja al log: es lo que hace auditable un vuelo raro."""
+    rec = _recorder([_state()], tmp_path)
+    rec._process(_state(), t=0.0, gap=1.0)
+
+    rec.registrar_payload_aplicado(
+        requested_passengers=2,
+        requested_cargo_kg=50.0,
+        requested_fuel_pct=0,
+        aircraft_icao_type="C172",
+        resultado={
+            "carga": False,
+            "combustible": None,
+            "carga_kg": 0.0,
+            "combustible_kg": None,
+            "motivo": "sin conexión con el simulador",
+        },
+    )
+
+    path = rec._write_log()
+    log = FlightLog.model_validate(json.loads(path.read_text(encoding="utf-8")))
+    assert log.payload.cargo_written_ok is False
+    assert log.payload.note == "sin conexión con el simulador"
+
+
 def test_track_point_keeps_lights_and_bank(tmp_path):
     state = _state(
         bank_deg=12.4,

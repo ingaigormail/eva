@@ -14,6 +14,7 @@ import pytest
 WEB_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(WEB_DIR))
 
+import app as app_module  # noqa: E402
 from app import app  # noqa: E402
 from avcars import cuentas, planes, sesion_web  # noqa: E402
 
@@ -29,8 +30,14 @@ def entorno(tmp_path, monkeypatch):
 
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
+    # La bandeja de "aplicar peso" es un dict a nivel de módulo: sin
+    # limpiarla, un test hereda lo que dejó el anterior (mismo EVA18L).
+    app_module._payload_pendiente.clear()
+    app_module._payload_resultado.clear()
     yield
     cuentas.configurar_almacen(original)
+    app_module._payload_pendiente.clear()
+    app_module._payload_resultado.clear()
 
 
 @pytest.fixture
@@ -166,3 +173,135 @@ def test_la_clave_no_sirve_para_entrar_en_la_web(cliente):
         r = cliente.get(ruta, headers={"X-EvA-Clave": clave})
         assert r.status_code == 302, ruta
         assert "/login" in r.headers.get("Location", ""), ruta
+
+
+# -- Payload pendiente / resultado -----------------------------------------
+#
+# El piloto pide el peso desde la web (con sesión de navegador, en /plan);
+# EvA Airliner lo recoge y lo reporta con la clave del grabador, igual que
+# lee el plan. Las dos identidades conviven en el mismo cliente de test
+# porque en la vida real conviven en el mismo piloto, con dos canales.
+
+
+def _login_web(cliente, license_id="EVA18L", password="clave-buena"):
+    return cliente.post(
+        "/login",
+        data={"user_id": license_id, "password": password},
+        follow_redirects=True,
+    )
+
+
+def test_no_hay_solicitud_pendiente_si_nadie_ha_pedido_nada(cliente):
+    clave = _entrar(cliente).get_json()["clave"]
+    r = cliente.get("/api/grabador/payload-pendiente", headers={"X-EvA-Clave": clave})
+    assert r.status_code == 200
+    assert r.get_json()["solicitud"] is None
+
+
+def test_sin_clave_no_se_puede_leer_la_bandeja_de_payload(cliente):
+    assert cliente.get("/api/grabador/payload-pendiente").status_code == 401
+
+
+def test_una_solicitud_encolada_desde_la_web_se_recoge_con_la_clave(cliente):
+    clave = _entrar(cliente).get_json()["clave"]
+    _login_web(cliente)
+
+    r = cliente.post(
+        "/api/plan/apply-payload",
+        json={"passengers": 4, "cargo_kg": 100, "fuel_pct": 0, "aeronave": "C172"},
+    )
+    assert r.status_code == 202
+
+    solicitud = cliente.get(
+        "/api/grabador/payload-pendiente", headers={"X-EvA-Clave": clave}
+    ).get_json()["solicitud"]
+    assert solicitud["passengers"] == 4
+    assert solicitud["cargo_kg"] == 100
+    assert solicitud["aeronave"] == "C172"
+
+
+def test_leer_la_bandeja_la_retira_no_se_aplica_dos_veces(cliente):
+    """Si el grabador la recogió, un segundo sondeo no debe volver a verla:
+    aplicarla otra vez sería el doble de carga que el piloto pidió."""
+    clave = _entrar(cliente).get_json()["clave"]
+    _login_web(cliente)
+    cliente.post(
+        "/api/plan/apply-payload",
+        json={"passengers": 4, "cargo_kg": 100, "fuel_pct": 0, "aeronave": "C172"},
+    )
+
+    cabecera = {"X-EvA-Clave": clave}
+    primera = cliente.get("/api/grabador/payload-pendiente", headers=cabecera).get_json()
+    segunda = cliente.get("/api/grabador/payload-pendiente", headers=cabecera).get_json()
+    assert primera["solicitud"] is not None
+    assert segunda["solicitud"] is None
+
+
+def test_el_resultado_reportado_por_el_grabador_llega_a_estado_payload(cliente):
+    clave = _entrar(cliente).get_json()["clave"]
+    _login_web(cliente)
+
+    r = cliente.post(
+        "/api/grabador/payload-resultado",
+        headers={"X-EvA-Clave": clave},
+        json={
+            "carga": True,
+            "carga_kg": 440.0,
+            "combustible": None,
+            "combustible_kg": None,
+            "motivo": "",
+        },
+    )
+    assert r.status_code == 200
+
+    datos = cliente.get("/api/plan/estado-payload").get_json()
+    assert datos["resultado"]["carga"] is True
+    assert datos["resultado"]["carga_kg"] == 440.0
+
+
+def test_un_fallo_reportado_por_el_grabador_tambien_llega_con_su_motivo(cliente):
+    clave = _entrar(cliente).get_json()["clave"]
+    _login_web(cliente)
+
+    cliente.post(
+        "/api/grabador/payload-resultado",
+        headers={"X-EvA-Clave": clave},
+        json={
+            "carga": False,
+            "carga_kg": 0.0,
+            "combustible": None,
+            "combustible_kg": None,
+            "motivo": "sin conexión con el simulador",
+        },
+    )
+    datos = cliente.get("/api/plan/estado-payload").get_json()
+    assert datos["resultado"]["carga"] is False
+    assert datos["resultado"]["motivo"] == "sin conexión con el simulador"
+
+
+def test_sin_clave_no_se_puede_reportar_resultado(cliente):
+    r = cliente.post("/api/grabador/payload-resultado", json={"carga": True})
+    assert r.status_code == 401
+
+
+def test_la_clave_de_un_piloto_no_ve_la_bandeja_de_otro(cliente):
+    """AVH-1001 pide un peso; la clave de EVA18L no debe poder leerlo."""
+    cuentas.crear_cuenta("AVH-1001", "clave-otra", "avh1001@ejemplo.com")
+    clave_18l = _entrar(cliente).get_json()["clave"]
+    clave_avh = _entrar(cliente, "AVH-1001", "clave-otra").get_json()["clave"]
+
+    _login_web(cliente, "AVH-1001", "clave-otra")
+    cliente.post(
+        "/api/plan/apply-payload",
+        json={"passengers": 1, "cargo_kg": 10, "fuel_pct": 0, "aeronave": "C172"},
+    )
+
+    solicitud_con_clave_ajena = cliente.get(
+        "/api/grabador/payload-pendiente", headers={"X-EvA-Clave": clave_18l}
+    ).get_json()["solicitud"]
+    assert solicitud_con_clave_ajena is None
+
+    solicitud_con_su_clave = cliente.get(
+        "/api/grabador/payload-pendiente", headers={"X-EvA-Clave": clave_avh}
+    ).get_json()["solicitud"]
+    assert solicitud_con_su_clave is not None

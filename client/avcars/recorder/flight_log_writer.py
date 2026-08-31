@@ -39,6 +39,7 @@ from ..schema import (
     Event,
     FlightLog,
     FlightPlanInfo,
+    PayloadInfo,
     PilotInfo,
     SummaryInfo,
     TimingInfo,
@@ -142,6 +143,7 @@ class FlightRecorder:
         self._repeated_total: int = 0
         self._longest_repeated_streak: int = 0
         self._process_errors: int = 0
+        self._payload: Optional[PayloadInfo] = None
 
     # -- ciclo de vida -------------------------------------------------
 
@@ -167,6 +169,36 @@ class FlightRecorder:
     @property
     def events(self) -> list[Event]:
         return list(self._events)
+
+    def registrar_payload_aplicado(
+        self,
+        *,
+        requested_passengers: int,
+        requested_cargo_kg: float,
+        requested_fuel_pct: int,
+        aircraft_icao_type: str,
+        resultado: dict,
+    ) -> None:
+        """Guarda en el vuelo lo que `SimConnectConnector.set_payload()` aplicó de verdad.
+
+        `resultado` es el dict que devuelve `set_payload()`: no se reinterpreta,
+        se traslada tal cual, porque ese diccionario ya es "lo que de verdad
+        pasó" y no hay que volver a decidirlo aquí. Si se aplica más de una
+        vez en el mismo vuelo (el piloto cambia de idea a medio vuelo), gana
+        la última: es la que describe el avión en el momento de aterrizar.
+        """
+        self._payload = PayloadInfo(
+            requested_passengers=requested_passengers,
+            requested_cargo_kg=requested_cargo_kg,
+            requested_fuel_pct=requested_fuel_pct,
+            aircraft_icao_type=aircraft_icao_type,
+            cargo_written_ok=bool(resultado.get("carga", False)),
+            applied_cargo_kg=resultado.get("carga_kg"),
+            fuel_written_ok=resultado.get("combustible"),
+            applied_fuel_kg=resultado.get("combustible_kg"),
+            applied_at_utc=_utc_now(),
+            note=resultado.get("motivo") or None,
+        )
 
     def start(self) -> None:
         if self.running:
@@ -473,6 +505,7 @@ class FlightRecorder:
                 longest_repeated_streak=self._longest_repeated_streak,
             ),
             integrity=build_integrity(track),
+            payload=self._payload,
         )
 
     def _target_path(self) -> Path:

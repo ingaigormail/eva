@@ -367,6 +367,89 @@ class SimConnectConnector(SimConnector):
     #: el avión volaría con un peso distinto del que se le cobra al piloto.
     KG_POR_PASAJERO = 85
 
+    #: Fragmentos que identifican una estación de payload como
+    #: equipaje/carga, no un asiento con alguien sentado. Buscar por nombre
+    #: en vez de escribir en un índice fijo: los índices de
+    #: `PAYLOAD_STATION_*` son 1..N y el orden lo decide cada avión.
+    #: Escribir a ciegas (como hacía la versión anterior, con la estación 0
+    #: fija -- que además ni siquiera existe: el SDK indexa desde 1)
+    #: sustituía el peso del piloto por el de la carga en vez de sumarlo, o
+    #: no escribía en ningún sitio real.
+    #:
+    #: Hay términos en inglés y en español a propósito: se comprobó en vivo
+    #: (2026-08-31, C172 de EvA) que `PAYLOAD_STATION_NAME` puede devolver
+    #: los nombres en el idioma del simulador -- no siempre en inglés como
+    #: se suponía. Ese C172 en concreto los llama "Piloto", "Copiloto",
+    #: "Pasajero izquierda/derecha" y "Cola 1"/"Cola 2" (las dos zonas de
+    #: equipaje traseras de un C172 real): de ahí "cola", que si no
+    #: encajaría poco con "carga".
+    #: https://docs.flightsimulator.com/html/Programming_Tools/SimVars/Aircraft_SimVars/Aircraft_System_Variables.htm
+    _NOMBRES_ESTACION_CARGA = (
+        "baggage", "cargo", "freight",
+        "equipaje", "maletero", "bodega", "cola",
+    )
+
+    def _leer_nombre_estacion(self, indice: int) -> str:
+        """Lee `PAYLOAD STATION NAME:n` para una estación concreta.
+
+        Python-SimConnect (comprobado en 0.4.26) registra
+        `PAYLOAD_STATION_WEIGHT:index` bien indexado, pero **no**
+        `PAYLOAD_STATION_NAME:index` -- solo la versión sin índice, que no
+        sirve para leer una estación en concreto (se comprobó directamente
+        en el código fuente de la librería, `RequestList.py`). Por eso esto
+        no puede pasar por `self._requests.get(...)` como todo lo demás:
+        construye la petición de bajo nivel a mano, con el nombre real de
+        la variable de MSFS (con espacios, tal como lo indexa la propia
+        librería por dentro al sustituir ``:index``).
+        """
+        from SimConnect import Request
+
+        peticion = Request(
+            (b"PAYLOAD STATION NAME:index", b"String"), self._sm, _settable=False
+        )
+        peticion.setIndex(indice)
+        # Llega como `bytes` (p. ej. `b'Piloto'`): con `str()` a secas se
+        # queda la representación literal, `"b'Piloto'"`, y no encaja con
+        # nada. `_coerce_texto` es el mismo decodificador que ya se usa
+        # para el resto de texto que da MSFS (modelo, matrícula...).
+        return _coerce_texto(peticion.value) or ""
+
+    def _estacion_de_carga(self) -> tuple[Optional[int], str]:
+        """Busca la estación de equipaje/carga real de este avión.
+
+        Recorre `PAYLOAD_STATION_COUNT` estaciones (1..N) mirando el nombre
+        de cada una hasta encontrar una que suene a equipaje o carga. Si no
+        hay ninguna -- un avión de terceros sin estaciones bien nombradas,
+        por ejemplo -- se devuelve `(None, motivo)`: nunca se escribe a
+        ciegas en una estación cualquiera, porque podría ser un asiento.
+
+        Ojo con el nombre de la variable: la clave que acepta esta librería
+        lleva guion bajo (`PAYLOAD_STATION_COUNT`), no espacios
+        (`PAYLOAD STATION COUNT`, que es el nombre real de MSFS pero no la
+        clave por la que la busca `AircraftRequests.find()` -- con espacios
+        no la encuentra y `.get()` devuelve `None` en silencio, sin avisar
+        de nada). Costó una tarde entera de pruebas en vivo encontrar esto
+        (2026-08-31): con la clave equivocada, `total` salía siempre 0 y
+        parecía que este avión no tenía ninguna estación.
+        """
+        try:
+            total = int(self._requests.get("PAYLOAD_STATION_COUNT") or 0)
+        except Exception:
+            return None, "no se pudo leer las estaciones de carga de este avión"
+
+        nombres_vistos = []
+        for indice in range(1, total + 1):
+            try:
+                nombre = self._leer_nombre_estacion(indice)
+            except Exception:
+                continue
+            nombres_vistos.append(nombre or f"#{indice}")
+            if any(pista in nombre.lower() for pista in self._NOMBRES_ESTACION_CARGA):
+                return indice, ""
+
+        detalle = f" (estaciones: {', '.join(nombres_vistos)})" if nombres_vistos else ""
+        return None, f"este avión no tiene una estación de equipaje/carga reconocible{detalle}"
+
     def set_payload(
         self,
         passengers: int = 0,
@@ -408,21 +491,52 @@ class SimConnectConnector(SimConnector):
         carga_total_kg = passengers * self.KG_POR_PASAJERO + cargo_kg
         resultado["carga_kg"] = float(carga_total_kg)
 
-        try:
-            self._requests.set(
-                "PAYLOAD STATION WEIGHT:0", carga_total_kg / LB_TO_KG
-            )
-            resultado["carga"] = True
-        except Exception as exc:  # noqa: BLE001
-            resultado["motivo"] = f"no se pudo escribir la carga: {exc}"
+        estacion, motivo_estacion = self._estacion_de_carga()
+        if estacion is None:
+            resultado["motivo"] = motivo_estacion
+        else:
+            try:
+                # Mismo detalle que en `_estacion_de_carga`: la clave lleva
+                # guion bajo (`PAYLOAD_STATION_WEIGHT:n`), no espacios. Y
+                # esta librería no siempre avisa con una excepción cuando
+                # una variable no se reconoce -- `set()` puede devolver
+                # `False` en silencio (variable de solo lectura, o mal
+                # escrita) sin lanzar nada, así que hay que mirar lo que
+                # devuelve y no solo si ha explotado.
+                escrito = self._requests.set(
+                    f"PAYLOAD_STATION_WEIGHT:{estacion}", carga_total_kg / LB_TO_KG
+                )
+                if escrito:
+                    resultado["carga"] = True
+                else:
+                    resultado["motivo"] = (
+                        "el simulador no aceptó la escritura en la estación "
+                        f"de carga #{estacion}"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                resultado["motivo"] = f"no se pudo escribir la carga: {exc}"
 
         # El combustible solo se toca si sabemos cuánto cabe en ESTE avión.
         if combustible_util_kg:
             kg = (max(0, min(100, fuel_pct)) / 100.0) * float(combustible_util_kg)
             resultado["combustible_kg"] = round(kg, 1)
             try:
-                self._requests.set("FUEL_TOTAL_QUANTITY_WEIGHT", kg / LB_TO_KG)
-                resultado["combustible"] = True
+                # `.set()` devuelve `False` (sin lanzar) si la librería no
+                # reconoce la variable -- p. ej. un nombre mal escrito, o
+                # un cambio en una versión nueva de Python-SimConnect. Eso
+                # sí lo detecta este `if`. Lo que **no** detecta es una
+                # variable reconocida pero de solo lectura de verdad en
+                # MSFS (que es justo el caso normal de
+                # `FUEL_TOTAL_QUANTITY_WEIGHT`): ahí `AircraftRequests.set`
+                # devuelve `True` igualmente, aunque por dentro no escriba
+                # nada -- una limitación de la librería, no algo que se
+                # pueda arreglar desde aquí sin releer el valor después
+                # para comprobarlo. No toca hoy: esta llamada no se hace
+                # actualmente (`gui.py` nunca pasa `combustible_util_kg`).
+                escrito = self._requests.set("FUEL_TOTAL_QUANTITY_WEIGHT", kg / LB_TO_KG)
+                resultado["combustible"] = bool(escrito)
+                if not escrito and not resultado["motivo"]:
+                    resultado["motivo"] = "el simulador no reconoció la variable de combustible"
             except Exception as exc:  # noqa: BLE001
                 # En MSFS esta variable suele ser de solo lectura. No es un
                 # fallo del piloto ni de EvA: se dice y se sigue.

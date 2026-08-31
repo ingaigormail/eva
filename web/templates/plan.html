@@ -249,14 +249,6 @@
           </div>
         </div>
 
-        <div class="fila" style="margin-top:20px">
-          <button class="boton" id="btn-guardar" title="Guarda origen, destino y observaciones en «Planes de vuelo», sin necesidad de VATSIM">GUARDAR PLAN SIN VATSIM</button>
-          <button class="boton" id="btn-generar">GENERAR PLAN ICAO</button>
-          <button class="boton primario" id="btn-vatsim">ABRIR EN VATSIM</button>
-        </div>
-        <pre class="fpl" id="salida-fpl" style="display:none"></pre>
-        <div class="aviso" id="aviso-fpl"></div>
-
         <div class="caja-distancia">
           <div class="etq">DISTANCIA (ORTODRÓMICA)</div>
           <div class="num" id="distancia">— NM</div>
@@ -363,12 +355,18 @@
           </div>
         </div>
 
-        <!-- Botón para aplicar carga al simulador -->
-        <div class="fila" style="margin-top: 16px">
-          <button class="boton" id="btn-aplicar-payload" title="Enviar configuración de carga al simulador (requiere cliente EvA en ejecución)">
-            📤 APLICAR AL SIMULADOR
-          </button>
+        <!-- Guardar / generar ICAO / abrir en VATSIM: los tres, además de
+             su acción propia, envían la carga y pasajeros de arriba al
+             simulador (ver `aplicarPesoAlSimulador` en el script). Ya no
+             hay un botón aparte para aplicar el peso -- se manda siempre
+             que el plan se guarda o se envía, sin un segundo paso. -->
+        <div class="fila" style="margin-top:20px">
+          <button class="boton" id="btn-guardar" title="Guarda origen, destino y observaciones en «Planes de vuelo», sin necesidad de VATSIM. También envía la carga y pasajeros al simulador.">GUARDAR PLAN SIN VATSIM</button>
+          <button class="boton" id="btn-generar" title="Genera el plan en formato ICAO. También envía la carga y pasajeros al simulador.">GENERAR PLAN ICAO</button>
+          <button class="boton primario" id="btn-vatsim" title="Abre VATSIM con el plan relleno. También envía la carga y pasajeros al simulador.">ABRIR EN VATSIM</button>
         </div>
+        <pre class="fpl" id="salida-fpl" style="display:none"></pre>
+        <div class="aviso" id="aviso-fpl"></div>
         <div class="aviso" id="aviso-payload"></div>
       </section>
 {% endblock %}
@@ -513,7 +511,9 @@ async function guardarPlan(via) {
   return datos;
 }
 
-$("btn-guardar").addEventListener("click", async () => {
+$("btn-guardar").addEventListener("click", async (ev) => {
+  aplicarPesoAlSimulador(ev.currentTarget);
+
   const aviso = $("aviso-fpl");
   aviso.classList.remove("error");
   aviso.textContent = "Guardando…";
@@ -549,7 +549,9 @@ $("btn-guardar").addEventListener("click", async () => {
 {% endif %}
 
 // -- generar el plan ICAO real, con el mismo código que usa el cliente. --
-$("btn-generar").addEventListener("click", async () => {
+$("btn-generar").addEventListener("click", async (ev) => {
+  aplicarPesoAlSimulador(ev.currentTarget);
+
   const aviso = $("aviso-fpl");
   const salida = $("salida-fpl");
   aviso.textContent = "";
@@ -586,7 +588,9 @@ $("btn-generar").addEventListener("click", async () => {
 // -- abrir VATSIM con el plan ya relleno (callsign, reglas, aeronave, ruta,
 // todo). EvA no lo envía por su cuenta: abre la página para que el piloto
 // la revise y pulse enviar él mismo. --
-$("btn-vatsim").addEventListener("click", async () => {
+$("btn-vatsim").addEventListener("click", async (ev) => {
+  aplicarPesoAlSimulador(ev.currentTarget);
+
   const aviso = $("aviso-fpl");
   aviso.textContent = "";
   aviso.classList.remove("error");
@@ -870,13 +874,68 @@ function parsearFPL(texto) {
 
 // -- aplicar carga al simulador ---
 
-$("btn-aplicar-payload").addEventListener("click", async () => {
+// La web no puede escribir en el simulador (vive en el PC del piloto, no
+// aquí): esto encola la solicitud y espera a que EvA Airliner, que sondea
+// cada 5 s, la recoja y reporte lo que de verdad entró. Por eso no hay un
+// "aplicado" inmediato: se espera al resultado real o se dice que no llegó.
+const ESPERA_RESULTADO_MS = 2000;
+const INTENTOS_ESPERA_RESULTADO = 15; // ~30 s: dos ciclos de sondeo del grabador
+
+function _describirResultadoPayload(resultado) {
+  if (resultado.carga) {
+    let texto = `Aplicado: ${resultado.carga_kg} kg de carga/pasajeros.`;
+    if (resultado.combustible === false) {
+      texto += " El combustible no se pudo tocar (no es un fallo del piloto).";
+    }
+    return { texto, esError: false };
+  }
+  return { texto: resultado.motivo || "El simulador no aplicó el peso.", esError: true };
+}
+
+async function _esperarResultadoPayload(aviso) {
+  for (let intento = 0; intento < INTENTOS_ESPERA_RESULTADO; intento++) {
+    await new Promise((resolve) => setTimeout(resolve, ESPERA_RESULTADO_MS));
+    let estado;
+    try {
+      estado = await (await fetch("/api/plan/estado-payload")).json();
+    } catch {
+      continue; // un fallo de red al consultar no es el resultado final: se reintenta
+    }
+    if (estado.resultado) {
+      const { texto, esError } = _describirResultadoPayload(estado.resultado);
+      aviso.textContent = texto;
+      aviso.classList.toggle("error", esError);
+      return;
+    }
+    if (!estado.pendiente) {
+      // Se retiró de la cola pero aún no hay resultado: sigue esperando el
+      // reporte, no lo da por perdido todavía.
+      continue;
+    }
+  }
+  aviso.textContent = "No se ha podido confirmar. Comprueba que EvA Airliner "
+    + "esté abierto y conectado al simulador.";
+  aviso.classList.add("error");
+}
+
+// Antes esto vivía solo en el click de "APLICAR AL SIMULADOR", un botón
+// aparte. Ahora lo llaman GUARDAR / GENERAR ICAO / ABRIR EN VATSIM, cada
+// uno nada más pulsarse: guardar o enviar el plan y aplicar el peso son la
+// misma acción para el piloto, no dos pasos.
+//
+// `boton` es el que se pulsó (para desactivarlo mientras se espera la
+// confirmación, igual que hacía el botón antiguo); es opcional porque
+// `aviso-payload` es el único elemento que de verdad hace falta.
+async function aplicarPesoAlSimulador(boton) {
   const aviso = $("aviso-payload");
-  aviso.textContent = "";
   aviso.classList.remove("error");
 
   const pasajeros = Number($("pasajeros").value) || 0;
   const cargaKg = Number($("carga-kg").value) || 0;
+  const aeronave = $("aeronave").value;
+
+  if (boton) boton.disabled = true;
+  aviso.textContent = "Enviando…";
 
   try {
     const r = await fetch("/api/plan/apply-payload", {
@@ -889,20 +948,23 @@ $("btn-aplicar-payload").addEventListener("click", async () => {
         passengers: pasajeros,
         cargo_kg: cargaKg,
         fuel_pct: 0,
+        aeronave: aeronave,
       }),
     });
     const datos = await r.json();
     if (!r.ok) {
-      aviso.textContent = datos.error || datos.description || "No se pudo aplicar la carga.";
+      aviso.textContent = datos.error || datos.description || "No se pudo encolar la carga.";
       aviso.classList.add("error");
       return;
     }
-    aviso.textContent = "Configuración aplicada al simulador.";
-    aviso.classList.remove("error");
+    aviso.textContent = "En cola: esperando a que EvA Airliner la aplique…";
+    await _esperarResultadoPayload(aviso);
   } catch {
     aviso.textContent = "No se pudo contactar con el servidor.";
     aviso.classList.add("error");
+  } finally {
+    if (boton) boton.disabled = false;
   }
-});
+}
 </script>
 {% endblock %}

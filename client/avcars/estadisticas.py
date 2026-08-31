@@ -74,6 +74,9 @@ def registrar_avlog(
 
     resumen = flight.summary
     plan = flight.flight_plan
+    # getattr, no flight.payload: los dobles de test (SimpleNamespace) no
+    # siempre lo traen, y un vuelo real de antes de esta fecha tampoco.
+    payload = getattr(flight, "payload", None)
     momento = _ahora()
     with cuentas.conexion() as con:
         con.execute(
@@ -81,8 +84,8 @@ def registrar_avlog(
             "callsign, origen, destino, aeronave, matricula, reglas, red, "
             "control_atc, distancia_nm, duracion_min, combustible_usado_kg, "
             "combustible_restante_kg, calidad, puntuacion, perfil_evaluacion, "
-            "incidencias, fecha, creado) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "incidencias, fecha, creado, pasajeros_aplicados, carga_kg_aplicada) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 huella,
                 flight.pilot.license_id,
@@ -104,6 +107,10 @@ def registrar_avlog(
                 json.dumps(_incidencias_de(verdict), ensure_ascii=False),
                 fecha or momento,
                 momento,
+                # Solo si el simulador confirmó haber escrito la carga: un
+                # intento fallido no debe parecer "vuelo sin pasajeros".
+                payload.requested_passengers if payload and payload.cargo_written_ok else None,
+                payload.applied_cargo_kg if payload and payload.cargo_written_ok else None,
             ),
         )
 

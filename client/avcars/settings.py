@@ -16,11 +16,11 @@ constante de la máquina de estados, por decisión explícita del proyecto.
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any, Optional
 
-from . import ubicacion
+from . import paths, ubicacion
 
 MODO_AUTOMATICO = "automatico"
 MODO_MANUAL = "manual"
@@ -47,9 +47,19 @@ class Settings:
     # para cuando ese fichero no está o no se encuentra.
     cid: str = ""
 
-    # Dirección del servidor de EvA. Se puede cambiar para apuntar a una
-    # instalación local mientras se desarrolla, sin tocar el código.
-    eva_url: str = "https://7c0cdce9-a46a-4339-9df6-50a26f00f11c.clouding.host"
+    # Dirección del servidor de EvA. Por defecto, la de producción de
+    # verdad -- eso es lo que necesita el `.exe` que usan los pilotos. En
+    # desarrollo (ejecutando el código con Python, sin empaquetar) el valor
+    # por defecto pasa a ser el servidor local: un `eva.config.json` nuevo
+    # creado en desarrollo que heredara el de producción hacía que el
+    # grabador hablara con el servidor real en vez de con el que se estaba
+    # probando, en silencio -- costó una tarde entera de depuración
+    # encontrarlo (2026-08-31). Solo afecta a un fichero nuevo: si ya existe
+    # `eva.config.json`, gana lo que haya escrito ahí, como siempre.
+    eva_url: str = field(default_factory=lambda: (
+        "https://7c0cdce9-a46a-4339-9df6-50a26f00f11c.clouding.host"
+        if paths.is_frozen() else "http://127.0.0.1:5000"
+    ))
 
     # Clave del grabador, la que el piloto genera en /descargar. Con ella EvA
     # Airliner lee del servidor el plan que preparó en la web y coge solo el

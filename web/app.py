@@ -22,6 +22,7 @@ import os
 import secrets
 import subprocess
 import sys
+import threading
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Optional
@@ -179,9 +180,12 @@ def exigir_sesion():
         "vuelo_vivo",
         # EvA Airliner no tiene sesión de navegador: entra una vez con sus
         # credenciales (`grabador_login`) y a partir de ahí se identifica
-        # con la clave del grabador en una cabecera (`grabador_plan`).
+        # con la clave del grabador en una cabecera (`grabador_plan`,
+        # `grabador_payload_pendiente`, `grabador_payload_resultado`).
         "grabador_login",
         "grabador_plan",
+        "grabador_payload_pendiente",
+        "grabador_payload_resultado",
     ):
         return None
     user_id = session.get("user_id")
@@ -2400,28 +2404,142 @@ def grabador_plan():
     })
 
 
-@app.route("/api/plan/apply-payload", methods=["POST"])
-def apply_payload():
-    """apply-payload no está conectado al simulador: no fingir éxito."""
-    data = request.get_json() or {}
+#: Solicitud de "aplicar peso" pendiente de que EvA Airliner la recoja, por
+#: piloto. La última pisa a la anterior a propósito: no hace falta cola, un
+#: piloto vuela un vuelo a la vez, y si pulsa el botón dos veces quiere la
+#: segunda, no las dos aplicadas en orden.
+_payload_pendiente: dict[str, dict] = {}
+#: Último resultado real que el grabador reportó tras intentarlo, para que
+#: /plan lo enseñe. No es un histórico: se pisa en cada intento.
+_payload_resultado: dict[str, dict] = {}
+_payload_lock = threading.Lock()
 
+
+def _validar_payload(data: dict) -> Optional[tuple[dict, int]]:
+    """Devuelve `(respuesta_error, código)` si algo no cuadra, o `None` si vale."""
     passengers = data.get("passengers", 0)
     cargo_kg = data.get("cargo_kg", 0)
     fuel_pct = data.get("fuel_pct", 100)
+    if not isinstance(passengers, (int, float)) or passengers < 0:
+        return {"error": "pasajeros no puede ser negativo"}, 422
+    if not isinstance(cargo_kg, (int, float)) or cargo_kg < 0:
+        return {"error": "carga no puede ser negativa"}, 422
+    if not isinstance(fuel_pct, (int, float)) or fuel_pct < 0 or fuel_pct > 100:
+        return {"error": "combustible debe estar entre 0 y 100"}, 422
+    if not str(data.get("aeronave") or "").strip():
+        return {"error": "falta el tipo de aeronave"}, 422
+    return None
 
-    # Validación
-    if passengers < 0:
-        return jsonify({"error": "pasajeros no puede ser negativo"}), 422
-    if cargo_kg < 0:
-        return jsonify({"error": "carga no puede ser negativa"}), 422
-    if fuel_pct < 0 or fuel_pct > 100:
-        return jsonify({"error": "combustible debe estar entre 0 y 100"}), 422
 
-    # Sin IPC cliente->web aún: respuesta honesta, no éxito simulado.
+@app.route("/api/plan/apply-payload", methods=["POST"])
+@login_requerido
+def apply_payload():
+    """Encola el peso pedido para que EvA Airliner lo aplique de verdad.
+
+    La web no puede hablar con SimConnect: vive en el PC del piloto, no
+    aquí, igual que con el plan de vuelo (ver `plan_web.py` en el cliente).
+    Esto deja la solicitud en una bandeja; es EvA Airliner quien la recoge
+    en su sondeo de cada 5 s (`grabador_payload_pendiente`) y quien informa
+    de lo que de verdad entró (`grabador_payload_resultado`). Por eso esto
+    nunca puede devolver éxito: solo que ha quedado en cola.
+    """
+    data = request.get_json(silent=True) or {}
+
+    error = _validar_payload(data)
+    if error is not None:
+        return jsonify(error[0]), error[1]
+
+    license_id = session["user_id"]
+    with _payload_lock:
+        _payload_pendiente[license_id] = {
+            "passengers": int(data.get("passengers", 0)),
+            "cargo_kg": float(data.get("cargo_kg", 0)),
+            "fuel_pct": int(data.get("fuel_pct", 100)),
+            "aeronave": str(data.get("aeronave") or "").strip(),
+            "solicitado_en": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        _payload_resultado.pop(license_id, None)
+
     return jsonify({
-        "error": "La carga al simulador aún no está disponible: "
-                 "no hay conexión con el simulador. No se aplicó nada."
-    }), 503
+        "ok": True,
+        "estado": "en_cola",
+        "mensaje": "En cola: se aplicará en unos segundos si EvA Airliner "
+                   "está abierto y conectado al simulador.",
+    }), 202
+
+
+@app.route("/api/plan/estado-payload")
+@login_requerido
+def estado_payload():
+    """Lo último que el grabador reportó para este piloto.
+
+    `/plan` lo consulta a intervalos cortos tras pulsar "Aplicar al
+    simulador", hasta ver un resultado o agotar la espera — nunca a ciegas
+    ni indefinidamente.
+    """
+    license_id = session["user_id"]
+    with _payload_lock:
+        pendiente = license_id in _payload_pendiente
+        resultado = _payload_resultado.get(license_id)
+    return jsonify({"ok": True, "pendiente": pendiente, "resultado": resultado})
+
+
+@app.route("/api/grabador/payload-pendiente")
+# El grabador sondea esto cada 5 s mientras vuela (ver `_poll_status` en
+# gui.py, sin el throttle de 60 s que sí tiene el plan): son hasta 720
+# peticiones/hora en uso normal. El límite anterior, 120/hora, se agotaba
+# a los 10 minutos de tener el grabador abierto y a partir de ahí toda
+# petición volvía 429 -- que `plan_web.payload_pendiente()` trata igual que
+# "sin red" y calla, así que el peso dejaba de aplicarse en silencio sin
+# que nada lo explicara ni en la web ni en el log del grabador. Con margen
+# sobre esas 720/hora.
+@limiter.limit("1200 per hour", exempt_when=lambda: app.config.get("TESTING", False))
+def grabador_payload_pendiente():
+    """La solicitud de peso pendiente para este piloto, si hay alguna.
+
+    Identificación por clave del grabador, igual que `grabador_plan` — el
+    grabador es una aplicación de escritorio, no una sesión de navegador.
+    Al leerla se retira de la bandeja: si el grabador no consigue aplicarla
+    (sin conexión con el simulador, p.ej.), el motivo va en el resultado que
+    reporta después, no se deja la solicitud para reintentar con datos que
+    ya pueden no valer para el vuelo que se esté grabando ahora.
+    """
+    clave = request.headers.get("X-EvA-Clave", "")
+    license_id = cuentas.piloto_por_clave_grabador(clave)
+    if not license_id:
+        return jsonify({"ok": False, "mensaje": "Clave no válida"}), 401
+
+    with _payload_lock:
+        solicitud = _payload_pendiente.pop(license_id, None)
+
+    return jsonify({"ok": True, "solicitud": solicitud})
+
+
+@app.route("/api/grabador/payload-resultado", methods=["POST"])
+@limiter.limit("120 per hour", exempt_when=lambda: app.config.get("TESTING", False))
+@csrf.exempt
+def grabador_payload_resultado():
+    """EvA Airliner informa de lo que de verdad aplicó al simulador, o por qué no.
+
+    Se traslada tal cual lo que devolvió `SimConnectConnector.set_payload()`:
+    esto no reinterpreta el resultado, solo lo hace visible en /plan.
+    """
+    clave = request.headers.get("X-EvA-Clave", "")
+    license_id = cuentas.piloto_por_clave_grabador(clave)
+    if not license_id:
+        return jsonify({"ok": False, "mensaje": "Clave no válida"}), 401
+
+    datos = request.get_json(silent=True) or {}
+    with _payload_lock:
+        _payload_resultado[license_id] = {
+            "carga": bool(datos.get("carga", False)),
+            "carga_kg": datos.get("carga_kg"),
+            "combustible": datos.get("combustible"),
+            "combustible_kg": datos.get("combustible_kg"),
+            "motivo": datos.get("motivo") or "",
+            "recibido_en": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+    return jsonify({"ok": True})
 
 
 @app.route("/api/registro/upload", methods=["POST"])

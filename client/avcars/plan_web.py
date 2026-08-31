@@ -99,6 +99,103 @@ def obtener_clave(eva_url: str, license_id: str, password: str) -> tuple[str, st
     return clave, ""
 
 
+def payload_pendiente(eva_url: str, clave: str) -> Optional[dict]:
+    """La solicitud de peso en cola para este piloto, o `None` si no hay
+    ninguna o algo ha ido mal.
+
+    Mismo trato que `ultimo_plan`: cualquier fallo de red, de clave o de
+    formato es un `None` silencioso — nunca una excepción que interrumpa al
+    grabador. El diccionario que devuelve trae `passengers`, `cargo_kg`,
+    `fuel_pct` y `aeronave`, tal como los validó la web.
+    """
+    eva_url = (eva_url or "").strip().rstrip("/")
+    clave = (clave or "").strip()
+    if not eva_url or not clave:
+        return None
+
+    peticion = urllib.request.Request(
+        f"{eva_url}/api/grabador/payload-pendiente",
+        headers={"X-EvA-Clave": clave, "User-Agent": "EvA-Airliner"},
+    )
+    try:
+        with urllib.request.urlopen(peticion, timeout=TIMEOUT_S) as respuesta:
+            if respuesta.status != 200:
+                return None
+            cuerpo = json.loads(respuesta.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        return None
+
+    if not isinstance(cuerpo, dict):
+        return None
+    solicitud = cuerpo.get("solicitud")
+    return solicitud if isinstance(solicitud, dict) else None
+
+
+def reportar_payload_resultado(eva_url: str, clave: str, resultado: dict) -> bool:
+    """Informa a la web de lo que `SimConnectConnector.set_payload()` aplicó
+    de verdad (o por qué no pudo). Best-effort: si esto falla, el vuelo se
+    sigue grabando igual — el resultado real queda en el `.avlog.json` vía
+    `FlightRecorder.registrar_payload_aplicado`, aunque `/plan` no llegue a
+    enseñarlo en el momento.
+    """
+    eva_url = (eva_url or "").strip().rstrip("/")
+    clave = (clave or "").strip()
+    if not eva_url or not clave:
+        return False
+
+    cuerpo = json.dumps(resultado).encode("utf-8")
+    peticion = urllib.request.Request(
+        f"{eva_url}/api/grabador/payload-resultado",
+        data=cuerpo,
+        headers={
+            "X-EvA-Clave": clave,
+            "Content-Type": "application/json",
+            "User-Agent": "EvA-Airliner",
+        },
+    )
+    try:
+        with urllib.request.urlopen(peticion, timeout=TIMEOUT_S) as respuesta:
+            return respuesta.status == 200
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        return False
+
+
+def clave_valida(eva_url: str, clave: str) -> Optional[bool]:
+    """¿El servidor sigue aceptando esta clave de grabador?
+
+    Distingue lo que `ultimo_plan`/`payload_pendiente` no distinguen: para
+    ellos un 401 (clave anulada, p. ej. porque el piloto cambió de cuenta o
+    el administrador la revocó) y un corte de wifi son el mismo `None`, y
+    así tiene que ser -- no pueden interrumpir al grabador por un problema
+    de red pasajero. Pero para decidir si hay que **enseñar el enlace de
+    reconectar**, sí importa la diferencia: un simple corte de red no debe
+    encender ese aviso (parpadearía cada vez que el wifi tose), solo una
+    clave que el servidor rechaza de verdad.
+
+    `True` la acepta, `False` la rechaza (401 -- hay que reconectar),
+    `None` no se ha podido saber (sin red, timeout, servidor caído: no se
+    toca el aviso, ni para encenderlo ni para apagarlo).
+    """
+    eva_url = (eva_url or "").strip().rstrip("/")
+    clave = (clave or "").strip()
+    if not eva_url or not clave:
+        return False
+
+    peticion = urllib.request.Request(
+        f"{eva_url}/api/grabador/plan",
+        headers={"X-EvA-Clave": clave, "User-Agent": "EvA-Airliner"},
+    )
+    try:
+        with urllib.request.urlopen(peticion, timeout=TIMEOUT_S) as respuesta:
+            return respuesta.status == 200
+    except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            return False
+        return None
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        return None
+
+
 def ultimo_plan(eva_url: str, clave: str) -> Optional[PlanWeb]:
     """El último plan guardado por ese piloto, o None si no se pudo saber.
 

@@ -203,6 +203,22 @@ class EvaApp:
         self._plan_web: Optional[plan_web.PlanWeb] = None
         self._plan_web_pedido_en = 0.0
         self._plan_web_pidiendo = False
+        #: True en cuanto el servidor rechaza la clave de grabador (401):
+        #: enciende el enlace de "conectar" aunque haya una clave guardada,
+        #: para que un cambio de contraseña no deje al grabador mudo sin
+        #: forma de arreglarlo (ver `_actualizar_enlace_web`). `None`/red
+        #: caída no lo tocan -- solo un rechazo explícito del servidor.
+        self._clave_grabador_invalida = False
+        #: Igual que `_plan_web_pidiendo`, pero para el peso pedido desde
+        #: /plan: evita lanzar un segundo sondeo mientras el anterior sigue
+        #: hablando con la web o con el simulador.
+        self._payload_pidiendo = False
+        #: Líneas que `_recoger_y_aplicar_payload` (hilo de fondo) quiere
+        #: que salgan en la bitácora. No se escriben ahí directamente: Tk no
+        #: admite que se le pinte desde otro hilo (mismo motivo que
+        #: `_plan_web`). `_poll_status` las recoge y las apunta de verdad en
+        #: el hilo principal (ver `_drenar_log_payload`).
+        self._payload_log_pendiente: list[str] = []
 
         # Datos que el simulador no ha sabido dar en algún momento. Solo
         # crece: cada uno se apunta una vez (ver `_avisar_datos_que_faltan`).
@@ -1194,6 +1210,8 @@ class EvaApp:
             self._set_button_idle()
 
         self._refresh_flight_plan_display()
+        self._comprobar_payload_pendiente()
+        self._drenar_log_payload()
 
         # Cada 5 s: es un vistazo a la lista de procesos, no hace falta más.
         self.root.after(5000, self._poll_status)
@@ -1233,6 +1251,10 @@ class EvaApp:
             text=_describir_ruta({"salida": self._plan_salida, "llegada": self._plan_llegada}),
             fg=FG_DIM if completa else RED,
         )
+        # El hilo de `_traer_plan_web` puede haber encendido el aviso de
+        # clave inválida desde el ciclo anterior: que se note en la ventana
+        # sin esperar a que el piloto haga algo.
+        self._actualizar_enlace_web()
 
     #: Cada cuánto se le vuelve a preguntar al servidor por el plan. La
     #: cabecera se refresca cada 5 s, pero el plan de la web cambia cuando
@@ -1270,10 +1292,123 @@ class EvaApp:
             self._plan_web = plan_web.ultimo_plan(
                 self.settings.eva_url, self.settings.clave_grabador
             )
+            # Solo se comprueba si el plan ha salido `None`: con plan de
+            # sobra no hace falta gastar otra petición en confirmar que la
+            # clave sigue viva. `None` de `clave_valida` (red caída, p.ej.)
+            # no toca nada -- ni enciende ni apaga el aviso.
+            if self._plan_web is None and self.settings.clave_grabador:
+                valida = plan_web.clave_valida(
+                    self.settings.eva_url, self.settings.clave_grabador
+                )
+                if valida is not None:
+                    self._clave_grabador_invalida = not valida
         except Exception as exc:  # noqa: BLE001 — no puede tumbar el grabador
             debuglog.fallo("lectura del plan de vuelo de la web", exc)
         finally:
             self._plan_web_pidiendo = False
+
+    def _comprobar_payload_pendiente(self) -> None:
+        """Si el piloto pulsó "Aplicar al simulador" en /plan, lo aplica ahora.
+
+        A diferencia del plan (que se consulta cada 60 s porque cambia poco),
+        esto se comprueba en cada ciclo de `_poll_status` (5 s): es una
+        acción que el piloto acaba de pedir y espera ver aplicada pronto, no
+        un dato de fondo. Corre en un hilo aparte para no congelar la
+        ventana mientras habla con la web o con SimConnect.
+        """
+        if not self.settings.clave_grabador:
+            return
+        if self._payload_pidiendo:
+            return
+        self._payload_pidiendo = True
+        threading.Thread(target=self._recoger_y_aplicar_payload, daemon=True).start()
+
+    def _recoger_y_aplicar_payload(self) -> None:
+        """Todo lo de red y SimConnect va aquí: nunca en el hilo de Tk."""
+        try:
+            solicitud = plan_web.payload_pendiente(
+                self.settings.eva_url, self.settings.clave_grabador
+            )
+            if solicitud is None:
+                return
+
+            pax = int(solicitud.get("passengers", 0))
+            carga_kg = float(solicitud.get("cargo_kg", 0))
+            self._payload_log_pendiente.append(
+                f"peso pedido desde /plan: {pax} pasajeros, {carga_kg:g} kg de carga"
+            )
+
+            resultado = self._aplicar_payload(solicitud)
+            plan_web.reportar_payload_resultado(
+                self.settings.eva_url, self.settings.clave_grabador, resultado
+            )
+
+            if resultado.get("carga"):
+                texto = f"peso aplicado al simulador: {resultado.get('carga_kg')} kg"
+                if resultado.get("combustible") is False:
+                    texto += " (el combustible no se pudo tocar)"
+                self._payload_log_pendiente.append(texto)
+            else:
+                self._payload_log_pendiente.append(
+                    "peso NO aplicado: "
+                    + (resultado.get("motivo") or "el simulador no dio ningún motivo")
+                )
+
+            if self.recorder is not None and self.recorder.running:
+                self.recorder.registrar_payload_aplicado(
+                    requested_passengers=pax,
+                    requested_cargo_kg=carga_kg,
+                    requested_fuel_pct=int(solicitud.get("fuel_pct", 0)),
+                    aircraft_icao_type=str(solicitud.get("aeronave", "")),
+                    resultado=resultado,
+                )
+        except Exception as exc:  # noqa: BLE001 — no puede tumbar el grabador
+            debuglog.fallo("aplicar el peso pedido desde la web", exc)
+            self._payload_log_pendiente.append(f"error al aplicar el peso pedido: {exc}")
+        finally:
+            self._payload_pidiendo = False
+
+    def _drenar_log_payload(self) -> None:
+        """Pasa a la bitácora lo que el hilo del peso fue anotando.
+
+        `_recoger_y_aplicar_payload` corre en un hilo aparte y no puede
+        tocar la ventana desde ahí (ver `_payload_log_pendiente`); esto se
+        llama desde `_poll_status`, en el hilo principal, así que aquí sí
+        se puede escribir de verdad en la bitácora.
+        """
+        if not self._payload_log_pendiente:
+            return
+        lineas, self._payload_log_pendiente = self._payload_log_pendiente, []
+        for linea in lineas:
+            self._apuntar_evento(linea)
+
+    def _aplicar_payload(self, solicitud: dict) -> dict:
+        """Escribe la carga en el simulador si hay con qué. Nunca finge éxito.
+
+        El combustible se pide pero **no se toca todavía**: `/plan` no tiene
+        hoy un selector de combustible real, y aplicar el `fuel_pct` de
+        fábrica (0) vaciaría el depósito sin que el piloto lo haya pedido.
+        Por eso no se pasa `combustible_util_kg` — sin él, `set_payload()`
+        deja el combustible intacto por diseño (ver `set_payload` en
+        `simconnect_client.py`).
+        """
+        sin_conexion = {
+            "carga": False,
+            "combustible": None,
+            "carga_kg": 0.0,
+            "combustible_kg": None,
+            "motivo": "sin conexión con el simulador",
+        }
+        if not isinstance(self.connector, SimConnectConnector):
+            return sin_conexion
+        if not self.connector.connected:
+            return sin_conexion
+
+        return self.connector.set_payload(
+            passengers=int(solicitud.get("passengers", 0)),
+            cargo_kg=float(solicitud.get("cargo_kg", 0)),
+            fuel_pct=int(solicitud.get("fuel_pct", 0)),
+        )
 
     #: Tamaño único de todos los avisos de la cabecera. Estaban a 16 y a 10
     #: y no había motivo: los cuatro dicen lo mismo (lo tengo / me falta).
@@ -1285,8 +1420,15 @@ class EvaApp:
         )
 
     def _actualizar_enlace_web(self) -> None:
-        """Enseña el atajo de enlazar solo mientras no haya clave."""
-        if self.settings.clave_grabador:
+        """Enseña el atajo de enlazar sin clave, o con una que ya no vale.
+
+        Antes solo miraba si `clave_grabador` estaba vacía: una clave
+        rechazada por el servidor (p. ej. tras cambiar la contraseña de la
+        cuenta) seguía contando como "conectado" y el piloto se quedaba sin
+        forma de arreglarlo desde aquí -- solo "sin plan de vuelo" y el peso
+        sin aplicarse, ambos en silencio. Ver `_clave_grabador_invalida`.
+        """
+        if self.settings.clave_grabador and not self._clave_grabador_invalida:
             self.route_link.pack_forget()
         else:
             self._empaquetar_enlace_web()
@@ -1348,6 +1490,7 @@ class EvaApp:
 
             self.settings.clave_grabador = clave
             self.settings.license_id = campo_id.get().strip()
+            self._clave_grabador_invalida = False
             if not settings_module.save(self.settings, paths.settings_file()):
                 aviso.configure(
                     text="Entraste bien, pero no se pudieron guardar las "

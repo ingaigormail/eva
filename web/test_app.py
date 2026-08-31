@@ -36,6 +36,20 @@ def _sesion_de_escritorio_aislada(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _payload_pendiente_aislado():
+    """La bandeja de "aplicar peso" es un dict a nivel de módulo en `app.py`:
+    sin limpiarla, lo que deja un test lo hereda el siguiente (mismo piloto
+    de sesión, "pruebas", en casi todos)."""
+    import app as app_module
+
+    app_module._payload_pendiente.clear()
+    app_module._payload_resultado.clear()
+    yield
+    app_module._payload_pendiente.clear()
+    app_module._payload_resultado.clear()
+
+
+@pytest.fixture(autouse=True)
 def _altas_aisladas(tmp_path):
     """Las cuentas de los tests, a un temporal: `web/data/usuarios.json` no se toca.
 
@@ -427,7 +441,7 @@ def test_aplicar_payload_rechaza_valores_negativos(cliente):
     """El endpoint /api/plan/apply-payload rechaza pasajeros/carga negativos."""
     respuesta = cliente.post(
         "/api/plan/apply-payload",
-        json={"passengers": -1, "cargo_kg": 0, "fuel_pct": 100},
+        json={"passengers": -1, "cargo_kg": 0, "fuel_pct": 100, "aeronave": "C172"},
     )
     assert respuesta.status_code == 422
 
@@ -437,21 +451,60 @@ def test_aplicar_payload_rechaza_combustible_fuera_de_rango(cliente):
     for fuel_pct in (-1, 101, 150):
         respuesta = cliente.post(
             "/api/plan/apply-payload",
-            json={"passengers": 0, "cargo_kg": 0, "fuel_pct": fuel_pct},
+            json={"passengers": 0, "cargo_kg": 0, "fuel_pct": fuel_pct, "aeronave": "C172"},
         )
         assert respuesta.status_code == 422
 
 
-def test_aplicar_payload_no_finge_exito(cliente):
-    """apply-payload es honesto: sin IPC simulador no devuelve éxito falso."""
+def test_aplicar_payload_exige_aeronave(cliente):
+    """Sin tipo de aeronave no hay forma de saber cuánto combustible cabe."""
     respuesta = cliente.post(
         "/api/plan/apply-payload",
-        json={"passengers": 5, "cargo_kg": 500, "fuel_pct": 75},
+        json={"passengers": 0, "cargo_kg": 0, "fuel_pct": 100},
     )
-    assert respuesta.status_code == 503
+    assert respuesta.status_code == 422
+
+
+def test_aplicar_payload_sin_sesion_no_encola_nada(sin_sesion):
+    """No hay `license_id` de quién es la solicitud sin sesión: 302 a login."""
+    respuesta = sin_sesion.post(
+        "/api/plan/apply-payload",
+        json={"passengers": 4, "cargo_kg": 100, "fuel_pct": 0, "aeronave": "C172"},
+    )
+    assert respuesta.status_code in (302, 401)
+
+
+def test_aplicar_payload_queda_en_cola_no_finge_exito(cliente):
+    """Honesto: la web no habla con el simulador, así que no promete "aplicado".
+
+    Solo dice que ha quedado en cola — lo aplica EvA Airliner, no esto.
+    """
+    respuesta = cliente.post(
+        "/api/plan/apply-payload",
+        json={"passengers": 5, "cargo_kg": 500, "fuel_pct": 75, "aeronave": "C172"},
+    )
+    assert respuesta.status_code == 202
     datos = respuesta.get_json()
-    assert datos.get("success") is not True
-    assert "no hay conexión con el simulador" in datos["error"]
+    assert datos["ok"] is True
+    assert datos["estado"] == "en_cola"
+
+
+def test_estado_payload_sin_haber_pedido_nada(cliente):
+    respuesta = cliente.get("/api/plan/estado-payload")
+    assert respuesta.status_code == 200
+    datos = respuesta.get_json()
+    assert datos["pendiente"] is False
+    assert datos["resultado"] is None
+
+
+def test_estado_payload_ve_la_solicitud_en_cola(cliente):
+    cliente.post(
+        "/api/plan/apply-payload",
+        json={"passengers": 2, "cargo_kg": 50, "fuel_pct": 0, "aeronave": "C172"},
+    )
+    datos = cliente.get("/api/plan/estado-payload").get_json()
+    assert datos["pendiente"] is True
+    assert datos["resultado"] is None
 
 
 # -- D3: Registro y telemetría -----------------------------------------------

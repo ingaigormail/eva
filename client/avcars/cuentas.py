@@ -194,11 +194,17 @@ CREATE INDEX IF NOT EXISTS planes_piloto ON planes (license_id);
 --
 -- 2026-08-18: se ensancha con datos que YA graba el cliente pero que hasta
 -- ahora se tiraban al integrar el vuelo (combustible, matrícula, red, reglas,
--- perfil de evaluación). Deliberadamente NO lleva pasajeros, carga, equipaje
--- ni coste de combustible: ese dato no existe en ningún sitio del proyecto
--- todavía (ni en el grabador ni en el esquema del vuelo). Añadir una columna
--- para un dato que no se captura sería inventarlo; el hueco se abre aquí sin
--- coste el día que el grabador empiece a guardarlo.
+-- perfil de evaluación).
+--
+-- 2026-08-30: pasajeros_aplicados/carga_kg_aplicada llegan por
+-- `_migrar_esquema()`, no aquí, porque bases de datos reales ya tenían esta
+-- tabla sin ellas. Es el peso que el piloto pidió al simulador desde /plan Y
+-- que `set_payload()` confirmó haber escrito (`FlightLog.payload`, ver
+-- schema.py) — no lo que se pidió, si falló la escritura.
+--
+-- Sigue sin combustible aplicado: `/plan` no tiene todavía un selector real
+-- y esa columna se abre el día que exista, no antes (mismo motivo de
+-- siempre: no hay columna para un dato que no se captura).
 CREATE TABLE IF NOT EXISTS vuelos_resumen (
     huella           TEXT PRIMARY KEY,
     license_id       TEXT NOT NULL,
@@ -340,6 +346,18 @@ def _migrar_esquema() -> None:
         if "vatsim_cid" not in columnas_solicitudes:
             con.execute(
                 "ALTER TABLE solicitudes ADD COLUMN vatsim_cid TEXT NOT NULL DEFAULT ''"
+            )
+
+        columnas_vuelos = {
+            fila["name"] for fila in con.execute("PRAGMA table_info(vuelos_resumen)")
+        }
+        if "pasajeros_aplicados" not in columnas_vuelos:
+            con.execute(
+                "ALTER TABLE vuelos_resumen ADD COLUMN pasajeros_aplicados INTEGER"
+            )
+        if "carga_kg_aplicada" not in columnas_vuelos:
+            con.execute(
+                "ALTER TABLE vuelos_resumen ADD COLUMN carga_kg_aplicada REAL"
             )
 
 

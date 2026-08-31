@@ -174,6 +174,53 @@ def test_un_vuelo_no_evaluable_no_guarda_puntuacion(almacen_tmp):
     assert fila["puntuacion"] is None
 
 
+# -- payload aplicado (peso al simulador) ----------------------------------
+
+
+def _con_payload(cargo_written_ok, requested_passengers=4, applied_cargo_kg=440.0):
+    vuelo = _vuelo()
+    vuelo.payload = SimpleNamespace(
+        requested_passengers=requested_passengers,
+        cargo_written_ok=cargo_written_ok,
+        applied_cargo_kg=applied_cargo_kg,
+    )
+    return vuelo
+
+
+def test_un_vuelo_sin_boton_de_aplicar_no_guarda_payload(almacen_tmp):
+    """La mayoría de vuelos hoy: nadie pulsó 'Aplicar al simulador'."""
+    estadisticas.registrar_avlog("h1", _vuelo(), _verdict(), fecha="2026-08-01")
+    with cuentas.conexion() as con:
+        fila = dict(con.execute("SELECT * FROM vuelos_resumen WHERE huella = 'h1'").fetchone())
+    assert fila["pasajeros_aplicados"] is None
+    assert fila["carga_kg_aplicada"] is None
+
+
+def test_un_payload_confirmado_por_el_simulador_se_guarda(almacen_tmp):
+    estadisticas.registrar_avlog(
+        "h1", _con_payload(cargo_written_ok=True), _verdict(), fecha="2026-08-01"
+    )
+    with cuentas.conexion() as con:
+        fila = dict(con.execute("SELECT * FROM vuelos_resumen WHERE huella = 'h1'").fetchone())
+    assert fila["pasajeros_aplicados"] == 4
+    assert fila["carga_kg_aplicada"] == 440.0
+
+
+def test_un_payload_que_el_simulador_rechazo_no_se_guarda_como_si_hubiera_entrado(almacen_tmp):
+    """`cargo_written_ok=False`: el piloto pidió el peso pero no llegó a aplicarse.
+
+    Guardarlo igual sería justo el bug que ya pasó una vez con `set_payload`:
+    la cartilla diciendo un peso que el avión nunca llevó.
+    """
+    estadisticas.registrar_avlog(
+        "h1", _con_payload(cargo_written_ok=False), _verdict(), fecha="2026-08-01"
+    )
+    with cuentas.conexion() as con:
+        fila = dict(con.execute("SELECT * FROM vuelos_resumen WHERE huella = 'h1'").fetchone())
+    assert fila["pasajeros_aplicados"] is None
+    assert fila["carga_kg_aplicada"] is None
+
+
 def test_sin_ningun_vuelo_los_agregados_no_revientan(almacen_tmp):
     assert estadisticas.kpis_globales()["total_vuelos"] == 0
     assert estadisticas.top_pilotos_actividad() == []
