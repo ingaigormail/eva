@@ -594,6 +594,23 @@ def test_detalle_registro_renderiza_telemetria_correctamente(cliente):
     assert '"gs"' in html
 
 
+def test_registro_no_se_puede_salir_de_las_carpetas(cliente):
+    """`/registro/<nombre>` no debe leer ficheros del sistema con `../`.
+
+    Antes construía `directory / nombre` con lo que llegaba en la URL: sin
+    explotar de milagro (`es_de()` da falso para lo que no es un vuelo), pero
+    por accidente, no por diseño. Mismo caso que ya cubre
+    `test_no_se_puede_salir_de_las_carpetas` para `/vuelo/<nombre>`.
+    """
+    _login(cliente)
+    for intento in (
+        "..%2f..%2fetc%2fpasswd",
+        "....//....//etc//passwd",
+        "%2Fetc%2Fpasswd",
+    ):
+        assert cliente.get(f"/registro/{intento}").status_code in (404, 308)
+
+
 # -- Upload de CSV -----------------------------------------------------------
 
 

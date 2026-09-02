@@ -382,6 +382,29 @@ def _find_by_name(name: str) -> Optional[Path]:
     return None
 
 
+def _find_registro_by_name(name: str) -> Optional[Path]:
+    """Localiza un CSV o AVLOG de `/registro/<nombre>` por nombre de fichero.
+
+    Mismo principio que `_find_by_name`: nunca se construye una ruta con lo
+    que llega en la URL (`directory / nombre`), porque eso deja pasar un
+    nombre con `..` hasta que otra comprobación lo pare por accidente. Aquí
+    se compara el nombre contra los CSV y AVLOG que de verdad existen en
+    `SEARCH_DIRS`. A diferencia de `_find_by_name` (que solo mira
+    `find_flights()`, es decir AVLOG), este también cubre los `.csv` de
+    fstelemetry, que es lo que `/registro/<nombre>` enseña.
+    """
+    for directory in SEARCH_DIRS:
+        if not directory.exists():
+            continue
+        for path in directory.glob("*.csv"):
+            if path.name == name:
+                return path
+        for path in directory.glob("*.avlog.json"):
+            if path.name == name:
+                return path
+    return None
+
+
 # -- presentación -------------------------------------------------------
 
 
@@ -1959,15 +1982,7 @@ def _resumen_de_la_cartilla(vuelos: list[dict]) -> dict:
 @login_requerido
 def detalle_registro(nombre: str):
     """D3: Detalle de vuelo grabado (CSV o AVLOG)."""
-    # Buscar el archivo
-    archivo_path = None
-    for directory in SEARCH_DIRS:
-        if not directory.exists():
-            continue
-        candidate = directory / nombre
-        if candidate.exists():
-            archivo_path = candidate
-            break
+    archivo_path = _find_registro_by_name(nombre)
 
     if not archivo_path:
         abort(404)
